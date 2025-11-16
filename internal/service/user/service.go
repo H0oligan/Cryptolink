@@ -17,6 +17,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	// bcryptCost defines the computational cost for password hashing.
+	// Cost of 12 provides strong security while remaining performant on modern hardware.
+	bcryptCost = 12
+)
+
 type Service struct {
 	store     repository.Storage
 	publisher bus.Publisher
@@ -227,7 +233,7 @@ func validateEmail(email string) error {
 }
 
 func hashPass(pass string) (string, error) {
-	hashed, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(pass), bcryptCost)
 	if err != nil {
 		return "", err
 	}

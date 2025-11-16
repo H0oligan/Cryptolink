@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	kms "github.com/oxygenpay/oxygen/internal/kms/wallet"
 	"github.com/oxygenpay/oxygen/internal/money"
@@ -49,6 +50,18 @@ const (
 	registryHMACEnabledMainnet = "tatum.hmac_enabled.mainnet"
 	registryHMACEnabledTestnet = "tatum.hmac_enabled.testnet"
 )
+
+// httpClient is configured with appropriate timeouts to prevent resource exhaustion
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		DisableKeepAlives:   false,
+	},
+}
 
 func New(config Config, registryService *registry.Service, logger *zerolog.Logger) *Provider {
 	if config.BasePath == "" {
@@ -135,7 +148,7 @@ func (p *Provider) SubscribeToWebhook(ctx context.Context, params SubscriptionPa
 	req.Header.Set(TokenHeader, token)
 	req.Header.Set("User-Agent", token)
 	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -191,7 +204,9 @@ func (p *Provider) ValidateHMAC(body []byte, hash string) bool {
 }
 
 func (p *Provider) ensureHMAC(secret string, isForce bool) {
-	ctx := context.Background()
+	// Use context with timeout instead of Background to prevent indefinite hangs
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	if err := p.enableSubscriptionSignature(ctx, secret, false, isForce); err != nil {
 		p.logger.Warn().Err(err).Bool("is_force", isForce).Msgf("unable to ensure HMAC for mainnet")

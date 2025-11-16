@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/oxygenpay/oxygen/internal/config"
 	"github.com/spf13/cobra"
@@ -81,6 +79,4 @@ func init() {
 
 	topupBalanceSetup(topupBalanceCommand)
 	rootCmd.AddCommand(topupBalanceCommand)
-
-	rand.Seed(time.Now().Unix())
 }

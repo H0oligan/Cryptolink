@@ -9,7 +9,10 @@ oxygen:
     port: 80
     session:
       path: /opt/oxygen/sessions/
-      secret: session-secret
+      # SECURITY WARNING: Generate a strong random secret (minimum 32 characters)
+      # Use: openssl rand -base64 32
+      # DO NOT use the example value below in production!
+      secret: REPLACE_WITH_STRONG_RANDOM_SECRET_MIN_32_CHARS
     cors:
       allow_origins:
         - https://pay.site.com

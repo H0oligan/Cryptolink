@@ -2,9 +2,11 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
-	"math/rand"
+	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -103,11 +105,16 @@ func (m *TokenAuthManager) createToken(
 	tokenType TokenType,
 	entityID int64, name string,
 ) (*APIToken, error) {
+	token, err := generateToken(64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
 	entry, err := m.repo.CreateAPIToken(ctx, repository.CreateAPITokenParams{
 		EntityType: string(tokenType),
 		EntityID:   entityID,
 		CreatedAt:  time.Now(),
-		Token:      generateToken(64),
+		Token:      token,
 		Uuid:       uuid.New(),
 		Name: sql.NullString{
 			Valid:  true,
@@ -168,14 +175,17 @@ func entryToAPIToken(entry repository.ApiToken) *APIToken {
 	}
 }
 
-func generateToken(length int) string {
+func generateToken(length int) (string, error) {
 	result := make([]byte, length)
 
 	for i := range result {
-		// nolint gosec
-		j := rand.Intn(len(tokenRuneSource))
-		result[i] = tokenRuneSource[j]
+		// Use crypto/rand for cryptographically secure random number generation
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(tokenRuneSource))))
+		if err != nil {
+			return "", fmt.Errorf("failed to generate random number: %w", err)
+		}
+		result[i] = tokenRuneSource[num.Int64()]
 	}
 
-	return string(result)
+	return string(result), nil
 }

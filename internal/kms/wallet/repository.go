@@ -46,7 +46,7 @@ func (r *Repository) Get(id uuid.UUID, withTrashed bool) (*Wallet, error) {
 	}
 
 	if w.DeletedAt != nil && !withTrashed {
-		return nil, err
+		return nil, ErrNotFound
 	}
 
 	return w, err

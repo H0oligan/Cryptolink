@@ -77,10 +77,12 @@ func WithDashboardAPI(
 		merchantGroup.PUT("/webhook", handler.UpdateMerchantWebhook)
 		merchantGroup.PUT("/supported-method", handler.UpdateMerchantSupportedMethods)
 
-		// Merchant Tokens
-		merchantGroup.GET("/token", handler.ListMerchantTokens)
-		merchantGroup.POST("/token", handler.CreateMerchantToken)
-		merchantGroup.DELETE("/token/:tokenId", handler.DeleteMerchantTokens)
+		// Merchant Tokens (rate limited to prevent abuse)
+		tokenRL := mw.NewRateLimiterMemoryStore(20) // 20 requests per second
+		tokenGroup := merchantGroup.Group("/token", mw.RateLimiter(tokenRL))
+		tokenGroup.GET("", handler.ListMerchantTokens)
+		tokenGroup.POST("", handler.CreateMerchantToken)
+		tokenGroup.DELETE("/:tokenId", handler.DeleteMerchantTokens)
 
 		// Merchant Addresses
 		merchantGroup.GET("/address", handler.ListMerchantAddresses)
@@ -89,9 +91,11 @@ func WithDashboardAPI(
 		merchantGroup.PUT("/address/:addressId", handler.UpdateMerchantAddress)
 		merchantGroup.DELETE("/address/:addressId", handler.DeleteMerchantAddress)
 
-		// Withdrawals
-		merchantGroup.POST("/withdrawal", handler.CreateWithdrawal)
-		merchantGroup.GET("/withdrawal-fee", handler.GetWithdrawalFee)
+		// Withdrawals (rate limited to prevent abuse)
+		withdrawalRL := mw.NewRateLimiterMemoryStore(10) // 10 requests per second
+		withdrawalGroup := merchantGroup.Group("/withdrawal", mw.RateLimiter(withdrawalRL))
+		withdrawalGroup.POST("", handler.CreateWithdrawal)
+		withdrawalGroup.GET("-fee", handler.GetWithdrawalFee)
 
 		// Form
 		merchantGroup.POST("/form", handler.CreateFormSubmission)
@@ -120,13 +124,17 @@ func WithMerchantAPI(handler *merchantapi.Handler, tokensManager *auth.TokenAuth
 // session auth: "/api/dashboard/v1/merchant/{merchant}/*"
 // token auth: "/api/merchant/v1/merchant/{merchant}/*"
 func setupCommonMerchantRoutes(g *echo.Group, handler *merchantapi.Handler) {
-	paymentGroup := g.Group("/payment")
+	// Payment routes (rate limited to prevent abuse)
+	paymentRL := mw.NewRateLimiterMemoryStore(100) // 100 requests per second
+	paymentGroup := g.Group("/payment", mw.RateLimiter(paymentRL))
 
 	paymentGroup.GET("", handler.ListPayments)
 	paymentGroup.GET("/:paymentId", handler.GetPayment)
 	paymentGroup.POST("", handler.CreatePayment)
 
-	paymentLinkGroup := g.Group("/payment-link")
+	// Payment link routes (rate limited to prevent abuse)
+	paymentLinkRL := mw.NewRateLimiterMemoryStore(50) // 50 requests per second
+	paymentLinkGroup := g.Group("/payment-link", mw.RateLimiter(paymentLinkRL))
 
 	paymentLinkGroup.GET("", handler.ListPaymentLinks)
 	paymentLinkGroup.GET("/:paymentLinkId", handler.GetPaymentLink)

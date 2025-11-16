@@ -19,7 +19,17 @@ const (
 	HeaderSignature = "X-Signature"
 )
 
-var client = http.DefaultClient
+// client is configured with appropriate timeouts to prevent resource exhaustion
+var client = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		DisableKeepAlives:   false,
+	},
+}
 
 var (
 	ErrInvalidInput      = errors.New("invalid input")
