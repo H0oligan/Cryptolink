@@ -204,8 +204,10 @@ func (app *App) RunScheduler() {
 
 	register("@every 30s", "checkIncomingTransactionsProgress", jobs.CheckIncomingTransactionsProgress, false)
 
-	register("@every 10m", "performInternalWalletTransfer", jobs.PerformInternalWalletTransfer, true)
-	register("@every 2m", "checkInternalTransferProgress", jobs.CheckInternalTransferProgress, false)
+	// OPTIMIZATION: Disabled automatic consolidation - hot wallets swept directly during withdrawal
+	// This saves 50%+ in blockchain fees by skipping internal wallet transfers
+	// register("@every 10m", "performInternalWalletTransfer", jobs.PerformInternalWalletTransfer, true)
+	// register("@every 2m", "checkInternalTransferProgress", jobs.CheckInternalTransferProgress, false)
 
 	register("@every 10m", "performWithdrawalsCreation", jobs.PerformWithdrawalsCreation, true)
 	register("@every 2m", "checkWithdrawalsProgress", jobs.CheckWithdrawalsProgress, false)

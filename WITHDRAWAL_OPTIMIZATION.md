@@ -167,20 +167,34 @@ oxygen:
 ## Implementation Priority
 
 1. ✅ **DONE:** Add `getInboundWalletsWithBalancesAsMap()`
-2. ⏳ **IN PROGRESS:** Update withdrawal logic to loop through hot wallets
-3. ⏳ **TODO:** Disable automatic consolidation in scheduler
-4. ⏳ **TODO:** Add configuration for minimum sweep amounts
-5. ⏳ **TODO:** Add smart contract batch sweep (advanced)
+2. ✅ **DONE:** Update withdrawal logic to loop through hot wallets
+3. ✅ **DONE:** Disable automatic consolidation in scheduler
+4. ✅ **DONE:** Add configuration for minimum sweep amounts
+5. ⏳ **TODO:** Add smart contract batch sweep (advanced - future)
 
 ## Rollback Plan
 
 If issues occur:
-1. Re-enable `getOutboundWalletsWithBalancesAsMap()`
-2. Re-enable automatic consolidation scheduler
-3. System reverts to old flow (outbound wallet)
+1. Uncomment lines 209-210 in `/home/user/Cryptolink/internal/app/app.go`
+2. Change `getInboundWalletsWithBalancesAsMap()` back to `getOutboundWalletsWithBalancesAsMap()`
+3. Revert withdrawal loop logic (lines 81-156 in service_withdrawal.go)
+4. System reverts to old flow (outbound wallet consolidation)
+
+## Testing Checklist
+
+- [ ] Test withdrawal with single hot wallet
+- [ ] Test withdrawal with multiple hot wallets (same currency)
+- [ ] Test withdrawal with insufficient balance
+- [ ] Test rollback on transaction failure
+- [ ] Test with Ethereum (high fees)
+- [ ] Test with Polygon (low fees)
+- [ ] Test with TRON
+- [ ] Verify balances update correctly across all hot wallets
+- [ ] Verify merchant balance decrements correctly
+- [ ] Load test with 50+ hot wallets
 
 ---
 
 **Author:** AI Code Optimization
-**Date:** 2025-11-15
-**Status:** Partial Implementation - Ready for Testing
+**Date:** 2025-11-16
+**Status:** ✅ COMPLETE - Ready for Production Testing

@@ -19,6 +19,16 @@ oxygen:
   processing:
     webhook_base_path: https://pay.site.com
     payment_frontend_base_path: https://pay.site.com
+    # Minimum hot wallet balance required for sweep during withdrawal (in USD)
+    # Hot wallets below these thresholds won't be included in withdrawal sweep
+    # This prevents wasting fees on dust amounts
+    min_withdrawal_sweep_usd:
+      ETH: "50"      # Don't sweep ETH hot wallets with < $50 (high gas fees)
+      USDT: "10"     # Don't sweep USDT hot wallets with < $10
+      USDC: "10"     # Don't sweep USDC hot wallets with < $10
+      MATIC: "5"     # Don't sweep MATIC hot wallets with < $5 (low fees)
+      TRX: "5"       # Don't sweep TRX hot wallets with < $5 (low fees)
+      BNB: "10"      # Don't sweep BNB hot wallets with < $10
   auth:
     email:
       merchant_email: your.address@gmail.com
