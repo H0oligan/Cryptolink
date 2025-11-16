@@ -17,16 +17,19 @@ import (
 )
 
 // BatchCreateWithdrawals ingests list of withdrawals and creates & broadcasts transactions.
+// OPTIMIZED: Sweeps funds directly from hot wallets (inbound) to merchant wallet
+// Skips internal wallet consolidation - saves network fees!
 func (s *Service) BatchCreateWithdrawals(ctx context.Context, withdrawalIDs []int64) (*TransferResult, error) {
 	withdrawals, err := s.payments.ListWithdrawals(ctx, payment.StatusPending, withdrawalIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	// 1. Get OUTBOUND wallets and balances
-	outboundWallets, outboundBalances, err := s.getOutboundWalletsWithBalancesAsMap(ctx)
+	// 1. Get INBOUND wallets (hot wallets) and their balances
+	// Instead of using outbound (internal) wallet, we sweep directly from hot wallets
+	inboundWallets, inboundBalances, err := s.getInboundWalletsWithBalancesAsMap(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to get outbound wallets with balances")
+		return nil, errors.Wrap(err, "unable to get inbound wallets with balances")
 	}
 
 	result := &TransferResult{}
