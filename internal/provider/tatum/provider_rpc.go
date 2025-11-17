@@ -20,6 +20,14 @@ func (p *Provider) BinanceSmartChainRPC(ctx context.Context, isTest bool) (*ethc
 	return ethclient.DialContext(ctx, p.rpcPath("v3/blockchain/node/BSC", isTest))
 }
 
+func (p *Provider) ArbitrumRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
+	return ethclient.DialContext(ctx, p.rpcPath("v3/blockchain/node/ARBITRUM", isTest))
+}
+
+func (p *Provider) AvalancheRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
+	return ethclient.DialContext(ctx, p.rpcPath("v3/blockchain/node/AVAX", isTest))
+}
+
 func (p *Provider) rpcPath(path string, isTest bool) string {
 	url := fmt.Sprintf("%s/%s/%s", p.config.BasePath, path, p.config.APIKey)
 	if !isTest {

@@ -161,6 +161,76 @@ func (s *Service) createSignedTransaction(
 		return res.Payload.RawTransaction, nil
 	}
 
+	if currency.Blockchain == kms.ARBITRUM.ToMoneyBlockchain() {
+		networkID, err := strconv.Atoi(currency.ChooseNetwork(isTest))
+		if err != nil {
+			return "", errors.Wrap(err, "unable to parse network id")
+		}
+
+		arbitrumFee, err := fee.ToArbitrumFee()
+		if err != nil {
+			return "", errors.Wrap(err, "fee is not ARBITRUM")
+		}
+
+		// Arbitrum is EVM-compatible, use Ethereum transaction structure
+		res, err := s.kms.CreateEthereumTransaction(&kmsclient.CreateEthereumTransactionParams{
+			Context:  ctx,
+			WalletID: sender.UUID.String(),
+			Data: &kmsmodel.CreateEthereumTransactionRequest{
+				Amount:            amount.StringRaw(),
+				AssetType:         kmsmodel.AssetType(currency.Type),
+				ContractAddress:   currency.ChooseContractAddress(isTest),
+				Gas:               int64(arbitrumFee.GasUnits),
+				MaxFeePerGas:      arbitrumFee.GasPrice,
+				MaxPriorityPerGas: arbitrumFee.PriorityFee,
+				NetworkID:         int64(networkID),
+				Nonce:             util.Ptr(nonce),
+				Recipient:         recipient,
+			},
+		})
+
+		if err != nil {
+			return "", errors.Wrap(err, "unable to create ARBITRUM transaction")
+		}
+
+		return res.Payload.RawTransaction, nil
+	}
+
+	if currency.Blockchain == kms.AVAX.ToMoneyBlockchain() {
+		networkID, err := strconv.Atoi(currency.ChooseNetwork(isTest))
+		if err != nil {
+			return "", errors.Wrap(err, "unable to parse network id")
+		}
+
+		avaxFee, err := fee.ToAvaxFee()
+		if err != nil {
+			return "", errors.Wrap(err, "fee is not AVAX")
+		}
+
+		// Avalanche C-Chain is EVM-compatible, use Ethereum transaction structure
+		res, err := s.kms.CreateEthereumTransaction(&kmsclient.CreateEthereumTransactionParams{
+			Context:  ctx,
+			WalletID: sender.UUID.String(),
+			Data: &kmsmodel.CreateEthereumTransactionRequest{
+				Amount:            amount.StringRaw(),
+				AssetType:         kmsmodel.AssetType(currency.Type),
+				ContractAddress:   currency.ChooseContractAddress(isTest),
+				Gas:               int64(avaxFee.GasUnits),
+				MaxFeePerGas:      avaxFee.GasPrice,
+				MaxPriorityPerGas: avaxFee.PriorityFee,
+				NetworkID:         int64(networkID),
+				Nonce:             util.Ptr(nonce),
+				Recipient:         recipient,
+			},
+		})
+
+		if err != nil {
+			return "", errors.Wrap(err, "unable to create AVAX transaction")
+		}
+
+		return res.Payload.RawTransaction, nil
+	}
+
 	if currency.Blockchain == kms.TRON.ToMoneyBlockchain() {
 		tronFee, err := fee.ToTronFee()
 		if err != nil {
@@ -190,6 +260,30 @@ func (s *Service) createSignedTransaction(
 		}
 
 		return string(resAsBytes), nil
+	}
+
+	if currency.Blockchain == kms.SOL.ToMoneyBlockchain() {
+		solanaFee, err := fee.ToSolanaFee()
+		if err != nil {
+			return "", errors.Wrap(err, "fee is not SOL")
+		}
+
+		// TODO: Implement CreateSolanaTransaction KMS endpoint
+		// For now, this is a placeholder that uses the Solana provider directly
+		_ = solanaFee // Placeholder to avoid unused variable error
+		return "", errors.New("Solana transaction creation requires KMS endpoint implementation - see internal/kms/wallet/solana_transaction.go")
+	}
+
+	if currency.Blockchain == kms.XMR.ToMoneyBlockchain() {
+		moneroFee, err := fee.ToMoneroFee()
+		if err != nil {
+			return "", errors.Wrap(err, "fee is not XMR")
+		}
+
+		// TODO: Implement CreateMoneroTransaction KMS endpoint
+		// Monero requires wallet-RPC integration for transaction creation
+		_ = moneroFee // Placeholder to avoid unused variable error
+		return "", errors.New("Monero transaction creation requires wallet-RPC integration - transactions are created and broadcast via monero-wallet-rpc")
 	}
 
 	return "", errors.New("unsupported currency " + currency.Ticker)

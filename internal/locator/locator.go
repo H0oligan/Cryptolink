@@ -4,6 +4,7 @@ package locator
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/oxygenpay/oxygen/internal/auth"
@@ -13,6 +14,8 @@ import (
 	"github.com/oxygenpay/oxygen/internal/db/repository"
 	"github.com/oxygenpay/oxygen/internal/lock"
 	"github.com/oxygenpay/oxygen/internal/log"
+	"github.com/oxygenpay/oxygen/internal/provider/monero"
+	"github.com/oxygenpay/oxygen/internal/provider/solana"
 	"github.com/oxygenpay/oxygen/internal/provider/tatum"
 	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
 	"github.com/oxygenpay/oxygen/internal/service/blockchain"
@@ -46,6 +49,8 @@ type Locator struct {
 	// Provides
 	tatumProvider    *tatum.Provider
 	trongridProvider *trongrid.Provider
+	solanaProvider   *solana.Provider
+	moneroProvider   *monero.Provider
 
 	// Clients
 	kmsClient *client.KMSInternalAPI
@@ -143,6 +148,35 @@ func (loc *Locator) TrongridProvider() *trongrid.Provider {
 	return loc.trongridProvider
 }
 
+func (loc *Locator) SolanaProvider() *solana.Provider {
+	loc.init("provider.solana", func() {
+		cfg := solana.Config{
+			RPCEndpoint:       loc.config.Providers.Solana.RPCEndpoint,
+			DevnetRPCEndpoint: loc.config.Providers.Solana.DevnetRPCEndpoint,
+			APIKey:            loc.config.Providers.Solana.APIKey,
+			Timeout:           30 * time.Second,
+		}
+		loc.solanaProvider = solana.New(cfg, loc.logger)
+	})
+
+	return loc.solanaProvider
+}
+
+func (loc *Locator) MoneroProvider() *monero.Provider {
+	loc.init("provider.monero", func() {
+		cfg := monero.Config{
+			WalletRPCEndpoint:        loc.config.Providers.Monero.WalletRPCEndpoint,
+			TestnetWalletRPCEndpoint: loc.config.Providers.Monero.TestnetWalletRPCEndpoint,
+			RPCUsername:              loc.config.Providers.Monero.RPCUsername,
+			RPCPassword:              loc.config.Providers.Monero.RPCPassword,
+			Timeout:                  60 * time.Second,
+		}
+		loc.moneroProvider = monero.New(cfg, loc.logger)
+	})
+
+	return loc.moneroProvider
+}
+
 func (loc *Locator) KMSClient() *client.KMSInternalAPI {
 	loc.init("client.kms", func() {
 		kms := client.NewHTTPClientWithConfig(strfmt.Default, &client.TransportConfig{
@@ -180,6 +214,8 @@ func (loc *Locator) BlockchainService() *blockchain.Service {
 			blockchain.Providers{
 				Tatum:    loc.TatumProvider(),
 				Trongrid: loc.TrongridProvider(),
+				Solana:   loc.SolanaProvider(),
+				Monero:   loc.MoneroProvider(),
 			},
 			true,
 			loc.logger,
