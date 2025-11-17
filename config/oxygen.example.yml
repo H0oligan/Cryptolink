@@ -49,3 +49,15 @@ providers:
     api_key: <trongrid-api-key>
   kms:
     host: localhost:14000
+  solana:
+    rpc_endpoint: https://api.mainnet-beta.solana.com
+    devnet_rpc_endpoint: https://api.devnet.solana.com
+    # Optional: Use paid RPC service for better reliability
+    # rpc_endpoint: https://solana-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+    # api_key: YOUR-API-KEY
+  monero:
+    wallet_rpc_endpoint: http://localhost:18082/json_rpc
+    testnet_wallet_rpc_endpoint: http://localhost:28082/json_rpc
+    # Enable authentication for production
+    # rpc_username: monero_rpc_user
+    # rpc_password: <strong-random-password>

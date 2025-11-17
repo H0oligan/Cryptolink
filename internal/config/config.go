@@ -60,6 +60,21 @@ type Providers struct {
 	Tatum     tatum.Config    `yaml:"tatum"`
 	Trongrid  trongrid.Config `yaml:"trongrid"`
 	KmsClient client.Config   `yaml:"kms"`
+	Solana    SolanaConfig    `yaml:"solana"`
+	Monero    MoneroConfig    `yaml:"monero"`
+}
+
+type SolanaConfig struct {
+	RPCEndpoint        string `yaml:"rpc_endpoint" env:"PROVIDERS_SOLANA_RPC_ENDPOINT" env-default:"https://api.mainnet-beta.solana.com" env-description:"Solana RPC endpoint"`
+	DevnetRPCEndpoint  string `yaml:"devnet_rpc_endpoint" env:"PROVIDERS_SOLANA_DEVNET_RPC_ENDPOINT" env-default:"https://api.devnet.solana.com" env-description:"Solana devnet RPC endpoint"`
+	APIKey             string `yaml:"api_key" env:"PROVIDERS_SOLANA_API_KEY" env-description:"Solana RPC API key (optional, for paid services)"`
+}
+
+type MoneroConfig struct {
+	WalletRPCEndpoint        string `yaml:"wallet_rpc_endpoint" env:"PROVIDERS_MONERO_WALLET_RPC_ENDPOINT" env-default:"http://localhost:18082/json_rpc" env-description:"Monero wallet RPC endpoint"`
+	TestnetWalletRPCEndpoint string `yaml:"testnet_wallet_rpc_endpoint" env:"PROVIDERS_MONERO_TESTNET_WALLET_RPC_ENDPOINT" env-default:"http://localhost:28082/json_rpc" env-description:"Monero testnet wallet RPC endpoint"`
+	RPCUsername              string `yaml:"rpc_username" env:"PROVIDERS_MONERO_RPC_USERNAME" env-description:"Monero wallet RPC username"`
+	RPCPassword              string `yaml:"rpc_password" env:"PROVIDERS_MONERO_RPC_PASSWORD" env-description:"Monero wallet RPC password"`
 }
 
 type Notifications struct {
