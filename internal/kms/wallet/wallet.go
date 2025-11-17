@@ -12,14 +12,18 @@ import (
 type Blockchain string
 
 const (
-	BTC   Blockchain = "BTC"
-	ETH   Blockchain = "ETH"
-	TRON  Blockchain = "TRON"
-	MATIC Blockchain = "MATIC"
-	BSC   Blockchain = "BSC"
+	BTC      Blockchain = "BTC"
+	ETH      Blockchain = "ETH"
+	TRON     Blockchain = "TRON"
+	MATIC    Blockchain = "MATIC"
+	BSC      Blockchain = "BSC"
+	ARBITRUM Blockchain = "ARBITRUM"
+	AVAX     Blockchain = "AVAX"
+	SOL      Blockchain = "SOL"
+	XMR      Blockchain = "XMR"
 )
 
-var blockchains = []Blockchain{BTC, ETH, TRON, MATIC, BSC}
+var blockchains = []Blockchain{BTC, ETH, TRON, MATIC, BSC, ARBITRUM, AVAX, SOL, XMR}
 
 func ListBlockchains() []Blockchain {
 	result := make([]Blockchain, len(blockchains))
@@ -69,10 +73,14 @@ func ValidateAddress(blockchain Blockchain, address string) error {
 	switch blockchain {
 	case BTC:
 		isValid = validateBitcoinAddress(address)
-	case ETH, MATIC, BSC:
+	case ETH, MATIC, BSC, ARBITRUM, AVAX:
 		isValid = validateEthereumAddress(address)
 	case TRON:
 		isValid = validateTronAddress(address)
+	case SOL:
+		isValid = validateSolanaAddress(address)
+	case XMR:
+		isValid = validateMoneroAddress(address)
 	default:
 		return errors.Wrapf(ErrUnknownBlockchain, "unknown blockchain %q", blockchain)
 	}
@@ -82,4 +90,32 @@ func ValidateAddress(blockchain Blockchain, address string) error {
 	}
 
 	return nil
+}
+
+// validateSolanaAddress validates Solana addresses (base58, 32-44 characters)
+func validateSolanaAddress(address string) bool {
+	if len(address) < 32 || len(address) > 44 {
+		return false
+	}
+	// Basic check - Solana addresses are base58 encoded
+	for _, c := range address {
+		if !((c >= '1' && c <= '9') || (c >= 'A' && c <= 'H') || (c >= 'J' && c <= 'N') ||
+			(c >= 'P' && c <= 'Z') || (c >= 'a' && c <= 'k') || (c >= 'm' && c <= 'z')) {
+			return false
+		}
+	}
+	return true
+}
+
+// validateMoneroAddress validates Monero addresses (starts with 4 or 8, 95 characters)
+func validateMoneroAddress(address string) bool {
+	if len(address) != 95 {
+		return false
+	}
+	// Standard Monero addresses start with '4'
+	// Integrated addresses start with '8'
+	if address[0] != '4' && address[0] != '8' {
+		return false
+	}
+	return true
 }

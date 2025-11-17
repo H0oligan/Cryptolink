@@ -64,12 +64,16 @@ func (app *App) runWebServer(ctx context.Context) {
 		AddProvider(&wallet.EthProvider{Blockchain: wallet.ETH, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.EthProvider{Blockchain: wallet.MATIC, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.EthProvider{Blockchain: wallet.BSC, CryptoReader: cryptorand.Reader}).
+		AddProvider(&wallet.EthProvider{Blockchain: wallet.ARBITRUM, CryptoReader: cryptorand.Reader}).
+		AddProvider(&wallet.EthProvider{Blockchain: wallet.AVAX, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.BitcoinProvider{Blockchain: wallet.BTC, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.TronProvider{
 			Blockchain:   wallet.TRON,
 			Trongrid:     trongrid.New(app.config.Providers.Trongrid, app.logger),
 			CryptoReader: cryptorand.Reader,
-		})
+		}).
+		AddProvider(&wallet.SolanaProvider{Blockchain: wallet.SOL, CryptoReader: cryptorand.Reader}).
+		AddProvider(&wallet.MoneroProvider{Blockchain: wallet.XMR, CryptoReader: cryptorand.Reader})
 
 	walletRepo := wallet.NewRepository(app.db)
 	kmsService := wallet.New(walletRepo, walletGenerator, app.logger)
