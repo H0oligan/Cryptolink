@@ -45,7 +45,8 @@ func NewCreateTronTransactionCreated() *CreateTronTransactionCreated {
 	return &CreateTronTransactionCreated{}
 }
 
-/* CreateTronTransactionCreated describes a response with status code 201, with default header values.
+/*
+	CreateTronTransactionCreated describes a response with status code 201, with default header values.
 
 Transaction Created
 */
@@ -77,7 +78,8 @@ func NewCreateTronTransactionBadRequest() *CreateTronTransactionBadRequest {
 	return &CreateTronTransactionBadRequest{}
 }
 
-/* CreateTronTransactionBadRequest describes a response with status code 400, with default header values.
+/*
+	CreateTronTransactionBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

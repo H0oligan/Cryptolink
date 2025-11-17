@@ -54,10 +54,12 @@ func NewCreateTronTransactionParamsWithHTTPClient(client *http.Client) *CreateTr
 	}
 }
 
-/* CreateTronTransactionParams contains all the parameters to send to the API endpoint
-   for the create tron transaction operation.
+/*
+CreateTronTransactionParams contains all the parameters to send to the API endpoint
 
-   Typically these are written to a http.Request.
+	for the create tron transaction operation.
+
+	Typically these are written to a http.Request.
 */
 type CreateTronTransactionParams struct {
 

@@ -54,10 +54,12 @@ func NewCreateWalletParamsWithHTTPClient(client *http.Client) *CreateWalletParam
 	}
 }
 
-/* CreateWalletParams contains all the parameters to send to the API endpoint
-   for the create wallet operation.
+/*
+CreateWalletParams contains all the parameters to send to the API endpoint
 
-   Typically these are written to a http.Request.
+	for the create wallet operation.
+
+	Typically these are written to a http.Request.
 */
 type CreateWalletParams struct {
 

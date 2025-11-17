@@ -54,10 +54,12 @@ func NewCreateMaticTransactionParamsWithHTTPClient(client *http.Client) *CreateM
 	}
 }
 
-/* CreateMaticTransactionParams contains all the parameters to send to the API endpoint
-   for the create matic transaction operation.
+/*
+CreateMaticTransactionParams contains all the parameters to send to the API endpoint
 
-   Typically these are written to a http.Request.
+	for the create matic transaction operation.
+
+	Typically these are written to a http.Request.
 */
 type CreateMaticTransactionParams struct {
 

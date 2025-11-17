@@ -31,6 +31,8 @@ func SetupRoutes(handler *Handler) httpServer.Opt {
 		kmsAPI.POST("/wallet/:walletId/transaction/matic", handler.CreateMaticTransaction)
 		kmsAPI.POST("/wallet/:walletId/transaction/bsc", handler.CreateBSCTransaction)
 		kmsAPI.POST("/wallet/:walletId/transaction/tron", handler.CreateTronTransaction)
+		kmsAPI.POST("/wallet/:walletId/transaction/solana", handler.CreateSolanaTransaction)
+		kmsAPI.POST("/wallet/:walletId/transaction/monero", handler.CreateMoneroTransaction)
 	}
 }
 
@@ -265,6 +267,89 @@ func (h *Handler) CreateTronTransaction(c echo.Context) error {
 		RawData:    tx.RawData,
 		RawDataHex: tx.RawDataHex,
 		Signature:  tx.Signature,
+	})
+}
+
+func (h *Handler) CreateSolanaTransaction(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	id, err := common.UUID(c, paramWalletID)
+	if err != nil {
+		return err
+	}
+
+	w, err := h.wallets.GetWallet(ctx, id, false)
+
+	switch {
+	case errors.Is(err, wallet.ErrNotFound):
+		return common.NotFoundResponse(c, wallet.ErrNotFound.Error())
+	case err != nil:
+		return err
+	}
+
+	var req model.CreateSolanaTransactionRequest
+	if valid := common.BindAndValidateRequest(c, &req); !valid {
+		return nil
+	}
+
+	tx, err := h.wallets.CreateSolanaTransaction(ctx, w, wallet.SolanaTransactionParams{
+		Type:      wallet.AssetType(req.AssetType),
+		Recipient: req.Recipient,
+		Amount:    req.Amount,
+		TokenMint: req.TokenMint,
+		IsTestnet: req.IsTestnet,
+	})
+
+	if err != nil {
+		return transactionCreationFailed(c, err)
+	}
+
+	return c.JSON(http.StatusCreated, &model.SolanaTransaction{
+		RawTransaction: tx.RawTransaction,
+		Signature:      tx.Signature,
+		TxHash:         tx.TxHash,
+	})
+}
+
+func (h *Handler) CreateMoneroTransaction(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	id, err := common.UUID(c, paramWalletID)
+	if err != nil {
+		return err
+	}
+
+	w, err := h.wallets.GetWallet(ctx, id, false)
+
+	switch {
+	case errors.Is(err, wallet.ErrNotFound):
+		return common.NotFoundResponse(c, wallet.ErrNotFound.Error())
+	case err != nil:
+		return err
+	}
+
+	var req model.CreateMoneroTransactionRequest
+	if valid := common.BindAndValidateRequest(c, &req); !valid {
+		return nil
+	}
+
+	tx, err := h.wallets.CreateMoneroTransaction(ctx, w, wallet.MoneroTransactionParams{
+		Recipient:    req.Recipient,
+		Amount:       req.Amount,
+		AccountIndex: uint32(req.AccountIndex),
+		Priority:     uint(req.Priority),
+		IsTestnet:    req.IsTestnet,
+	})
+
+	if err != nil {
+		return transactionCreationFailed(c, err)
+	}
+
+	return c.JSON(http.StatusCreated, &model.MoneroTransaction{
+		TxHash: tx.TxHash,
+		TxKey:  tx.TxKey,
+		Fee:    tx.Fee,
+		Amount: tx.Amount,
 	})
 }
 

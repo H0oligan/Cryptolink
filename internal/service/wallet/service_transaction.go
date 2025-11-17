@@ -268,10 +268,25 @@ func (s *Service) createSignedTransaction(
 			return "", errors.Wrap(err, "fee is not SOL")
 		}
 
-		// TODO: Implement CreateSolanaTransaction KMS endpoint
-		// For now, this is a placeholder that uses the Solana provider directly
-		_ = solanaFee // Placeholder to avoid unused variable error
-		return "", errors.New("Solana transaction creation requires KMS endpoint implementation - see internal/kms/wallet/solana_transaction.go")
+		_ = solanaFee // Solana fees are managed by the network
+
+		res, err := s.kms.CreateSolanaTransaction(&kmsclient.CreateSolanaTransactionParams{
+			Context:  ctx,
+			WalletID: sender.UUID.String(),
+			Data: &kmsmodel.CreateSolanaTransactionRequest{
+				Amount:    amount.StringRaw(),
+				AssetType: kmsmodel.AssetType(currency.Type),
+				Recipient: recipient,
+				TokenMint: currency.ChooseContractAddress(isTest),
+				IsTestnet: isTest,
+			},
+		})
+
+		if err != nil {
+			return "", errors.Wrap(err, "unable to create Solana transaction")
+		}
+
+		return res.Payload.RawTransaction, nil
 	}
 
 	if currency.Blockchain == kms.XMR.ToMoneyBlockchain() {
@@ -280,10 +295,32 @@ func (s *Service) createSignedTransaction(
 			return "", errors.Wrap(err, "fee is not XMR")
 		}
 
-		// TODO: Implement CreateMoneroTransaction KMS endpoint
-		// Monero requires wallet-RPC integration for transaction creation
-		_ = moneroFee // Placeholder to avoid unused variable error
-		return "", errors.New("Monero transaction creation requires wallet-RPC integration - transactions are created and broadcast via monero-wallet-rpc")
+		_ = moneroFee // Monero fees are calculated by wallet-RPC
+
+		res, err := s.kms.CreateMoneroTransaction(&kmsclient.CreateMoneroTransactionParams{
+			Context:  ctx,
+			WalletID: sender.UUID.String(),
+			Data: &kmsmodel.CreateMoneroTransactionRequest{
+				Amount:       amount.StringRaw(),
+				Recipient:    recipient,
+				AccountIndex: 0, // Default account, can be enhanced later
+				Priority:     0, // Default priority
+				IsTestnet:    isTest,
+			},
+		})
+
+		if err != nil {
+			return "", errors.Wrap(err, "unable to create Monero transaction")
+		}
+
+		// Return transaction hash as the signed transaction identifier
+		// Monero transactions are broadcast immediately by wallet-RPC
+		resAsBytes, err := json.Marshal(res.Payload)
+		if err != nil {
+			return "", errors.Wrap(err, "unable to marshal Monero transaction")
+		}
+
+		return string(resAsBytes), nil
 	}
 
 	return "", errors.New("unsupported currency " + currency.Ticker)

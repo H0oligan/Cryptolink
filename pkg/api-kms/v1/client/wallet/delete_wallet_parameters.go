@@ -52,10 +52,12 @@ func NewDeleteWalletParamsWithHTTPClient(client *http.Client) *DeleteWalletParam
 	}
 }
 
-/* DeleteWalletParams contains all the parameters to send to the API endpoint
-   for the delete wallet operation.
+/*
+DeleteWalletParams contains all the parameters to send to the API endpoint
 
-   Typically these are written to a http.Request.
+	for the delete wallet operation.
+
+	Typically these are written to a http.Request.
 */
 type DeleteWalletParams struct {
 

@@ -127,3 +127,36 @@ func (s *Service) CreateTronTransaction(
 
 	return tron.NewTransaction(ctx, wallet, params)
 }
+
+func (s *Service) CreateSolanaTransaction(
+	_ context.Context, wallet *Wallet, params SolanaTransactionParams,
+) (*SolanaTransaction, error) {
+	if _, ok := s.generator.providers[SOL]; !ok {
+		return nil, errors.New("SOL provider not found")
+	}
+
+	solana, ok := s.generator.providers[SOL].(*SolanaProvider)
+	if !ok {
+		return nil, errors.New("SOL provider is invalid")
+	}
+
+	return solana.CreateSolanaTransaction(params, wallet.PrivateKey)
+}
+
+func (s *Service) CreateMoneroTransaction(
+	_ context.Context, wallet *Wallet, params MoneroTransactionParams,
+) (*MoneroTransaction, error) {
+	if _, ok := s.generator.providers[XMR]; !ok {
+		return nil, errors.New("XMR provider not found")
+	}
+
+	monero, ok := s.generator.providers[XMR].(*MoneroProvider)
+	if !ok {
+		return nil, errors.New("XMR provider is invalid")
+	}
+
+	// Note: Monero wallet generation and transaction creation work differently
+	// The wallet.PrivateKey here is actually an account index stored as a string
+	// The actual private keys are managed by the external monero-wallet-rpc service
+	return monero.CreateTransaction(wallet, params)
+}

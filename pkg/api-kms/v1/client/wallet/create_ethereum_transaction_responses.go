@@ -45,7 +45,8 @@ func NewCreateEthereumTransactionCreated() *CreateEthereumTransactionCreated {
 	return &CreateEthereumTransactionCreated{}
 }
 
-/* CreateEthereumTransactionCreated describes a response with status code 201, with default header values.
+/*
+	CreateEthereumTransactionCreated describes a response with status code 201, with default header values.
 
 Transaction Created
 */
@@ -77,7 +78,8 @@ func NewCreateEthereumTransactionBadRequest() *CreateEthereumTransactionBadReque
 	return &CreateEthereumTransactionBadRequest{}
 }
 
-/* CreateEthereumTransactionBadRequest describes a response with status code 400, with default header values.
+/*
+	CreateEthereumTransactionBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

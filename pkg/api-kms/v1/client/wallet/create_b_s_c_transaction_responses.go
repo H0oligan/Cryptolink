@@ -45,7 +45,8 @@ func NewCreateBSCTransactionCreated() *CreateBSCTransactionCreated {
 	return &CreateBSCTransactionCreated{}
 }
 
-/* CreateBSCTransactionCreated describes a response with status code 201, with default header values.
+/*
+	CreateBSCTransactionCreated describes a response with status code 201, with default header values.
 
 Transaction Created
 */
@@ -77,7 +78,8 @@ func NewCreateBSCTransactionBadRequest() *CreateBSCTransactionBadRequest {
 	return &CreateBSCTransactionBadRequest{}
 }
 
-/* CreateBSCTransactionBadRequest describes a response with status code 400, with default header values.
+/*
+	CreateBSCTransactionBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

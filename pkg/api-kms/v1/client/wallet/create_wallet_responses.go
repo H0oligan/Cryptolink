@@ -45,7 +45,8 @@ func NewCreateWalletCreated() *CreateWalletCreated {
 	return &CreateWalletCreated{}
 }
 
-/* CreateWalletCreated describes a response with status code 201, with default header values.
+/*
+	CreateWalletCreated describes a response with status code 201, with default header values.
 
 Wallet created
 */
@@ -77,7 +78,8 @@ func NewCreateWalletBadRequest() *CreateWalletBadRequest {
 	return &CreateWalletBadRequest{}
 }
 
-/* CreateWalletBadRequest describes a response with status code 400, with default header values.
+/*
+	CreateWalletBadRequest describes a response with status code 400, with default header values.
 
 Validation error
 */

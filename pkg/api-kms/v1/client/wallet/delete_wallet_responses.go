@@ -45,7 +45,8 @@ func NewDeleteWalletNoContent() *DeleteWalletNoContent {
 	return &DeleteWalletNoContent{}
 }
 
-/* DeleteWalletNoContent describes a response with status code 204, with default header values.
+/*
+	DeleteWalletNoContent describes a response with status code 204, with default header values.
 
 Wallet deleted
 */
@@ -66,7 +67,8 @@ func NewDeleteWalletBadRequest() *DeleteWalletBadRequest {
 	return &DeleteWalletBadRequest{}
 }
 
-/* DeleteWalletBadRequest describes a response with status code 400, with default header values.
+/*
+	DeleteWalletBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

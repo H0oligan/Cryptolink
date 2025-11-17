@@ -1,9 +1,14 @@
 package wallet
 
 import (
+	"context"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/oxygenpay/oxygen/internal/provider/monero"
+	"github.com/pkg/errors"
 )
 
 // MoneroProvider generates wallets for Monero blockchain
@@ -13,6 +18,8 @@ type MoneroProvider struct {
 	Blockchain Blockchain
 	// MoneroWalletRPC URL (e.g., http://localhost:18082/json_rpc)
 	WalletRPCURL string
+	// Provider for RPC communication
+	Provider *monero.Provider
 }
 
 // Generate creates a wallet entry for Monero
@@ -79,3 +86,65 @@ func (p *MoneroProvider) ValidateAddress(address string) bool {
 // - Keep wallet files encrypted
 // - Use view-only wallet for balance checking when possible
 // - Full wallet needed only for sending transactions
+
+// MoneroTransactionParams parameters for creating a Monero transaction
+type MoneroTransactionParams struct {
+	Recipient    string
+	Amount       string // Raw amount in piconeros (string)
+	AccountIndex uint32
+	Priority     uint
+	IsTestnet    bool
+}
+
+// MoneroTransaction represents the result of creating a Monero transaction
+type MoneroTransaction struct {
+	TxHash string
+	TxKey  string
+	Fee    string
+	Amount string
+}
+
+// CreateTransaction creates a Monero transaction using monero-wallet-rpc
+func (p *MoneroProvider) CreateTransaction(wallet *Wallet, params MoneroTransactionParams) (*MoneroTransaction, error) {
+	if p.Provider == nil {
+		return nil, errors.New("Monero provider not initialized")
+	}
+
+	// Parse amount from string to uint64
+	amount, err := strconv.ParseUint(params.Amount, 10, 64)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid amount format")
+	}
+
+	// For Monero, wallet.PrivateKey contains the account index as a string
+	// If it's empty, use the AccountIndex from params
+	accountIndex := params.AccountIndex
+	if wallet.PrivateKey != "" {
+		parsed, err := strconv.ParseUint(wallet.PrivateKey, 10, 32)
+		if err == nil {
+			accountIndex = uint32(parsed)
+		}
+	}
+
+	// Create transfer parameters
+	transferParams := monero.TransferParams{
+		Destination:  params.Recipient,
+		Amount:       amount,
+		AccountIndex: accountIndex,
+		Priority:     uint32(params.Priority),
+	}
+
+	// Call monero-wallet-rpc to create and send transaction
+	ctx := context.Background()
+	result, err := p.Provider.Transfer(ctx, transferParams, params.IsTestnet)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create Monero transaction")
+	}
+
+	return &MoneroTransaction{
+		TxHash: result.TxHash,
+		TxKey:  result.TxKey,
+		Fee:    fmt.Sprintf("%d", result.Fee),
+		Amount: fmt.Sprintf("%d", result.Amount),
+	}, nil
+}

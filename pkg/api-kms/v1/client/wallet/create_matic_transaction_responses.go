@@ -45,7 +45,8 @@ func NewCreateMaticTransactionCreated() *CreateMaticTransactionCreated {
 	return &CreateMaticTransactionCreated{}
 }
 
-/* CreateMaticTransactionCreated describes a response with status code 201, with default header values.
+/*
+	CreateMaticTransactionCreated describes a response with status code 201, with default header values.
 
 Transaction Created
 */
@@ -77,7 +78,8 @@ func NewCreateMaticTransactionBadRequest() *CreateMaticTransactionBadRequest {
 	return &CreateMaticTransactionBadRequest{}
 }
 
-/* CreateMaticTransactionBadRequest describes a response with status code 400, with default header values.
+/*
+	CreateMaticTransactionBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */
