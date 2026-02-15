@@ -44,7 +44,9 @@ const CustomersPage: React.FC = () => {
     }, [listCustomers.data]);
 
     React.useEffect(() => {
-        listCustomers.refetch();
+        if (merchantId) {
+            listCustomers.refetch();
+        }
     }, [merchantId]);
 
     const changeIsCardOpen = (value: boolean) => {

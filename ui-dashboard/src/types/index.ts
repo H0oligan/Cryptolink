@@ -74,6 +74,7 @@ interface AuthProvider {
 interface UserCreateForm {
     email: string;
     password: string;
+    name?: string;
 }
 
 interface MerchantBalance {

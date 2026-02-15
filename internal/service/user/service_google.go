@@ -37,6 +37,7 @@ func (s *Service) registerGoogleUser(ctx context.Context, user *auth.GoogleUser)
 		Uuid:            uuid.New(),
 		GoogleID:        repository.StringToNullable(user.Sub),
 		ProfileImageUrl: repository.StringToNullable(user.Picture),
+		IsSuperAdmin:    sql.NullBool{},
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 		DeletedAt:       sql.NullTime{},

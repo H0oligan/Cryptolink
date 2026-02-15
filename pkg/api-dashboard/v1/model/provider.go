@@ -21,7 +21,7 @@ import (
 type Provider struct {
 
 	// name
-	// Enum: [google email]
+	// Enum: ["google","email"]
 	Name string `json:"name,omitempty"`
 }
 
@@ -39,7 +39,7 @@ func (m *Provider) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-var providerTypeNamePropEnum []interface{}
+var providerTypeNamePropEnum []any
 
 func init() {
 	var res []string

@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"database/sql"
 	"net/mail"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ type User struct {
 	UUID            uuid.UUID
 	GoogleID        *string
 	ProfileImageURL *string
+	IsSuperAdmin    bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	DeletedAt       *time.Time
@@ -113,7 +115,7 @@ func (s *Service) GetByEmailWithPasswordCheck(ctx context.Context, email, passwo
 }
 
 // Register registers user via email. If user already exists, return User and ErrAlreadyExists
-func (s *Service) Register(ctx context.Context, email, pass string) (*User, error) {
+func (s *Service) Register(ctx context.Context, email, pass, name string) (*User, error) {
 	if err := validateEmail(email); err != nil {
 		return nil, err
 	}
@@ -138,14 +140,23 @@ func (s *Service) Register(ctx context.Context, email, pass string) (*User, erro
 		return nil, err
 	}
 
+	displayName := strings.TrimSpace(name)
+	if displayName == "" {
+		displayName = email[:strings.IndexByte(email, '@')]
+	}
+
 	entry, err := s.store.CreateUser(ctx, repository.CreateUserParams{
-		Name:      email[:strings.IndexByte(email, '@')],
-		Email:     email,
-		Password:  repository.StringToNullable(hashedPass),
-		Uuid:      uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Settings:  pgtype.JSONB{Status: pgtype.Null},
+		Name:            displayName,
+		Email:           email,
+		Password:        repository.StringToNullable(hashedPass),
+		Uuid:            uuid.New(),
+		GoogleID:        sql.NullString{},
+		ProfileImageUrl: sql.NullString{},
+		IsSuperAdmin:    sql.NullBool{},
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		DeletedAt:       sql.NullTime{},
+		Settings:        pgtype.JSONB{Status: pgtype.Null},
 	})
 	if err != nil {
 		return nil, err
@@ -210,6 +221,11 @@ func (s *Service) guardRegistration(ctx context.Context, email string) error {
 }
 
 func entryToUser(entry repository.User) (*User, error) {
+	isSuperAdmin := false
+	if entry.IsSuperAdmin.Valid {
+		isSuperAdmin = entry.IsSuperAdmin.Bool
+	}
+
 	return &User{
 		ID:              entry.ID,
 		Name:            entry.Name,
@@ -217,6 +233,7 @@ func entryToUser(entry repository.User) (*User, error) {
 		UUID:            entry.Uuid,
 		GoogleID:        repository.NullableStringToPointer(entry.GoogleID),
 		ProfileImageURL: repository.NullableStringToPointer(entry.ProfileImageUrl),
+		IsSuperAdmin:    isSuperAdmin,
 		CreatedAt:       entry.CreatedAt,
 		UpdatedAt:       entry.UpdatedAt,
 		DeletedAt:       nil,

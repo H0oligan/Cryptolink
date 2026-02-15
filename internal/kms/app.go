@@ -73,7 +73,7 @@ func (app *App) runWebServer(ctx context.Context) {
 			CryptoReader: cryptorand.Reader,
 		}).
 		AddProvider(&wallet.SolanaProvider{Blockchain: wallet.SOL, CryptoReader: cryptorand.Reader}).
-		AddProvider(&wallet.MoneroProvider{Blockchain: wallet.XMR, CryptoReader: cryptorand.Reader})
+		AddProvider(&wallet.MoneroProvider{Blockchain: wallet.XMR})
 
 	walletRepo := wallet.NewRepository(app.db)
 	kmsService := wallet.New(walletRepo, walletGenerator, app.logger)

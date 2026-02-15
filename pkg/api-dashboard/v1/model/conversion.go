@@ -33,7 +33,7 @@ type Conversion struct {
 	From string `json:"from,omitempty"`
 
 	// Selected ticker type
-	// Enum: [fiat crypto]
+	// Enum: ["fiat","crypto"]
 	FromType string `json:"fromType,omitempty"`
 
 	// Selected amount
@@ -45,7 +45,7 @@ type Conversion struct {
 	To string `json:"to,omitempty"`
 
 	// Desired ticker type
-	// Enum: [fiat crypto]
+	// Enum: ["fiat","crypto"]
 	ToType string `json:"toType,omitempty"`
 }
 
@@ -67,7 +67,7 @@ func (m *Conversion) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-var conversionTypeFromTypePropEnum []interface{}
+var conversionTypeFromTypePropEnum []any
 
 func init() {
 	var res []string
@@ -109,7 +109,7 @@ func (m *Conversion) validateFromType(formats strfmt.Registry) error {
 	return nil
 }
 
-var conversionTypeToTypePropEnum []interface{}
+var conversionTypeToTypePropEnum []any
 
 func init() {
 	var res []string

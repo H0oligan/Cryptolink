@@ -320,6 +320,8 @@ func DefaultSetup(s *CurrencyResolver) error {
 
 func CreatePaymentLink(addr string, currency money.CryptoCurrency, amount money.Money, isTest bool) (string, error) {
 	switch kms.Blockchain(currency.Blockchain) {
+	case kms.BTC:
+		return bitcoinPaymentLink(addr, currency, amount, isTest), nil
 	case kms.ETH, kms.MATIC, kms.BSC, kms.ARBITRUM, kms.AVAX:
 		return ethPaymentLink(addr, currency, amount, isTest), nil
 	case kms.TRON:
@@ -331,6 +333,12 @@ func CreatePaymentLink(addr string, currency money.CryptoCurrency, amount money.
 	}
 
 	return "", errors.Errorf("unable to create payment link for %s", currency.Blockchain)
+}
+
+// Bitcoin payment link using BIP21 URI scheme
+// https://github.com/bitcoin/bips/blob/master/bip-0021.mediawiki
+func bitcoinPaymentLink(addr string, _ money.CryptoCurrency, amount money.Money, _ bool) string {
+	return fmt.Sprintf("bitcoin:%s?amount=%s", addr, amount.String())
 }
 
 // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-681.md
@@ -374,6 +382,8 @@ func moneroPaymentLink(addr string, _ money.CryptoCurrency, amount money.Money, 
 }
 
 var explorers = map[string]string{
+	"BTC/mainnet":        "https://blockchair.com/bitcoin/transaction/%s",
+	"BTC/testnet":        "https://blockchair.com/bitcoin/testnet/transaction/%s",
 	"ETH/1":              "https://etherscan.io/tx/%s",
 	"ETH/5":              "https://goerli.etherscan.io/tx/%s",
 	"MATIC/137":          "https://polygonscan.com/tx/%s",

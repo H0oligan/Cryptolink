@@ -7,13 +7,25 @@ import svgr from "vite-plugin-svgr";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    base: process.env.VITE_ROOTPATH || "/dashboard/",
     build: {
         sourcemap: false,
         minify: "esbuild"
     },
     resolve: {
         alias: {
-            src: path.resolve(__dirname, "/src")
+            src: path.resolve(__dirname, "/src"),
+            buffer: "buffer/"
+        }
+    },
+    define: {
+        global: "globalThis"
+    },
+    optimizeDeps: {
+        esbuildOptions: {
+            define: {
+                global: "globalThis"
+            }
         }
     },
     plugins: [basicSsl(), svgr(), dynamicImport(), react()]

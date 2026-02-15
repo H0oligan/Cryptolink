@@ -111,6 +111,14 @@ func (c CryptoCurrency) MakeAmount(raw string) (Money, error) {
 	return CryptoFromRaw(c.Ticker, raw, c.Decimals)
 }
 
+func (c CryptoCurrency) MakeAmountMust(raw string) Money {
+	m, err := c.MakeAmount(raw)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
 func (c CryptoCurrency) MakeAmountFromBigInt(amount *big.Int) (Money, error) {
 	return NewFromBigInt(Crypto, c.Ticker, amount, c.Decimals)
 }

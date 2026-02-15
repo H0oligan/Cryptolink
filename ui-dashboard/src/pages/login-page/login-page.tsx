@@ -20,11 +20,16 @@ interface LoginState {
     isNeedLogout: boolean;
 }
 
+interface RegisterForm extends UserCreateForm {
+    confirmPassword?: string;
+}
+
 const LoginPage: React.FC = () => {
-    const [form] = Form.useForm<UserCreateForm>();
+    const [form] = Form.useForm<RegisterForm>();
     const [api, contextHolder] = notification.useNotification();
     const [isFormSubmitting, setIsFormSubmitting] = React.useState<boolean>(false);
     const [providersList, setProvidersList] = React.useState<AuthProvider[]>([]);
+    const [isRegisterMode, setIsRegisterMode] = React.useState<boolean>(false);
     const navigate = useNavigate();
     const state: LoginState = useLocation().state;
 
@@ -37,14 +42,21 @@ const LoginPage: React.FC = () => {
         });
     };
 
-    const onSubmit = async (values: UserCreateForm) => {
+    const onSubmit = async (values: RegisterForm) => {
         try {
             setIsFormSubmitting(true);
-            await authProvider.createUser(values);
+
+            if (isRegisterMode) {
+                await authProvider.register(values);
+                openNotification("Welcome!", "Your account has been created successfully");
+            } else {
+                await authProvider.login(values);
+                openNotification("Welcome back!", "");
+            }
+
             navigate("/", {
                 state: {realoadUserInfo: true}
             });
-            openNotification("Welcome to the our community", "");
 
             await sleep(1000);
             form.resetFields();
@@ -53,6 +65,11 @@ const LoginPage: React.FC = () => {
         } finally {
             setIsFormSubmitting(false);
         }
+    };
+
+    const toggleMode = () => {
+        setIsRegisterMode(!isRegisterMode);
+        form.resetFields();
     };
 
     const googleRedirectLink = (): string => {
@@ -95,19 +112,36 @@ const LoginPage: React.FC = () => {
                     <>
                         <div className={b("logo")}>
                             <img src={logoImg} alt="logo" className={b("logo-img")} />
-                            <Typography.Title className={b("logo-text")}>OxygenPay</Typography.Title>
+                            <Typography.Title className={b("logo-text")}>CryptoLink</Typography.Title>
                         </div>
-                        <Typography.Title level={2}>Sign In 🔐</Typography.Title>
+                        <Typography.Title level={2}>{isRegisterMode ? "Create Account" : "Sign In"}</Typography.Title>
                         <SpinWithMask isLoading={isLoading} />
                         {!isLoading ? (
                             <>
                                 {providersList.findIndex((item) => item.name === "email") !== -1 ? (
-                                    <Form<UserCreateForm>
+                                    <Form<RegisterForm>
                                         form={form}
                                         onFinish={onSubmit}
                                         layout="vertical"
                                         className={b("form")}
                                     >
+                                        {isRegisterMode && (
+                                            <Form.Item
+                                                name="name"
+                                                rules={[
+                                                    {
+                                                        required: true,
+                                                        message: "Please input your name"
+                                                    },
+                                                    {
+                                                        min: 2,
+                                                        message: "Name must be at least 2 characters"
+                                                    }
+                                                ]}
+                                            >
+                                                <Input placeholder="Full Name" />
+                                            </Form.Item>
+                                        )}
                                         <Form.Item
                                             name="email"
                                             rules={[
@@ -129,11 +163,39 @@ const LoginPage: React.FC = () => {
                                                 {
                                                     required: true,
                                                     message: "Please input your password"
+                                                },
+                                                {
+                                                    min: 8,
+                                                    message: "Password must be at least 8 characters"
                                                 }
                                             ]}
                                         >
                                             <Input.Password placeholder="Password" />
                                         </Form.Item>
+                                        {isRegisterMode && (
+                                            <Form.Item
+                                                name="confirmPassword"
+                                                dependencies={["password"]}
+                                                rules={[
+                                                    {
+                                                        required: true,
+                                                        message: "Please confirm your password"
+                                                    },
+                                                    ({getFieldValue}) => ({
+                                                        validator(_, value) {
+                                                            if (!value || getFieldValue("password") === value) {
+                                                                return Promise.resolve();
+                                                            }
+                                                            return Promise.reject(
+                                                                new Error("Passwords do not match")
+                                                            );
+                                                        }
+                                                    })
+                                                ]}
+                                            >
+                                                <Input.Password placeholder="Confirm Password" />
+                                            </Form.Item>
+                                        )}
                                         <Button
                                             disabled={isFormSubmitting}
                                             loading={isFormSubmitting}
@@ -141,8 +203,15 @@ const LoginPage: React.FC = () => {
                                             htmlType="submit"
                                             className={b("btn")}
                                         >
-                                            Sign in
+                                            {isRegisterMode ? "Create Account" : "Sign in"}
                                         </Button>
+                                        <div style={{textAlign: "center", marginTop: "12px"}}>
+                                            <Typography.Link onClick={toggleMode}>
+                                                {isRegisterMode
+                                                    ? "Already have an account? Sign in"
+                                                    : "Don't have an account? Register"}
+                                            </Typography.Link>
+                                        </div>
                                     </Form>
                                 ) : null}
 

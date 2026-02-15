@@ -83,13 +83,13 @@ func (s *Service) BatchCreateWithdrawals(ctx context.Context, withdrawalIDs []in
 			var hotWalletsToSweep []hotWalletSweep
 
 			for _, balance := range inboundBalances {
-				// Filter: same merchant, same currency, same network, has balance
+				// Filter: same currency, same network, has balance
 				if balance.Currency == currency.Ticker &&
 					balance.NetworkID == networkID &&
 					!balance.Amount.IsZero() {
 
 					hotWallet, ok := inboundWallets[balance.EntityID]
-					if ok && hotWallet.MerchantID == withdrawal.MerchantID {
+					if ok {
 						hotWalletsToSweep = append(hotWalletsToSweep, hotWalletSweep{
 							Wallet:  hotWallet,
 							Balance: balance,

@@ -80,7 +80,7 @@ const PaymentsPage: React.FC = () => {
     const isLoading = listPayments.isLoading || createPayment.isLoading || listPayments.isFetching;
 
     useMount(async () => {
-        if (merchantId) {
+        if (!merchantId) {
             return;
         }
 
@@ -95,7 +95,9 @@ const PaymentsPage: React.FC = () => {
     }, [listPayments.data]);
 
     React.useEffect(() => {
-        listPayments.refetch();
+        if (merchantId) {
+            listPayments.refetch();
+        }
     }, [merchantId]);
 
     const openNotification = (title: string, description: string) => {

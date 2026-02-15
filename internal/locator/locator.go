@@ -23,9 +23,11 @@ import (
 	"github.com/oxygenpay/oxygen/internal/service/payment"
 	"github.com/oxygenpay/oxygen/internal/service/processing"
 	"github.com/oxygenpay/oxygen/internal/service/registry"
+	"github.com/oxygenpay/oxygen/internal/service/subscription"
 	"github.com/oxygenpay/oxygen/internal/service/transaction"
 	"github.com/oxygenpay/oxygen/internal/service/user"
 	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/oxygenpay/oxygen/internal/service/xpub"
 	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/client"
 	"github.com/oxygenpay/oxygen/pkg/graceful"
 	"github.com/rs/zerolog"
@@ -56,18 +58,20 @@ type Locator struct {
 	kmsClient *client.KMSInternalAPI
 
 	// Services
-	registryService    *registry.Service
-	blockchainService  *blockchain.Service
-	userService        *user.Service
-	locker             *lock.Locker
-	merchantService    *merchant.Service
-	tokenManager       *auth.TokenAuthManager
-	googleAuth         *auth.GoogleOAuthManager
-	transactionService *transaction.Service
-	paymentService     *payment.Service
-	walletService      *wallet.Service
-	processingService  *processing.Service
-	jobLogger          *log.JobLogger
+	registryService      *registry.Service
+	blockchainService    *blockchain.Service
+	userService          *user.Service
+	locker               *lock.Locker
+	merchantService      *merchant.Service
+	tokenManager         *auth.TokenAuthManager
+	googleAuth           *auth.GoogleOAuthManager
+	transactionService   *transaction.Service
+	paymentService       *payment.Service
+	walletService        *wallet.Service
+	xpubService          *xpub.Service
+	processingService    *processing.Service
+	subscriptionService  *subscription.Service
+	jobLogger            *log.JobLogger
 }
 
 func New(ctx context.Context, cfg *config.Config, logger *zerolog.Logger) *Locator {
@@ -295,6 +299,22 @@ func (loc *Locator) WalletService() *wallet.Service {
 	return loc.walletService
 }
 
+func (loc *Locator) XpubService() *xpub.Service {
+	loc.init("service.xpub", func() {
+		loc.xpubService = xpub.New(loc.Store(), loc.logger)
+	})
+
+	return loc.xpubService
+}
+
+func (loc *Locator) SubscriptionService() *subscription.Service {
+	loc.init("service.subscription", func() {
+		loc.subscriptionService = subscription.New(loc.DB().Pool, loc.logger)
+	})
+
+	return loc.subscriptionService
+}
+
 func (loc *Locator) ProcessingService() *processing.Service {
 	loc.init("service.processing", func() {
 		loc.processingService = processing.New(
@@ -303,6 +323,7 @@ func (loc *Locator) ProcessingService() *processing.Service {
 			loc.MerchantService(),
 			loc.PaymentService(),
 			loc.TransactionService(),
+			loc.XpubService(),
 			loc.BlockchainService(),
 			loc.TatumProvider(),
 			loc.EventBus(),

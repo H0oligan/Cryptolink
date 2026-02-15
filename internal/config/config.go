@@ -40,10 +40,15 @@ type Config struct {
 }
 
 type Oxygen struct {
-	Server     http.Config       `yaml:"server"`
-	Auth       auth.Config       `yaml:"auth"`
-	Postgres   pg.Config         `yaml:"postgres"`
-	Processing processing.Config `yaml:"processing"`
+	Server       http.Config       `yaml:"server"`
+	Auth         auth.Config       `yaml:"auth"`
+	Postgres     pg.Config         `yaml:"postgres"`
+	Processing   processing.Config `yaml:"processing"`
+	Subscription Subscription      `yaml:"subscription"`
+}
+
+type Subscription struct {
+	AdminMerchantID int64 `yaml:"admin_merchant_id" env:"OXYGEN_SUBSCRIPTION_ADMIN_MERCHANT_ID" env-description:"Admin merchant ID for receiving subscription payments"`
 }
 
 type KMS struct {

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/base64"
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/oxygenpay/oxygen/internal/kms/wallet"
@@ -292,12 +294,17 @@ func (h *Handler) CreateSolanaTransaction(c echo.Context) error {
 		return nil
 	}
 
+	// Convert string amount to uint64
+	amount, err := strconv.ParseUint(req.Amount, 10, 64)
+	if err != nil {
+		return common.ValidationErrorResponse(c, "invalid amount format")
+	}
+
 	tx, err := h.wallets.CreateSolanaTransaction(ctx, w, wallet.SolanaTransactionParams{
 		Type:      wallet.AssetType(req.AssetType),
 		Recipient: req.Recipient,
-		Amount:    req.Amount,
+		Amount:    amount,
 		TokenMint: req.TokenMint,
-		IsTestnet: req.IsTestnet,
 	})
 
 	if err != nil {
@@ -305,7 +312,7 @@ func (h *Handler) CreateSolanaTransaction(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, &model.SolanaTransaction{
-		RawTransaction: tx.RawTransaction,
+		RawTransaction: base64.StdEncoding.EncodeToString(tx.RawTransaction),
 		Signature:      tx.Signature,
 		TxHash:         tx.TxHash,
 	})

@@ -7,6 +7,7 @@ package model
 
 import (
 	"context"
+	stderrors "errors"
 	"strconv"
 
 	"github.com/go-openapi/errors"
@@ -68,9 +69,15 @@ func (m *Merchant) validateSupportedPaymentMethods(formats strfmt.Registry) erro
 
 		if m.SupportedPaymentMethods[i] != nil {
 			if err := m.SupportedPaymentMethods[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("supportedPaymentMethods" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("supportedPaymentMethods" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}
@@ -87,9 +94,15 @@ func (m *Merchant) validateWebhookSettings(formats strfmt.Registry) error {
 
 	if m.WebhookSettings != nil {
 		if err := m.WebhookSettings.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("webhookSettings")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("webhookSettings")
+			}
+
 			return err
 		}
 	}
@@ -120,10 +133,21 @@ func (m *Merchant) contextValidateSupportedPaymentMethods(ctx context.Context, f
 	for i := 0; i < len(m.SupportedPaymentMethods); i++ {
 
 		if m.SupportedPaymentMethods[i] != nil {
+
+			if swag.IsZero(m.SupportedPaymentMethods[i]) { // not required
+				return nil
+			}
+
 			if err := m.SupportedPaymentMethods[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("supportedPaymentMethods" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("supportedPaymentMethods" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}
@@ -136,10 +160,21 @@ func (m *Merchant) contextValidateSupportedPaymentMethods(ctx context.Context, f
 func (m *Merchant) contextValidateWebhookSettings(ctx context.Context, formats strfmt.Registry) error {
 
 	if m.WebhookSettings != nil {
+
+		if swag.IsZero(m.WebhookSettings) { // not required
+			return nil
+		}
+
 		if err := m.WebhookSettings.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("webhookSettings")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("webhookSettings")
+			}
+
 			return err
 		}
 	}

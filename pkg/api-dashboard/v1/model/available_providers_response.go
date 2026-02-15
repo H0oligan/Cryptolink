@@ -7,6 +7,7 @@ package model
 
 import (
 	"context"
+	stderrors "errors"
 	"strconv"
 
 	"github.com/go-openapi/errors"
@@ -49,9 +50,15 @@ func (m *AvailableProvidersResponse) validateProviders(formats strfmt.Registry) 
 
 		if m.Providers[i] != nil {
 			if err := m.Providers[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("providers" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("providers" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}
@@ -80,10 +87,21 @@ func (m *AvailableProvidersResponse) contextValidateProviders(ctx context.Contex
 	for i := 0; i < len(m.Providers); i++ {
 
 		if m.Providers[i] != nil {
+
+			if swag.IsZero(m.Providers[i]) { // not required
+				return nil
+			}
+
 			if err := m.Providers[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("providers" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("providers" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}

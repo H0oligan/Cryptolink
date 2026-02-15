@@ -11,8 +11,13 @@ const authProvider = {
         return csrf ?? "";
     },
 
-    async createUser(user: UserCreateForm): Promise<void> {
+    async login(user: UserCreateForm): Promise<void> {
         await apiRequest.post(withApiPath(`/auth/login`), user);
+        return;
+    },
+
+    async register(user: UserCreateForm): Promise<void> {
+        await apiRequest.post(withApiPath(`/auth/register`), user);
         return;
     },
 

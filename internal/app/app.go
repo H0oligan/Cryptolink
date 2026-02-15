@@ -19,6 +19,7 @@ import (
 	"github.com/oxygenpay/oxygen/internal/server/http/merchantapi"
 	merchantauth "github.com/oxygenpay/oxygen/internal/server/http/merchantapi/auth"
 	"github.com/oxygenpay/oxygen/internal/server/http/paymentapi"
+	"github.com/oxygenpay/oxygen/internal/server/http/subscriptionapi"
 	"github.com/oxygenpay/oxygen/internal/server/http/webhook"
 	"github.com/oxygenpay/oxygen/internal/service/user"
 	"github.com/oxygenpay/oxygen/pkg/graceful"
@@ -71,6 +72,7 @@ func (app *App) RunServer() {
 		app.services.TokenManagerService(),
 		app.services.PaymentService(),
 		app.services.WalletService(),
+		app.services.XpubService(),
 		app.services.BlockchainService(),
 		app.services.EventBus(),
 		app.Logger(),
@@ -97,6 +99,16 @@ func (app *App) RunServer() {
 		app.Logger(),
 	)
 
+	// Subscription handler
+	subscriptionHandler := subscriptionapi.New(
+		app.services.SubscriptionService(),
+		app.services.PaymentService(),
+		app.services.MerchantService(),
+		app.services.UserService(),
+		app.config.Oxygen.Subscription.AdminMerchantID,
+		app.Logger(),
+	)
+
 	schedulerHandler := scheduler.New(
 		app.services.PaymentService(),
 		app.services.BlockchainService(),
@@ -118,6 +130,7 @@ func (app *App) RunServer() {
 			app.config.Oxygen.Server,
 			merchantAPIHandler,
 			dashboardAuthHandler,
+			subscriptionHandler,
 			app.services.TokenManagerService(),
 			app.services.UserService(),
 			app.config.Oxygen.Auth.Email.Enabled,
@@ -149,7 +162,7 @@ func (app *App) RunServer() {
 			return nil
 		}
 
-		u, err := app.services.UserService().Register(ctx, cfg.FirstUserEmail, cfg.FirstUserPass)
+		u, err := app.services.UserService().Register(ctx, cfg.FirstUserEmail, cfg.FirstUserPass, "Admin")
 		switch {
 		case errors.Is(err, user.ErrAlreadyExists):
 			app.Logger().Info().Msg("Skipped user registration from config: already exists")
@@ -221,6 +234,7 @@ func (app *App) registerEventHandlers() {
 			app.services.MerchantService(),
 			app.services.ProcessingService(),
 			app.services.PaymentService(),
+			app.services.SubscriptionService(),
 			app.config.Notifications.SlackWebhookURL,
 			app.logger,
 		),

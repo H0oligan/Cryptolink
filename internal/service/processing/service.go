@@ -18,6 +18,7 @@ import (
 	"github.com/oxygenpay/oxygen/internal/service/payment"
 	"github.com/oxygenpay/oxygen/internal/service/transaction"
 	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/oxygenpay/oxygen/internal/service/xpub"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -35,6 +36,7 @@ type Service struct {
 	merchants     *merchant.Service
 	payments      *payment.Service
 	transactions  *transaction.Service
+	xpubService   *xpub.Service
 	blockchain    BlockchainService
 	tatumProvider *tatum.Provider
 	publisher     bus.Publisher
@@ -74,6 +76,7 @@ func New(
 	merchants *merchant.Service,
 	payments *payment.Service,
 	transactions *transaction.Service,
+	xpubService *xpub.Service,
 	blockchainService BlockchainService,
 	tatumProvider *tatum.Provider,
 	publisher bus.Publisher,
@@ -88,6 +91,7 @@ func New(
 		merchants:     merchants,
 		payments:      payments,
 		transactions:  transactions,
+		xpubService:   xpubService,
 		blockchain:    blockchainService,
 		tatumProvider: tatumProvider,
 		publisher:     publisher,
@@ -360,18 +364,38 @@ func (s *Service) createIncomingTransaction(
 
 	usdAmount := conv.To
 
-	// 2. Acquire available inbound wallet or create one.
+	// 2. Check if merchant has xpub wallet for this blockchain (non-custodial flow)
+	blockchain := currency.Blockchain.String()
+	xpubWallets, err := s.xpubService.ListByMerchantID(ctx, pt.MerchantID)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("unable to list xpub wallets, falling back to traditional flow")
+	}
+
+	var xpubWallet *xpub.XpubWallet
+	for _, w := range xpubWallets {
+		if w.Blockchain == blockchain && w.IsActive {
+			xpubWallet = w
+			break
+		}
+	}
+
+	// If merchant has xpub wallet for this blockchain, use derived address
+	if xpubWallet != nil {
+		return s.createTransactionWithXpubAddress(ctx, pt, currency, xpubWallet, cryptoAmount, cryptoServiceFee, usdAmount)
+	}
+
+	// 3. Fall back to traditional wallet flow - Acquire available inbound wallet or create one.
 	acquiredWallet, err := s.wallets.AcquireLock(ctx, pt.MerchantID, currency, pt.IsTest)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to acquire wallet")
 	}
 
-	// 3. Subscribe to notifications
+	// 4. Subscribe to notifications
 	if errSubs := s.ensureWalletSubscription(ctx, acquiredWallet, currency); errSubs != nil {
 		return nil, errors.Wrap(errSubs, "unable to ensure wallet subscription to notifications")
 	}
 
-	// 4. Create transaction record
+	// 5. Create transaction record
 	tx, err := s.transactions.Create(ctx, pt.MerchantID, transaction.CreateTransaction{
 		Type:            transaction.TypeIncoming,
 		EntityID:        pt.ID,
@@ -401,6 +425,62 @@ func (s *Service) createIncomingTransaction(
 		}
 
 		return nil, errors.Wrap(err, "unable to create tx")
+	}
+
+	return payment.MakeMethod(tx, currency), nil
+}
+
+// createTransactionWithXpubAddress creates a transaction using an xpub-derived address (non-custodial flow)
+func (s *Service) createTransactionWithXpubAddress(
+	ctx context.Context,
+	pt *payment.Payment,
+	currency money.CryptoCurrency,
+	xpubWallet *xpub.XpubWallet,
+	cryptoAmount money.Money,
+	cryptoServiceFee money.Money,
+	usdAmount money.Money,
+) (*payment.Method, error) {
+	// Get next unused address from xpub wallet
+	derivedAddr, err := s.xpubService.GetNextUnusedAddress(ctx, xpubWallet.ID)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to get next unused address from xpub wallet")
+	}
+
+	s.logger.Info().
+		Str("address", derivedAddr.Address).
+		Int("derivation_index", derivedAddr.DerivationIndex).
+		Int64("xpub_wallet_id", xpubWallet.ID).
+		Int64("payment_id", pt.ID).
+		Msg("using xpub-derived address for payment")
+
+	// Create transaction with the derived address (no traditional wallet)
+	tx, err := s.transactions.Create(ctx, pt.MerchantID, transaction.CreateTransaction{
+		Type:             transaction.TypeIncoming,
+		EntityID:         pt.ID,
+		RecipientAddress: derivedAddr.Address,
+		Currency:         currency,
+		Amount:           cryptoAmount,
+		ServiceFee:       cryptoServiceFee,
+		USDAmount:        usdAmount,
+		IsTest:           pt.IsTest,
+	})
+
+	if err != nil {
+		s.logger.Err(err).
+			Str("ticker", currency.Ticker).
+			Int64("payment_id", pt.ID).
+			Str("address", derivedAddr.Address).
+			Msg("unable to create transaction with xpub address")
+		return nil, errors.Wrap(err, "unable to create transaction with xpub address")
+	}
+
+	// Mark the address as used and link to this payment
+	if _, err := s.xpubService.MarkAddressAsUsed(ctx, derivedAddr.ID, pt.ID); err != nil {
+		s.logger.Warn().Err(err).
+			Int64("address_id", derivedAddr.ID).
+			Int64("payment_id", pt.ID).
+			Msg("unable to mark xpub address as used")
+		// Don't fail the transaction creation, just log the warning
 	}
 
 	return payment.MakeMethod(tx, currency), nil

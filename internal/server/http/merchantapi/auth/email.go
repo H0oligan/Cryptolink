@@ -39,3 +39,33 @@ func (h *Handler) PostLogin(c echo.Context) error {
 
 	return c.NoContent(http.StatusNoContent)
 }
+
+func (h *Handler) PostRegister(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req model.LoginRequest
+	if !common.BindAndValidateRequest(c, &req) {
+		return nil
+	}
+
+	// already logged in
+	if u := middleware.ResolveUser(c); u != nil {
+		return c.NoContent(http.StatusNoContent)
+	}
+
+	person, err := h.users.Register(ctx, req.Email.String(), req.Password, req.Name)
+	switch {
+	case errors.Is(err, user.ErrAlreadyExists):
+		return common.ValidationErrorItemResponse(c, "email", "User with this email already exists")
+	case err != nil:
+		return errors.Wrap(err, "unable to register user")
+	}
+
+	// Auto-login after registration
+	setSession := map[string]any{middleware.UserIDContextKey: person.ID}
+	if err := h.persistSession(c, "email", setSession); err != nil {
+		return common.ErrorResponse(c, "internal error")
+	}
+
+	return c.NoContent(http.StatusCreated)
+}

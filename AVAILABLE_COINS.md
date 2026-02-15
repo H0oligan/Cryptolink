@@ -4,13 +4,32 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ## Summary
 
-- **Total Blockchains**: 9
-- **Total Currencies**: 22 (including 1 deprecated)
-- **Active Currencies**: 21
+- **Total Blockchains**: 10
+- **Total Currencies**: 23 (including 1 deprecated)
+- **Active Currencies**: 22
 
 ---
 
-## 1. Ethereum (ETH)
+## 1. Bitcoin (BTC) ⭐ NEWLY ENABLED
+
+**Network ID**: mainnet | testnet
+**Block Explorer**: https://blockchair.com/bitcoin
+
+| Ticker | Name | Type | Decimals | Contract Address | Min Withdrawal |
+|--------|------|------|----------|------------------|----------------|
+| BTC | BTC | Coin | 8 | - | $50 |
+
+**Features**:
+- Original cryptocurrency (est. 2009)
+- Most secure and decentralized network
+- Store of value and digital gold
+- BIP21 payment URI support
+
+**Payment URI**: `bitcoin:address?amount=value`
+
+---
+
+## 2. Ethereum (ETH)
 
 **Network ID**: 1 (Mainnet) | 5 (Goerli Testnet)
 **Block Explorer**: https://etherscan.io
@@ -23,7 +42,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 2. Polygon (MATIC)
+## 3. Polygon (MATIC)
 
 **Network ID**: 137 (Mainnet) | 80001 (Mumbai Testnet)
 **Block Explorer**: https://polygonscan.com
@@ -36,7 +55,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 3. Tron (TRON)
+## 4. Tron (TRON)
 
 **Network ID**: mainnet | testnet
 **Block Explorer**: https://tronscan.org
@@ -48,7 +67,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 4. BNB Chain (BSC)
+## 5. BNB Chain (BSC)
 
 **Network ID**: 56 (Mainnet) | 97 (Testnet)
 **Block Explorer**: https://bscscan.com
@@ -61,7 +80,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 5. Arbitrum One (ARBITRUM) ⭐ NEW
+## 6. Arbitrum One (ARBITRUM) ⭐ NEW
 
 **Network ID**: 42161 (Mainnet) | 421614 (Sepolia Testnet)
 **Block Explorer**: https://arbiscan.io
@@ -80,7 +99,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 6. Avalanche C-Chain (AVAX) ⭐ NEW
+## 7. Avalanche C-Chain (AVAX) ⭐ NEW
 
 **Network ID**: 43114 (Mainnet) | 43113 (Fuji Testnet)
 **Block Explorer**: https://snowtrace.io
@@ -99,7 +118,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 7. Solana (SOL) ⭐ NEW
+## 8. Solana (SOL) ⭐ NEW
 
 **Network ID**: mainnet-beta | devnet
 **Block Explorer**: https://explorer.solana.com
@@ -118,7 +137,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 8. Monero (XMR) ⭐ NEW
+## 9. Monero (XMR) ⭐ NEW
 
 **Network ID**: mainnet | testnet
 **Block Explorer**: https://xmrchain.net
@@ -140,12 +159,6 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 ---
 
-## 9. Bitcoin (BTC)
-
-**Note**: Bitcoin infrastructure exists in the KMS wallet module but is not currently configured in the currency list. Can be added if needed.
-
----
-
 ## Currency Statistics
 
 ### By Blockchain Type
@@ -153,16 +166,16 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 | Category | Count |
 |----------|-------|
 | EVM-Compatible Chains | 5 (ETH, MATIC, BSC, ARBITRUM, AVAX) |
-| Non-EVM Chains | 4 (TRON, SOL, XMR, BTC*) |
-| **Total Blockchains** | **9** |
+| Non-EVM Chains | 5 (BTC, TRON, SOL, XMR) |
+| **Total Blockchains** | **10** |
 
 ### By Currency Type
 
 | Type | Count |
 |------|-------|
-| Native Coins | 9 |
+| Native Coins | 10 |
 | Tokens | 13 (12 active + 1 deprecated) |
-| **Total** | **22** |
+| **Total** | **23** |
 
 ### By Stablecoin Availability
 
@@ -178,6 +191,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 | Blockchain | Avg Fee (Native Transfer) | Avg Fee (Token Transfer) | Speed |
 |------------|---------------------------|--------------------------|-------|
+| Bitcoin | $1-5 | N/A | 10-30min |
 | Ethereum | $5-50 | $10-100 | 12-15s |
 | Polygon | $0.01-0.05 | $0.02-0.10 | 2-3s |
 | BNB Chain | $0.10-0.50 | $0.20-1.00 | 3s |
@@ -193,6 +207,7 @@ This document lists all cryptocurrencies and tokens supported by the payment gat
 
 | Blockchain | Threshold (USD) | Reason |
 |------------|-----------------|--------|
+| Bitcoin | $50 | Transaction fees + UTXO dust |
 | Ethereum | $40 | High gas fees |
 | Polygon | $10 | Low fees |
 | BNB Chain | $10 | Moderate fees |
@@ -237,6 +252,7 @@ All blockchains support the **hot wallet batching optimization** implemented in 
 
 | Blockchain | Mainnet | Testnet |
 |------------|---------|---------|
+| Bitcoin | mainnet | testnet |
 | Tron | mainnet | testnet |
 | Solana | mainnet-beta | devnet |
 | Monero | mainnet | testnet |
@@ -266,6 +282,6 @@ To add a new coin/token:
 
 ---
 
-**Last Updated**: 2025-11-17
-**Version**: 2.0.0 (Added Arbitrum, Avalanche, Solana, Monero)
-**Total Active Currencies**: 21
+**Last Updated**: 2025-11-24
+**Version**: 2.1.0 (Enabled Bitcoin support)
+**Total Active Currencies**: 22

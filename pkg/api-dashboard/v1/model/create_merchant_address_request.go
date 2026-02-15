@@ -29,7 +29,7 @@ type CreateMerchantAddressRequest struct {
 	// blockchain
 	// Example: ETH
 	// Required: true
-	// Enum: [BTC ETH TRON MATIC BSC]
+	// Enum: ["BTC","ETH","TRON","MATIC","BSC"]
 	Blockchain string `json:"blockchain"`
 
 	// Name
@@ -75,7 +75,7 @@ func (m *CreateMerchantAddressRequest) validateAddress(formats strfmt.Registry) 
 	return nil
 }
 
-var createMerchantAddressRequestTypeBlockchainPropEnum []interface{}
+var createMerchantAddressRequestTypeBlockchainPropEnum []any
 
 func init() {
 	var res []string

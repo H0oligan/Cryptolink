@@ -194,9 +194,11 @@ const BalancePage: React.FC = () => {
     }, [listAddresses.data]);
 
     React.useEffect(() => {
-        listBalances.refetch();
-        listWithdrawals.refetch();
-        listAddresses.refetch();
+        if (merchantId) {
+            listBalances.refetch();
+            listWithdrawals.refetch();
+            listAddresses.refetch();
+        }
     }, [merchantId]);
 
     const withdrawFund = async (value: Withdrawal, form: FormInstance<Withdrawal>) => {

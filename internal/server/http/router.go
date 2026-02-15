@@ -12,6 +12,7 @@ import (
 	merchantauth "github.com/oxygenpay/oxygen/internal/server/http/merchantapi/auth"
 	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
 	"github.com/oxygenpay/oxygen/internal/server/http/paymentapi"
+	"github.com/oxygenpay/oxygen/internal/server/http/subscriptionapi"
 	"github.com/oxygenpay/oxygen/internal/server/http/webhook"
 	"github.com/oxygenpay/oxygen/internal/service/user"
 )
@@ -21,6 +22,7 @@ func WithDashboardAPI(
 	cfg Config,
 	handler *merchantapi.Handler,
 	authHandler *merchantauth.Handler,
+	subscriptionHandler *subscriptionapi.Handler,
 	tokensManager *auth.TokenAuthManager,
 	users *user.Service,
 	enableEmailAuth bool,
@@ -50,6 +52,7 @@ func WithDashboardAPI(
 		// email auth routes
 		if enableEmailAuth {
 			authGroup.POST("/login", authHandler.PostLogin)
+			authGroup.POST("/register", authHandler.PostRegister)
 		}
 
 		// google auth routes
@@ -91,6 +94,14 @@ func WithDashboardAPI(
 		merchantGroup.PUT("/address/:addressId", handler.UpdateMerchantAddress)
 		merchantGroup.DELETE("/address/:addressId", handler.DeleteMerchantAddress)
 
+		// Xpub Wallets
+		merchantGroup.GET("/xpub-wallet", handler.ListXpubWallets)
+		merchantGroup.POST("/xpub-wallet", handler.CreateXpubWallet)
+		merchantGroup.GET("/xpub-wallet/:walletId", handler.GetXpubWallet)
+		merchantGroup.POST("/xpub-wallet/:walletId/derive", handler.DeriveAddress)
+		merchantGroup.GET("/xpub-wallet/:walletId/next-address", handler.GetNextAddress)
+		merchantGroup.GET("/xpub-wallet/:walletId/addresses", handler.ListDerivedAddresses)
+
 		// Withdrawals (rate limited to prevent abuse)
 		withdrawalRL := mw.NewRateLimiterMemoryStore(10) // 10 requests per second
 		withdrawalGroup := merchantGroup.Group("/withdrawal", mw.RateLimiter(withdrawalRL))
@@ -102,6 +113,19 @@ func WithDashboardAPI(
 
 		// Currency
 		merchantGroup.GET("/currency-convert", handler.GetCurrencyConvert)
+
+		// Subscription routes
+		dashboardAPI.GET("/subscription/plans", subscriptionHandler.ListPlans)
+
+		merchantGroup.GET("/subscription", subscriptionHandler.GetCurrentSubscription)
+		merchantGroup.POST("/subscription/upgrade", subscriptionHandler.UpgradePlan)
+		merchantGroup.POST("/subscription/cancel", subscriptionHandler.CancelSubscription)
+		merchantGroup.GET("/subscription/usage", subscriptionHandler.GetUsageHistory)
+
+		// Admin subscription routes (super admin only)
+		adminGroup := dashboardAPI.Group("/admin", guardsUsersMW, middleware.GuardsSuperAdmin())
+		adminGroup.GET("/subscription/stats", subscriptionHandler.GetSystemStats)
+		adminGroup.GET("/subscription/list", subscriptionHandler.ListAllSubscriptions)
 
 		setupCommonMerchantRoutes(merchantGroup, handler)
 	}

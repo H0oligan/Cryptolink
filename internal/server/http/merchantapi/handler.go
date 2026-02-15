@@ -7,6 +7,7 @@ import (
 	"github.com/oxygenpay/oxygen/internal/service/merchant"
 	"github.com/oxygenpay/oxygen/internal/service/payment"
 	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/oxygenpay/oxygen/internal/service/xpub"
 	"github.com/rs/zerolog"
 )
 
@@ -16,13 +17,14 @@ type BlockchainService interface {
 }
 
 type Handler struct {
-	merchants  *merchant.Service
-	tokens     *auth.TokenAuthManager
-	payments   *payment.Service
-	wallets    *wallet.Service
-	blockchain BlockchainService
-	publisher  bus.Publisher
-	logger     *zerolog.Logger
+	merchants   *merchant.Service
+	tokens      *auth.TokenAuthManager
+	payments    *payment.Service
+	wallets     *wallet.Service
+	xpubService *xpub.Service
+	blockchain  BlockchainService
+	publisher   bus.Publisher
+	logger      *zerolog.Logger
 }
 
 func NewHandler(
@@ -30,6 +32,7 @@ func NewHandler(
 	tokens *auth.TokenAuthManager,
 	payments *payment.Service,
 	wallets *wallet.Service,
+	xpubService *xpub.Service,
 	blockchainService BlockchainService,
 	publisher bus.Publisher,
 	logger *zerolog.Logger,
@@ -37,13 +40,14 @@ func NewHandler(
 	log := logger.With().Str("channel", "dashboard_handler").Logger()
 
 	return &Handler{
-		merchants:  merchants,
-		tokens:     tokens,
-		payments:   payments,
-		wallets:    wallets,
-		blockchain: blockchainService,
-		publisher:  publisher,
-		logger:     &log,
+		merchants:   merchants,
+		tokens:      tokens,
+		payments:    payments,
+		wallets:     wallets,
+		xpubService: xpubService,
+		blockchain:  blockchainService,
+		publisher:   publisher,
+		logger:      &log,
 	}
 }
 

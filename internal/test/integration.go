@@ -32,6 +32,7 @@ import (
 	"github.com/oxygenpay/oxygen/internal/service/transaction"
 	"github.com/oxygenpay/oxygen/internal/service/user"
 	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/oxygenpay/oxygen/internal/service/xpub"
 	"github.com/oxygenpay/oxygen/internal/test/fakes"
 	"github.com/oxygenpay/oxygen/internal/util"
 	kmsmock "github.com/oxygenpay/oxygen/pkg/api-kms/v1/mock"
@@ -142,6 +143,7 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 	usersService := user.New(storage, globalFaker.Bus, kv, &logger)
 	walletsService := wallet.New(kmsWalletsClient, globalFaker.ConvertorProxy, storage, &logger)
 	transactionsService := transaction.New(storage, globalFaker.CurrencyResolver, walletsService, &logger)
+	xpubService := xpub.New(storage, &logger)
 
 	paymentsService := payment.New(
 		repo,
@@ -160,6 +162,7 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 		merchantsService,
 		paymentsService,
 		transactionsService,
+		xpubService,
 		globalFaker,
 		tatumProvider,
 		globalFaker.Bus,

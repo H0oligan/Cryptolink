@@ -22,6 +22,7 @@ func TestCreatePaymentLink(t *testing.T) {
 	const (
 		evmAddr  = "0xc2132d05d31c914a87c6611c10748aeb04b58e8f"
 		tronAddr = "TVEaDaTKJZ2RsQUWREWykouuHak9scyZaf"
+		btcAddr  = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
 	)
 
 	for _, tt := range []struct {
@@ -87,6 +88,20 @@ func TestCreatePaymentLink(t *testing.T) {
 			isTest:   true,
 			expected: "tron:TVEaDaTKJZ2RsQUWREWykouuHak9scyZaf?amount=0.000444",
 		},
+		{
+			address:  btcAddr,
+			currency: "BTC",
+			amount:   "100000",
+			isTest:   false,
+			expected: "bitcoin:1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa?amount=0.001",
+		},
+		{
+			address:  btcAddr,
+			currency: "BTC",
+			amount:   "100000000",
+			isTest:   true,
+			expected: "bitcoin:1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa?amount=1",
+		},
 	} {
 		t.Run(tt.expected, func(t *testing.T) {
 			// ARRANGE
@@ -104,6 +119,7 @@ func TestCreatePaymentLink(t *testing.T) {
 }
 
 func TestExplorerTXLink(t *testing.T) {
+	btc := money.Blockchain("BTC")
 	eth := money.Blockchain("ETH")
 	matic := money.Blockchain("MATIC")
 	tron := money.Blockchain("TRON")
@@ -114,6 +130,8 @@ func TestExplorerTXLink(t *testing.T) {
 		expectError bool
 		expected    string
 	}{
+		{blockchain: btc, networkID: "mainnet", expected: "https://blockchair.com/bitcoin/transaction/0x123"},
+		{blockchain: btc, networkID: "testnet", expected: "https://blockchair.com/bitcoin/testnet/transaction/0x123"},
 		{blockchain: eth, networkID: "1", expected: "https://etherscan.io/tx/0x123"},
 		{blockchain: eth, networkID: "5", expected: "https://goerli.etherscan.io/tx/0x123"},
 		{blockchain: matic, networkID: "137", expected: "https://polygonscan.com/tx/0x123"},

@@ -7,6 +7,7 @@ package model
 
 import (
 	"context"
+	stderrors "errors"
 	"strconv"
 
 	"github.com/go-openapi/errors"
@@ -73,9 +74,15 @@ func (m *Customer) validateDetails(formats strfmt.Registry) error {
 
 	if m.Details != nil {
 		if err := m.Details.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("details")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("details")
+			}
+
 			return err
 		}
 	}
@@ -100,10 +107,21 @@ func (m *Customer) ContextValidate(ctx context.Context, formats strfmt.Registry)
 func (m *Customer) contextValidateDetails(ctx context.Context, formats strfmt.Registry) error {
 
 	if m.Details != nil {
+
+		if swag.IsZero(m.Details) { // not required
+			return nil
+		}
+
 		if err := m.Details.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("details")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("details")
+			}
+
 			return err
 		}
 	}
@@ -167,9 +185,15 @@ func (m *CustomerDetails) validatePayments(formats strfmt.Registry) error {
 
 		if m.Payments[i] != nil {
 			if err := m.Payments[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("details" + "." + "payments" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("details" + "." + "payments" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}
@@ -198,10 +222,21 @@ func (m *CustomerDetails) contextValidatePayments(ctx context.Context, formats s
 	for i := 0; i < len(m.Payments); i++ {
 
 		if m.Payments[i] != nil {
+
+			if swag.IsZero(m.Payments[i]) { // not required
+				return nil
+			}
+
 			if err := m.Payments[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("details" + "." + "payments" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("details" + "." + "payments" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}

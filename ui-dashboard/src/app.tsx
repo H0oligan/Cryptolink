@@ -26,6 +26,7 @@ import merchantProvider from "src/providers/merchant-provider";
 import CustomersPage from "src/pages/customers-page/customers-page";
 import {sleep} from "src/utils";
 import PaymentLinksPage from "src/pages/payment-links-page/payments-links-page";
+import WalletSetupPage from "src/pages/wallet-setup-page/wallet-setup-page";
 import useSharedPosthogStatus from "src/hooks/use-posthog-status";
 import {toggled} from "./providers/toggles";
 
@@ -53,11 +54,15 @@ const defaultMenus: MenuItem[] = [
         name: "Customers"
     },
     {
+        path: "/wallet-setup",
+        name: "Wallet Setup"
+    },
+    {
         path: "/settings",
         name: "Settings"
     },
     {
-        path: "https://docs.o2pay.co/",
+        path: "https://cryptolink.cc/doc/",
         name: "Documentation"
     }
 ];
@@ -193,12 +198,12 @@ const App: React.FC = () => {
         }
 
         if (location.pathname === "/login") {
-            document.title = "Login | Dashboard | OxygenPay";
+            document.title = "Login | Dashboard | CryptoLink";
             return;
         }
 
         const pageName = menus.find((item) => item.path === location.pathname)?.name;
-        document.title = `${pageName} | Dashboard | OxygenPay`;
+        document.title = `${pageName} | Dashboard | CryptoLink`;
     }, [location, merchants]);
 
     const logout = async () => {
@@ -272,7 +277,7 @@ const App: React.FC = () => {
                                         <div className={b("logo")}>
                                             <img src={logoImg} alt="logo" className={b("logo-img")} />
                                             {routeCtx.isMobile ? null : (
-                                                <span className={b("logo-text")}>OxygenPay</span>
+                                                <span className={b("logo-text")}>CryptoLink</span>
                                             )}
                                         </div>
                                     )}
@@ -387,6 +392,7 @@ const App: React.FC = () => {
                                 <Route path="manage-merchants" element={<ManageMerchantsPage />} />
                                 <Route path="balance" element={<BalancePage />} />
                                 <Route path="customers" element={<CustomersPage />} />
+                                <Route path="wallet-setup" element={<WalletSetupPage />} />
                                 <Route path="*" element={"not found"} />
                             </Routes>
                         </ProLayout>
