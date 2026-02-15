@@ -9,7 +9,7 @@ info:
     And save token for later api calls (include it in each request as X-CSRF-Token). Each api request 
     should be with *withCredentials: true*
 
-host: app.o2pay.co
+host: cryptolink.cc
 basePath: /api/dashboard/v1
 produces:
   - application/json

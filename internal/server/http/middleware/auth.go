@@ -15,7 +15,7 @@ import (
 
 // nolint gosec
 const (
-	TokenHeader     = "X-O2PAY-TOKEN"
+	TokenHeader     = "X-CRYPTOLINK-TOKEN"
 	CSRFTokenHeader = "X-CSRF-TOKEN"
 
 	UserContextKey        = "user"

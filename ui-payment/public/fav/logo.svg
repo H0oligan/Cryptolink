@@ -15,7 +15,10 @@
       <rect y="256" width="512" height="256"/>
     </clipPath>
   </defs>
+  <!-- Link 1 back half (behind link 2 at bottom) -->
   <circle cx="192" cy="256" r="116" stroke="url(#link1)" stroke-width="48" clip-path="url(#bottom)"/>
+  <!-- Link 2: Open ring — the freedom gap -->
   <path d="M 413 330 A 116 116 0 1 0 413 182" stroke="url(#link2)" stroke-width="48" stroke-linecap="round"/>
+  <!-- Link 1 front half (in front of link 2 at top) -->
   <circle cx="192" cy="256" r="116" stroke="url(#link1)" stroke-width="48" clip-path="url(#top)"/>
 </svg>

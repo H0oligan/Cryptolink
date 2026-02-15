@@ -2,7 +2,7 @@ import "./login-page.scss";
 
 import * as React from "react";
 import {AxiosError} from "axios";
-import {useNavigate, useLocation} from "react-router-dom";
+import {useNavigate, useLocation, useSearchParams} from "react-router-dom";
 import {Modal, Button, Typography, Form, Input, notification} from "antd";
 import {GoogleOutlined, CheckOutlined} from "@ant-design/icons";
 import logoImg from "/fav/android-chrome-192x192.png";
@@ -29,7 +29,8 @@ const LoginPage: React.FC = () => {
     const [api, contextHolder] = notification.useNotification();
     const [isFormSubmitting, setIsFormSubmitting] = React.useState<boolean>(false);
     const [providersList, setProvidersList] = React.useState<AuthProvider[]>([]);
-    const [isRegisterMode, setIsRegisterMode] = React.useState<boolean>(false);
+    const [searchParams] = useSearchParams();
+    const [isRegisterMode, setIsRegisterMode] = React.useState<boolean>(searchParams.get("mode") === "register");
     const navigate = useNavigate();
     const state: LoginState = useLocation().state;
 

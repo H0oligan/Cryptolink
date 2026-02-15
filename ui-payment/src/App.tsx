@@ -68,13 +68,13 @@ const App: React.FC = () => {
 
     React.useEffect(() => {
         if (payment) {
-            document.title = `O2Pay Payment: ${payment.merchantName}`;
+            document.title = `CryptoLink Payment: ${payment.merchantName}`;
         }
     }, [payment]);
 
     React.useEffect(() => {
         if (paymentLink) {
-            document.title = `O2Pay Payment Link: ${paymentLink.merchantName}`;
+            document.title = `CryptoLink Payment Link: ${paymentLink.merchantName}`;
         }
     }, [paymentLink]);
 
@@ -103,8 +103,8 @@ const App: React.FC = () => {
                             <div className="pt-2 pb-4 text-sm sm:hidden">
                                 <p className="text-center text-gray-500">
                                     Powered by self-hosted{" "}
-                                    <a className="color-oxygen" target="_blank" href="https://o2pay.co">
-                                        OxygenPay
+                                    <a className="color-oxygen" target="_blank" href="https://cryptolink.cc">
+                                        CryptoLink
                                     </a>
                                 </p>
                             </div>

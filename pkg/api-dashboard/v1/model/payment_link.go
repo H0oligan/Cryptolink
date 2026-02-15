@@ -54,7 +54,7 @@ type PaymentLink struct {
 	// Example: https://my-site.com/success?order=abc123
 	RedirectURL *string `json:"redirectUrl"`
 
-	// Action type after OxygenPay receives incoming payment from a customer.
+	// Action type after CryptoLink receives incoming payment from a customer.
 	// - `redirectUrl` displays "Back to site" button with provided .redirectUrl.
 	// - `showMessage` displays "Show message" with content provided in .successMessage.
 	//
@@ -66,7 +66,7 @@ type PaymentLink struct {
 	SuccessMessage *string `json:"successMessage"`
 
 	// Link's URL
-	// Example: https://pay.o2pay.co/link/ufaiCu6J
+	// Example: https://cryptolink.cc/p/link/ufaiCu6J
 	// Required: true
 	URL string `json:"url"`
 }

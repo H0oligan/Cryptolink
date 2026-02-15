@@ -2,7 +2,7 @@ swagger: '2.0'
 info:
   version: 1.0.0
   title: Payment API
-  description: Represents public-facing API of pay.o2pay.co
+  description: Represents public-facing API of cryptolink.cc/p
 
 host: 127.0.0.1
 basePath: /api/payment/v1

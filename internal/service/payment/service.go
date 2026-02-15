@@ -538,7 +538,7 @@ type CreateInternalPaymentProps struct {
 	IsTest            bool
 }
 
-// CreateSystemTopup creates an internal payment that is reflected only within OxygenPay.
+// CreateSystemTopup creates an internal payment that is reflected only within CryptoLink.
 // This payment is treated as successful.
 func (s *Service) CreateSystemTopup(ctx context.Context, merchantID int64, props CreateInternalPaymentProps) (*Payment, error) {
 	if props.Money.Type() != money.Crypto {

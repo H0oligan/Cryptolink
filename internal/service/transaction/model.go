@@ -141,7 +141,7 @@ const (
 	// TypeWithdrawal is for moving assets from outbound wallets to merchant's address
 	TypeWithdrawal Type = "withdrawal"
 
-	// TypeVirtual is for moving assets within OxygenPay w/o reflecting it on blockchain
+	// TypeVirtual is for moving assets within CryptoLink w/o reflecting it on blockchain
 	// (e.g. merchant to merchant, system to merchant, ...)
 	TypeVirtual Type = "virtual"
 )

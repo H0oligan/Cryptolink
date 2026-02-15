@@ -15,7 +15,12 @@
       <rect y="256" width="512" height="256"/>
     </clipPath>
   </defs>
-  <circle cx="192" cy="256" r="116" stroke="url(#link1)" stroke-width="48" clip-path="url(#bottom)"/>
-  <path d="M 413 330 A 116 116 0 1 0 413 182" stroke="url(#link2)" stroke-width="48" stroke-linecap="round"/>
-  <circle cx="192" cy="256" r="116" stroke="url(#link1)" stroke-width="48" clip-path="url(#top)"/>
+  <!-- Dark background -->
+  <circle cx="256" cy="256" r="256" fill="#0f172a"/>
+  <!-- Link 1 back half -->
+  <circle cx="204" cy="256" r="100" stroke="url(#link1)" stroke-width="40" clip-path="url(#bottom)"/>
+  <!-- Link 2: Open ring -->
+  <path d="M 396 322 A 100 100 0 1 0 396 190" stroke="url(#link2)" stroke-width="40" stroke-linecap="round"/>
+  <!-- Link 1 front half -->
+  <circle cx="204" cy="256" r="100" stroke="url(#link1)" stroke-width="40" clip-path="url(#top)"/>
 </svg>
