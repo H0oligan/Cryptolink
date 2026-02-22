@@ -65,6 +65,7 @@ interface User {
     name: string;
     profileImageUrl: string;
     uuid: string;
+    isSuperAdmin: boolean;
 }
 
 interface AuthProvider {
@@ -153,6 +154,10 @@ interface AdditionalPaymentInfo {
     customerEmail: string;
     selectedCurrency: string;
     serviceFee: string;
+    transactionHash?: string;
+    explorerLink?: string;
+    senderAddress?: string;
+    networkFee?: string;
 }
 
 interface AdditionalWithdrawalInfo {

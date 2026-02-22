@@ -11,18 +11,19 @@ import (
 
 // SubscriptionPlan represents a subscription pricing tier
 type SubscriptionPlan struct {
-	ID                   string          `json:"id"`
-	Name                 string          `json:"name"`
-	Description          string          `json:"description"`
-	PriceUSD             decimal.Decimal `json:"price_usd"`
-	BillingPeriod        string          `json:"billing_period"`
-	MaxPaymentsMonthly   sql.NullInt32   `json:"max_payments_monthly"`   // -1 or NULL = unlimited
-	MaxMerchants         int32           `json:"max_merchants"`
-	MaxAPICallsMonthly   sql.NullInt32   `json:"max_api_calls_monthly"`  // -1 or NULL = unlimited
-	Features             json.RawMessage `json:"features"`
-	IsActive             bool            `json:"is_active"`
-	CreatedAt            time.Time       `json:"created_at"`
-	UpdatedAt            time.Time       `json:"updated_at"`
+	ID                   string              `json:"id"`
+	Name                 string              `json:"name"`
+	Description          string              `json:"description"`
+	PriceUSD             decimal.Decimal     `json:"price_usd"`
+	BillingPeriod        string              `json:"billing_period"`
+	MaxPaymentsMonthly   sql.NullInt32       `json:"max_payments_monthly"`       // -1 or NULL = unlimited
+	MaxMerchants         int32               `json:"max_merchants"`
+	MaxAPICallsMonthly   sql.NullInt32       `json:"max_api_calls_monthly"`      // -1 or NULL = unlimited
+	MaxVolumeMonthlyUSD  decimal.NullDecimal `json:"max_volume_monthly_usd"`     // NULL = unlimited
+	Features             json.RawMessage     `json:"features"`
+	IsActive             bool                `json:"is_active"`
+	CreatedAt            time.Time           `json:"created_at"`
+	UpdatedAt            time.Time           `json:"updated_at"`
 }
 
 // MerchantSubscription represents an active subscription for a merchant
@@ -68,7 +69,8 @@ const (
 // Plan IDs
 const (
 	PlanFree       = "free"
-	PlanBasic      = "basic"
-	PlanPro        = "pro"
-	PlanEnterprise = "enterprise"
+	PlanBasic      = "basic"      // Starter
+	PlanPro        = "pro"        // Growth
+	PlanEnterprise = "enterprise" // Business
+	PlanUnlimited  = "unlimited"  // Enterprise
 )

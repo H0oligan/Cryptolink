@@ -1,6 +1,6 @@
 .customer-desc-card {
     &__item-title {
-        color: rgba(0, 0, 0, 0.45);
+        color: var(--cl-text-tertiary);
     }
 
     &__copy-btn {

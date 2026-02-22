@@ -5,11 +5,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
@@ -81,8 +81,12 @@ func (s *Service) ProcessInboundTransaction(
 	paymentID := tx.EntityID
 
 	if tx.Status != transaction.StatusInProgress {
+		walletID := int64(0)
+		if wt != nil {
+			walletID = wt.ID
+		}
 		s.logger.Warn().
-			Int64("wallet_id", wt.ID).
+			Int64("wallet_id", walletID).
 			Int64("transaction_id", tx.ID).
 			Str("expected_amount", tx.Amount.String()).
 			Str("actual_amount", input.Amount.String()).
@@ -234,8 +238,8 @@ func (s *Service) checkIncomingTransaction(ctx context.Context, txID int64) erro
 		return errors.New("empty transaction hash")
 	case tx.SenderAddress == nil:
 		return errors.New("empty sender address")
-	case tx.RecipientWalletID == nil:
-		return errors.New("empty recipient wallet id")
+	case tx.RecipientWalletID == nil && tx.RecipientAddress == "":
+		return errors.New("empty recipient wallet id and address")
 	case !tx.IsInProgress():
 		return nil
 	}

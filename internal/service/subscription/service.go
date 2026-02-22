@@ -37,14 +37,14 @@ func New(db *pgxpool.Pool, logger *zerolog.Logger) *Service {
 
 func (s *Service) GetPlan(ctx context.Context, planID string) (*SubscriptionPlan, error) {
 	query := `SELECT id, name, description, price_usd, billing_period, max_payments_monthly,
-	                 max_merchants, max_api_calls_monthly, features, is_active, created_at, updated_at
+	                 max_merchants, max_api_calls_monthly, max_volume_monthly_usd, features, is_active, created_at, updated_at
 	          FROM subscription_plans WHERE id = $1 AND is_active = true`
 
 	var plan SubscriptionPlan
 	err := s.db.QueryRow(ctx, query, planID).Scan(
 		&plan.ID, &plan.Name, &plan.Description, &plan.PriceUSD, &plan.BillingPeriod,
 		&plan.MaxPaymentsMonthly, &plan.MaxMerchants, &plan.MaxAPICallsMonthly,
-		&plan.Features, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt,
+		&plan.MaxVolumeMonthlyUSD, &plan.Features, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt,
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -59,7 +59,7 @@ func (s *Service) GetPlan(ctx context.Context, planID string) (*SubscriptionPlan
 
 func (s *Service) ListPlans(ctx context.Context) ([]*SubscriptionPlan, error) {
 	query := `SELECT id, name, description, price_usd, billing_period, max_payments_monthly,
-	                 max_merchants, max_api_calls_monthly, features, is_active, created_at, updated_at
+	                 max_merchants, max_api_calls_monthly, max_volume_monthly_usd, features, is_active, created_at, updated_at
 	          FROM subscription_plans WHERE is_active = true ORDER BY price_usd ASC`
 
 	rows, err := s.db.Query(ctx, query)
@@ -74,7 +74,7 @@ func (s *Service) ListPlans(ctx context.Context) ([]*SubscriptionPlan, error) {
 		err := rows.Scan(
 			&plan.ID, &plan.Name, &plan.Description, &plan.PriceUSD, &plan.BillingPeriod,
 			&plan.MaxPaymentsMonthly, &plan.MaxMerchants, &plan.MaxAPICallsMonthly,
-			&plan.Features, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt,
+			&plan.MaxVolumeMonthlyUSD, &plan.Features, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt,
 		)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to scan subscription plan")
@@ -321,6 +321,317 @@ func (s *Service) CheckAPILimit(ctx context.Context, merchantID int64) error {
 		return fmt.Errorf("%w: monthly API call limit of %d reached", ErrLimitExceeded, sub.Plan.MaxAPICallsMonthly.Int32)
 	}
 
+	return nil
+}
+
+func (s *Service) CheckVolumeLimit(ctx context.Context, merchantID int64, additionalVolumeUSD decimal.Decimal) error {
+	sub, err := s.GetActiveSubscription(ctx, merchantID)
+	if err != nil {
+		return err
+	}
+
+	// NULL = unlimited
+	if !sub.Plan.MaxVolumeMonthlyUSD.Valid {
+		return nil
+	}
+
+	usage, err := s.GetCurrentUsage(ctx, merchantID)
+	if err != nil {
+		return err
+	}
+
+	newTotal := usage.PaymentVolumeUSD.Add(additionalVolumeUSD)
+	if newTotal.GreaterThan(sub.Plan.MaxVolumeMonthlyUSD.Decimal) {
+		return fmt.Errorf("%w: monthly volume limit of $%s reached (current: $%s)",
+			ErrLimitExceeded, sub.Plan.MaxVolumeMonthlyUSD.Decimal.StringFixed(2), usage.PaymentVolumeUSD.StringFixed(2))
+	}
+
+	return nil
+}
+
+// GetVolumePercentage returns the current volume usage percentage for a merchant
+func (s *Service) GetVolumePercentage(ctx context.Context, merchantID int64) (float64, error) {
+	sub, err := s.GetActiveSubscription(ctx, merchantID)
+	if err != nil {
+		return 0, err
+	}
+
+	if !sub.Plan.MaxVolumeMonthlyUSD.Valid || sub.Plan.MaxVolumeMonthlyUSD.Decimal.IsZero() {
+		return 0, nil // unlimited
+	}
+
+	usage, err := s.GetCurrentUsage(ctx, merchantID)
+	if err != nil {
+		return 0, err
+	}
+
+	pct, _ := usage.PaymentVolumeUSD.Div(sub.Plan.MaxVolumeMonthlyUSD.Decimal).Mul(decimal.NewFromInt(100)).Float64()
+	return pct, nil
+}
+
+// ===== Admin Plan CRUD =====
+
+// ListAllPlans returns all plans including inactive ones (admin only)
+func (s *Service) ListAllPlans(ctx context.Context) ([]*SubscriptionPlan, error) {
+	query := `SELECT id, name, description, price_usd, billing_period, max_payments_monthly,
+	                 max_merchants, max_api_calls_monthly, max_volume_monthly_usd, features, is_active, created_at, updated_at
+	          FROM subscription_plans ORDER BY price_usd ASC`
+
+	rows, err := s.db.Query(ctx, query)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list all plans")
+	}
+	defer rows.Close()
+
+	var plans []*SubscriptionPlan
+	for rows.Next() {
+		var plan SubscriptionPlan
+		err := rows.Scan(
+			&plan.ID, &plan.Name, &plan.Description, &plan.PriceUSD, &plan.BillingPeriod,
+			&plan.MaxPaymentsMonthly, &plan.MaxMerchants, &plan.MaxAPICallsMonthly,
+			&plan.MaxVolumeMonthlyUSD, &plan.Features, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to scan plan")
+		}
+		plans = append(plans, &plan)
+	}
+
+	return plans, nil
+}
+
+// GetPlanByID returns a plan by ID regardless of active status (admin only)
+func (s *Service) GetPlanByID(ctx context.Context, planID string) (*SubscriptionPlan, error) {
+	query := `SELECT id, name, description, price_usd, billing_period, max_payments_monthly,
+	                 max_merchants, max_api_calls_monthly, max_volume_monthly_usd, features, is_active, created_at, updated_at
+	          FROM subscription_plans WHERE id = $1`
+
+	var plan SubscriptionPlan
+	err := s.db.QueryRow(ctx, query, planID).Scan(
+		&plan.ID, &plan.Name, &plan.Description, &plan.PriceUSD, &plan.BillingPeriod,
+		&plan.MaxPaymentsMonthly, &plan.MaxMerchants, &plan.MaxAPICallsMonthly,
+		&plan.MaxVolumeMonthlyUSD, &plan.Features, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get plan")
+	}
+
+	return &plan, nil
+}
+
+// CreatePlan creates a new subscription plan (admin only)
+func (s *Service) CreatePlan(ctx context.Context, plan *SubscriptionPlan) (*SubscriptionPlan, error) {
+	query := `INSERT INTO subscription_plans
+	          (id, name, description, price_usd, billing_period, max_payments_monthly,
+	           max_merchants, max_api_calls_monthly, max_volume_monthly_usd, features, is_active, created_at, updated_at)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	          RETURNING id, name, description, price_usd, billing_period, max_payments_monthly,
+	                    max_merchants, max_api_calls_monthly, max_volume_monthly_usd, features, is_active, created_at, updated_at`
+
+	now := time.Now()
+	var created SubscriptionPlan
+	err := s.db.QueryRow(ctx, query,
+		plan.ID, plan.Name, plan.Description, plan.PriceUSD, plan.BillingPeriod,
+		plan.MaxPaymentsMonthly, plan.MaxMerchants, plan.MaxAPICallsMonthly,
+		plan.MaxVolumeMonthlyUSD, plan.Features, plan.IsActive, now, now,
+	).Scan(
+		&created.ID, &created.Name, &created.Description, &created.PriceUSD, &created.BillingPeriod,
+		&created.MaxPaymentsMonthly, &created.MaxMerchants, &created.MaxAPICallsMonthly,
+		&created.MaxVolumeMonthlyUSD, &created.Features, &created.IsActive, &created.CreatedAt, &created.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create plan")
+	}
+
+	return &created, nil
+}
+
+// UpdatePlan updates an existing subscription plan (admin only)
+func (s *Service) UpdatePlan(ctx context.Context, planID string, plan *SubscriptionPlan) (*SubscriptionPlan, error) {
+	query := `UPDATE subscription_plans SET
+	          name = $2, description = $3, price_usd = $4, billing_period = $5,
+	          max_payments_monthly = $6, max_merchants = $7, max_api_calls_monthly = $8,
+	          max_volume_monthly_usd = $9, features = $10, is_active = $11, updated_at = $12
+	          WHERE id = $1
+	          RETURNING id, name, description, price_usd, billing_period, max_payments_monthly,
+	                    max_merchants, max_api_calls_monthly, max_volume_monthly_usd, features, is_active, created_at, updated_at`
+
+	var updated SubscriptionPlan
+	err := s.db.QueryRow(ctx, query,
+		planID, plan.Name, plan.Description, plan.PriceUSD, plan.BillingPeriod,
+		plan.MaxPaymentsMonthly, plan.MaxMerchants, plan.MaxAPICallsMonthly,
+		plan.MaxVolumeMonthlyUSD, plan.Features, plan.IsActive, time.Now(),
+	).Scan(
+		&updated.ID, &updated.Name, &updated.Description, &updated.PriceUSD, &updated.BillingPeriod,
+		&updated.MaxPaymentsMonthly, &updated.MaxMerchants, &updated.MaxAPICallsMonthly,
+		&updated.MaxVolumeMonthlyUSD, &updated.Features, &updated.IsActive, &updated.CreatedAt, &updated.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update plan")
+	}
+
+	return &updated, nil
+}
+
+// ===== Admin Queries =====
+
+// AdminMerchantInfo represents merchant info for admin view
+type AdminMerchantInfo struct {
+	ID             int64           `json:"id"`
+	UUID           string          `json:"uuid"`
+	Name           string          `json:"name"`
+	Website        string          `json:"website"`
+	CreatorEmail   string          `json:"creator_email"`
+	CreatorName    string          `json:"creator_name"`
+	ActivePlanID   *string         `json:"active_plan_id"`
+	ActivePlanName *string         `json:"active_plan_name"`
+	MonthlyVolume  decimal.Decimal `json:"monthly_volume_usd"`
+	PaymentCount   int32           `json:"payment_count"`
+	CreatedAt      time.Time       `json:"created_at"`
+}
+
+// ListAllMerchants returns all merchants with their plan and usage (admin only)
+func (s *Service) ListAllMerchants(ctx context.Context, limit, offset int) ([]*AdminMerchantInfo, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	countQuery := `SELECT COUNT(*) FROM merchants`
+	var total int
+	err := s.db.QueryRow(ctx, countQuery).Scan(&total)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to count merchants")
+	}
+
+	query := `SELECT m.id, m.uuid, m.name, COALESCE(m.website, ''), u.email, COALESCE(u.name, ''),
+	                 ms.plan_id, sp.name,
+	                 COALESCE(ut.payment_volume_usd, 0), COALESCE(ut.payment_count, 0),
+	                 m.created_at
+	          FROM merchants m
+	          JOIN users u ON m.creator_id = u.id
+	          LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id AND ms.status IN ('active', 'pending_payment')
+	          LEFT JOIN subscription_plans sp ON ms.plan_id = sp.id
+	          LEFT JOIN usage_tracking ut ON ut.merchant_id = m.id AND ut.period_start <= NOW() AND ut.period_end >= NOW()
+	          ORDER BY m.created_at DESC
+	          LIMIT $1 OFFSET $2`
+
+	rows, err := s.db.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to list all merchants")
+	}
+	defer rows.Close()
+
+	var merchants []*AdminMerchantInfo
+	for rows.Next() {
+		var m AdminMerchantInfo
+		err := rows.Scan(
+			&m.ID, &m.UUID, &m.Name, &m.Website, &m.CreatorEmail, &m.CreatorName,
+			&m.ActivePlanID, &m.ActivePlanName,
+			&m.MonthlyVolume, &m.PaymentCount, &m.CreatedAt,
+		)
+		if err != nil {
+			return nil, 0, errors.Wrap(err, "failed to scan merchant")
+		}
+		merchants = append(merchants, &m)
+	}
+
+	return merchants, total, nil
+}
+
+// AdminUserInfo represents user info for admin view
+type AdminUserInfo struct {
+	ID            int64     `json:"id"`
+	UUID          string    `json:"uuid"`
+	Email         string    `json:"email"`
+	Name          string    `json:"name"`
+	IsSuperAdmin  bool      `json:"is_super_admin"`
+	MerchantCount int       `json:"merchant_count"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// ListAllUsers returns all users (admin only)
+func (s *Service) ListAllUsers(ctx context.Context, limit, offset int) ([]*AdminUserInfo, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	countQuery := `SELECT COUNT(*) FROM users`
+	var total int
+	err := s.db.QueryRow(ctx, countQuery).Scan(&total)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to count users")
+	}
+
+	query := `SELECT u.id, u.uuid, u.email, COALESCE(u.name, ''), COALESCE(u.is_super_admin, false),
+	                 COUNT(m.id),
+	                 u.created_at
+	          FROM users u
+	          LEFT JOIN merchants m ON m.creator_id = u.id
+	          GROUP BY u.id, u.uuid, u.email, u.name, u.is_super_admin, u.created_at
+	          ORDER BY u.created_at DESC
+	          LIMIT $1 OFFSET $2`
+
+	rows, err := s.db.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to list all users")
+	}
+	defer rows.Close()
+
+	var users []*AdminUserInfo
+	for rows.Next() {
+		var u AdminUserInfo
+		err := rows.Scan(
+			&u.ID, &u.UUID, &u.Email, &u.Name, &u.IsSuperAdmin,
+			&u.MerchantCount, &u.CreatedAt,
+		)
+		if err != nil {
+			return nil, 0, errors.Wrap(err, "failed to scan user")
+		}
+		users = append(users, &u)
+	}
+
+	return users, total, nil
+}
+
+// AssignMerchantPlan assigns or changes a merchant's subscription plan (admin only)
+func (s *Service) AssignMerchantPlan(ctx context.Context, merchantID int64, planID string) error {
+	// Verify plan exists
+	_, err := s.GetPlanByID(ctx, planID)
+	if err != nil {
+		return errors.Wrap(err, "invalid plan")
+	}
+
+	// Check if merchant exists
+	var exists bool
+	err = s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM merchants WHERE id = $1)`, merchantID).Scan(&exists)
+	if err != nil || !exists {
+		return errors.New("merchant not found")
+	}
+
+	// Deactivate any existing subscription
+	_, err = s.db.Exec(ctx,
+		`UPDATE merchant_subscriptions SET status = 'cancelled' WHERE merchant_id = $1 AND status IN ('active', 'pending_payment')`,
+		merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to deactivate existing subscription")
+	}
+
+	// Create new active subscription
+	now := time.Now().UTC()
+	periodEnd := now.AddDate(0, 1, 0) // 1 month from now
+
+	_, err = s.db.Exec(ctx,
+		`INSERT INTO merchant_subscriptions (uuid, merchant_id, plan_id, status, current_period_start, current_period_end, created_at, updated_at)
+		 VALUES ($1, $2, $3, 'active', $4, $5, $6, $6)`,
+		uuid.New().String(), merchantID, planID, now, periodEnd, now)
+	if err != nil {
+		return errors.Wrap(err, "failed to create subscription")
+	}
+
+	s.logger.Info().Int64("merchant_id", merchantID).Str("plan_id", planID).Msg("admin assigned plan to merchant")
 	return nil
 }
 

@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 )
 

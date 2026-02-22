@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/oxygenpay/oxygen/internal/test"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/internal/test"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 	"github.com/stretchr/testify/assert"
 )
 

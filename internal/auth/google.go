@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"

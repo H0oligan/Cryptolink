@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/oxygenpay/oxygen/internal/db/connection/bolt"
+	"github.com/cryptolink/cryptolink/internal/db/connection/bolt"
 	"go.etcd.io/bbolt"
 )
 

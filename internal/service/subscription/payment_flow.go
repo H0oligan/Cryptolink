@@ -334,33 +334,51 @@ func (s *Service) ListAllSubscriptions(ctx context.Context, limit, offset int) (
 
 // GetSystemStats returns system-wide statistics (admin only)
 func (s *Service) GetSystemStats(ctx context.Context) (*SystemStats, error) {
-	query := `SELECT
-	    COUNT(DISTINCT ms.merchant_id) as total_merchants,
-	    COUNT(DISTINCT CASE WHEN ms.status = 'active' AND ms.plan_id != 'free' THEN ms.merchant_id END) as paying_merchants,
-	    SUM(CASE WHEN ms.status = 'active' AND ms.plan_id = 'free' THEN 1 ELSE 0 END) as free_tier_count,
-	    SUM(CASE WHEN ms.status = 'active' AND ms.plan_id = 'basic' THEN 1 ELSE 0 END) as basic_tier_count,
-	    SUM(CASE WHEN ms.status = 'active' AND ms.plan_id = 'pro' THEN 1 ELSE 0 END) as pro_tier_count,
-	    SUM(CASE WHEN ms.status = 'active' AND ms.plan_id = 'enterprise' THEN 1 ELSE 0 END) as enterprise_tier_count
+	var stats SystemStats
+
+	// Total merchants from merchants table directly
+	err := s.db.QueryRow(ctx, `SELECT COUNT(*) FROM merchants`).Scan(&stats.TotalMerchants)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to count merchants")
+	}
+
+	// Total users
+	err = s.db.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&stats.TotalUsers)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to count users")
+	}
+
+	// Subscription tier counts (from merchant_subscriptions joined with merchants)
+	tierQuery := `SELECT
+	    COUNT(DISTINCT CASE WHEN ms.plan_id NOT IN ('free') AND ms.plan_id IS NOT NULL THEN ms.merchant_id END) as paying_merchants,
+	    COUNT(DISTINCT CASE WHEN ms.plan_id = 'free' THEN ms.merchant_id END) as free_tier_count,
+	    COUNT(DISTINCT CASE WHEN ms.plan_id = 'basic' THEN ms.merchant_id END) as basic_tier_count,
+	    COUNT(DISTINCT CASE WHEN ms.plan_id = 'pro' THEN ms.merchant_id END) as pro_tier_count,
+	    COUNT(DISTINCT CASE WHEN ms.plan_id IN ('enterprise', 'unlimited') THEN ms.merchant_id END) as enterprise_tier_count
 	FROM merchant_subscriptions ms
 	WHERE ms.status IN ('active', 'pending_payment')`
 
-	var stats SystemStats
-	err := s.db.QueryRow(ctx, query).Scan(
-		&stats.TotalMerchants,
+	err = s.db.QueryRow(ctx, tierQuery).Scan(
 		&stats.PayingMerchants,
 		&stats.FreeTierCount,
 		&stats.BasicTierCount,
 		&stats.ProTierCount,
 		&stats.EnterpriseTierCount,
 	)
-
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get system stats")
+		// Non-fatal: zero out tier counts
+		stats.PayingMerchants = 0
+		stats.FreeTierCount = 0
+		stats.BasicTierCount = 0
+		stats.ProTierCount = 0
+		stats.EnterpriseTierCount = 0
 	}
 
-	// Get revenue stats
-	revenueQuery := `SELECT
-	    SUM(sp.price_usd) as monthly_revenue
+	// Merchants with no subscription = unsubscribed count
+	stats.NoSubscriptionCount = stats.TotalMerchants - stats.PayingMerchants - stats.FreeTierCount
+
+	// Revenue stats
+	revenueQuery := `SELECT COALESCE(SUM(sp.price_usd), 0) as monthly_revenue
 	FROM merchant_subscriptions ms
 	JOIN subscription_plans sp ON ms.plan_id = sp.id
 	WHERE ms.status = 'active' AND ms.plan_id != 'free'`
@@ -375,11 +393,13 @@ func (s *Service) GetSystemStats(ctx context.Context) (*SystemStats, error) {
 
 // SystemStats represents system-wide subscription statistics
 type SystemStats struct {
-	TotalMerchants       int             `json:"total_merchants"`
-	PayingMerchants      int             `json:"paying_merchants"`
-	FreeTierCount        int             `json:"free_tier_count"`
-	BasicTierCount       int             `json:"basic_tier_count"`
-	ProTierCount         int             `json:"pro_tier_count"`
-	EnterpriseTierCount  int             `json:"enterprise_tier_count"`
-	MonthlyRevenue       decimal.Decimal `json:"monthly_revenue"`
+	TotalMerchants      int             `json:"total_merchants"`
+	TotalUsers          int             `json:"total_users"`
+	PayingMerchants     int             `json:"paying_merchants"`
+	FreeTierCount       int             `json:"free_tier_count"`
+	BasicTierCount      int             `json:"basic_tier_count"`
+	ProTierCount        int             `json:"pro_tier_count"`
+	EnterpriseTierCount int             `json:"enterprise_tier_count"`
+	NoSubscriptionCount int             `json:"no_subscription_count"`
+	MonthlyRevenue      decimal.Decimal `json:"monthly_revenue"`
 }

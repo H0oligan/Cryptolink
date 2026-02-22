@@ -7,7 +7,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/rs/zerolog"
 	"github.com/ziflex/lecho/v3"
 )

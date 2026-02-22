@@ -3,9 +3,9 @@ package user_test
 import (
 	"testing"
 
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/service/user"
-	"github.com/oxygenpay/oxygen/internal/test"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/service/user"
+	"github.com/cryptolink/cryptolink/internal/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

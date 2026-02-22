@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/stretchr/testify/assert"
 )
 

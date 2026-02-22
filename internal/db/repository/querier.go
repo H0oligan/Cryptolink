@@ -150,6 +150,8 @@ type Querier interface {
 	UpdateWalletTestnetTransactionCounters(ctx context.Context, arg UpdateWalletTestnetTransactionCountersParams) error
 	UpdateXpubWalletLastIndex(ctx context.Context, arg UpdateXpubWalletLastIndexParams) (XpubWallet, error)
 	UpdateXpubWalletTatumSubscription(ctx context.Context, arg UpdateXpubWalletTatumSubscriptionParams) (XpubWallet, error)
+	GetXpubWalletByMerchantAndBlockchainAny(ctx context.Context, arg GetXpubWalletByMerchantAndBlockchainParams) (XpubWallet, error)
+	ReactivateXpubWallet(ctx context.Context, arg ReactivateXpubWalletParams) (XpubWallet, error)
 }
 
 var _ Querier = (*Queries)(nil)

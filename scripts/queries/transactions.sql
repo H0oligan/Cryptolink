@@ -53,6 +53,7 @@ and (CASE WHEN @filter_by_currency::boolean THEN currency = $3 ELSE true END)
 and (CASE WHEN @filter_by_types::boolean THEN type = any(sqlc.arg(types)::varchar[]) ELSE true END)
 and (CASE WHEN @filter_by_statuses::boolean THEN status = any(sqlc.arg(statuses)::varchar[]) ELSE true END)
 and (CASE WHEN @filter_empty_hash::boolean THEN transaction_hash is null ELSE true END)
+and (CASE WHEN @filter_by_recipient_address::boolean THEN recipient_address = @recipient_address ELSE true END)
 order by id desc
 limit $4;
 

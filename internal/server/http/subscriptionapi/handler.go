@@ -1,16 +1,18 @@
 package subscriptionapi
 
 import (
+	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/service/merchant"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/subscription"
-	"github.com/oxygenpay/oxygen/internal/service/user"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/subscription"
+	"github.com/cryptolink/cryptolink/internal/service/user"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -48,15 +50,17 @@ func New(
 // Response structures
 
 type PlanResponse struct {
-	ID                   string          `json:"id"`
-	Name                 string          `json:"name"`
-	Description          string          `json:"description"`
-	PriceUSD             decimal.Decimal `json:"price_usd"`
-	BillingPeriod        string          `json:"billing_period"`
-	MaxPaymentsMonthly   *int32          `json:"max_payments_monthly"`   // null = unlimited
-	MaxMerchants         int32           `json:"max_merchants"`
-	MaxAPICallsMonthly   *int32          `json:"max_api_calls_monthly"`  // null = unlimited
-	Features             interface{}     `json:"features"`
+	ID                   string           `json:"id"`
+	Name                 string           `json:"name"`
+	Description          string           `json:"description"`
+	PriceUSD             decimal.Decimal  `json:"price_usd"`
+	BillingPeriod        string           `json:"billing_period"`
+	MaxPaymentsMonthly   *int32           `json:"max_payments_monthly"`       // null = unlimited
+	MaxMerchants         int32            `json:"max_merchants"`
+	MaxAPICallsMonthly   *int32           `json:"max_api_calls_monthly"`      // null = unlimited
+	MaxVolumeMonthlyUSD  *decimal.Decimal `json:"max_volume_monthly_usd"`     // null = unlimited
+	Features             interface{}      `json:"features"`
+	IsActive             *bool            `json:"is_active,omitempty"`
 }
 
 type SubscriptionResponse struct {
@@ -126,17 +130,31 @@ func planToResponse(plan *subscription.SubscriptionPlan) *PlanResponse {
 		}
 	}
 
-	return &PlanResponse{
-		ID:                 plan.ID,
-		Name:               plan.Name,
-		Description:        plan.Description,
-		PriceUSD:           plan.PriceUSD,
-		BillingPeriod:      plan.BillingPeriod,
-		MaxPaymentsMonthly: maxPayments,
-		MaxMerchants:       plan.MaxMerchants,
-		MaxAPICallsMonthly: maxAPICalls,
-		Features:           plan.Features,
+	var maxVolume *decimal.Decimal
+	if plan.MaxVolumeMonthlyUSD.Valid {
+		maxVolume = &plan.MaxVolumeMonthlyUSD.Decimal
 	}
+
+	return &PlanResponse{
+		ID:                  plan.ID,
+		Name:                plan.Name,
+		Description:         plan.Description,
+		PriceUSD:            plan.PriceUSD,
+		BillingPeriod:       plan.BillingPeriod,
+		MaxPaymentsMonthly:  maxPayments,
+		MaxMerchants:        plan.MaxMerchants,
+		MaxAPICallsMonthly:  maxAPICalls,
+		MaxVolumeMonthlyUSD: maxVolume,
+		Features:            plan.Features,
+	}
+}
+
+func planToAdminResponse(plan *subscription.SubscriptionPlan) *PlanResponse {
+	r := planToResponse(plan)
+	if r != nil {
+		r.IsActive = &plan.IsActive
+	}
+	return r
 }
 
 func subscriptionToResponse(sub *subscription.MerchantSubscription) *SubscriptionResponse {
@@ -363,4 +381,247 @@ func (h *Handler) GetSystemStats(c echo.Context) error {
 	}
 
 	return c.JSON(200, stats)
+}
+
+// ===== Admin Plan CRUD =====
+
+type CreatePlanRequest struct {
+	ID                  string           `json:"id"`
+	Name                string           `json:"name"`
+	Description         string           `json:"description"`
+	PriceUSD            decimal.Decimal  `json:"price_usd"`
+	BillingPeriod       string           `json:"billing_period"`
+	MaxPaymentsMonthly  *int32           `json:"max_payments_monthly"`
+	MaxMerchants        int32            `json:"max_merchants"`
+	MaxAPICallsMonthly  *int32           `json:"max_api_calls_monthly"`
+	MaxVolumeMonthlyUSD *decimal.Decimal `json:"max_volume_monthly_usd"`
+	Features            interface{}      `json:"features"`
+	IsActive            bool             `json:"is_active"`
+}
+
+// ListAllPlans returns all plans including inactive (admin only)
+// GET /api/dashboard/v1/admin/plans
+func (h *Handler) ListAllPlans(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	plans, err := h.subscriptionService.ListAllPlans(ctx)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{Message: "unable to list plans", Status: "internal_error"})
+	}
+
+	response := make([]*PlanResponse, len(plans))
+	for i, plan := range plans {
+		response[i] = planToAdminResponse(plan)
+	}
+
+	return c.JSON(200, response)
+}
+
+// CreatePlan creates a new subscription plan (admin only)
+// POST /api/dashboard/v1/admin/plans
+func (h *Handler) CreatePlan(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req CreatePlanRequest
+	if err := c.Bind(&req); err != nil {
+		return common.ValidationErrorResponse(c, "invalid request body")
+	}
+
+	if req.ID == "" || req.Name == "" {
+		return common.ValidationErrorResponse(c, "id and name are required")
+	}
+
+	plan := requestToPlan(&req)
+
+	created, err := h.subscriptionService.CreatePlan(ctx, plan)
+	if err != nil {
+		h.logger.Error().Err(err).Str("plan_id", req.ID).Msg("failed to create plan")
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{Message: "failed to create plan: " + err.Error(), Status: "internal_error"})
+	}
+
+	return c.JSON(http.StatusCreated, planToAdminResponse(created))
+}
+
+// UpdatePlan updates an existing plan (admin only)
+// PUT /api/dashboard/v1/admin/plans/:planId
+func (h *Handler) UpdatePlan(c echo.Context) error {
+	ctx := c.Request().Context()
+	planID := c.Param("planId")
+
+	if planID == "" {
+		return common.ValidationErrorResponse(c, "plan ID is required")
+	}
+
+	var req CreatePlanRequest
+	if err := c.Bind(&req); err != nil {
+		return common.ValidationErrorResponse(c, "invalid request body")
+	}
+
+	plan := requestToPlan(&req)
+
+	updated, err := h.subscriptionService.UpdatePlan(ctx, planID, plan)
+	if err != nil {
+		h.logger.Error().Err(err).Str("plan_id", planID).Msg("failed to update plan")
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{Message: "failed to update plan: " + err.Error(), Status: "internal_error"})
+	}
+
+	return c.JSON(200, planToAdminResponse(updated))
+}
+
+// GetPlan returns a single plan by ID (admin only)
+// GET /api/dashboard/v1/admin/plans/:planId
+func (h *Handler) GetPlanAdmin(c echo.Context) error {
+	ctx := c.Request().Context()
+	planID := c.Param("planId")
+
+	plan, err := h.subscriptionService.GetPlanByID(ctx, planID)
+	if err != nil {
+		return common.NotFoundResponse(c, "plan not found")
+	}
+
+	return c.JSON(200, planToAdminResponse(plan))
+}
+
+func requestToPlan(req *CreatePlanRequest) *subscription.SubscriptionPlan {
+	plan := &subscription.SubscriptionPlan{
+		ID:            req.ID,
+		Name:          req.Name,
+		Description:   req.Description,
+		PriceUSD:      req.PriceUSD,
+		BillingPeriod: req.BillingPeriod,
+		MaxMerchants:  req.MaxMerchants,
+		IsActive:      req.IsActive,
+	}
+
+	if req.MaxPaymentsMonthly != nil {
+		plan.MaxPaymentsMonthly.Valid = true
+		plan.MaxPaymentsMonthly.Int32 = *req.MaxPaymentsMonthly
+	}
+
+	if req.MaxAPICallsMonthly != nil {
+		plan.MaxAPICallsMonthly.Valid = true
+		plan.MaxAPICallsMonthly.Int32 = *req.MaxAPICallsMonthly
+	}
+
+	if req.MaxVolumeMonthlyUSD != nil {
+		plan.MaxVolumeMonthlyUSD.Valid = true
+		plan.MaxVolumeMonthlyUSD.Decimal = *req.MaxVolumeMonthlyUSD
+	}
+
+	if req.Features != nil {
+		featuresBytes, _ := json.Marshal(req.Features)
+		plan.Features = featuresBytes
+	} else {
+		plan.Features = []byte("{}")
+	}
+
+	return plan
+}
+
+// ===== Admin Merchant Plan Assignment =====
+
+type AssignPlanRequest struct {
+	PlanID string `json:"plan_id"`
+}
+
+// AssignMerchantPlan assigns a plan to a merchant (admin only)
+// PUT /api/dashboard/v1/admin/merchants/:merchantId/plan
+func (h *Handler) AssignMerchantPlan(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	merchantIDStr := c.Param("merchantId")
+	merchantID, err := strconv.ParseInt(merchantIDStr, 10, 64)
+	if err != nil {
+		return common.ValidationErrorResponse(c, "invalid merchant ID")
+	}
+
+	var req AssignPlanRequest
+	if err := c.Bind(&req); err != nil {
+		return common.ValidationErrorResponse(c, "invalid request body")
+	}
+
+	if req.PlanID == "" {
+		return common.ValidationErrorResponse(c, "plan_id is required")
+	}
+
+	err = h.subscriptionService.AssignMerchantPlan(ctx, merchantID, req.PlanID)
+	if err != nil {
+		h.logger.Error().Err(err).Int64("merchant_id", merchantID).Str("plan_id", req.PlanID).Msg("failed to assign plan")
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{
+			Message: "failed to assign plan: " + err.Error(),
+			Status:  "internal_error",
+		})
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"message":     "plan assigned successfully",
+		"merchant_id": merchantID,
+		"plan_id":     req.PlanID,
+	})
+}
+
+// ===== Admin Merchant & User Listing =====
+
+// ListAllMerchants returns all merchants with plan/usage info (admin only)
+// GET /api/dashboard/v1/admin/merchants
+func (h *Handler) ListAllMerchants(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	limit := 50
+	offset := 0
+	if l := c.QueryParam("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	if o := c.QueryParam("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	merchants, total, err := h.subscriptionService.ListAllMerchants(ctx, limit, offset)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to list merchants")
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{Message: "unable to list merchants", Status: "internal_error"})
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"results": merchants,
+		"total":   total,
+		"limit":   limit,
+		"offset":  offset,
+	})
+}
+
+// ListAllUsers returns all users (admin only)
+// GET /api/dashboard/v1/admin/users
+func (h *Handler) ListAllUsers(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	limit := 50
+	offset := 0
+	if l := c.QueryParam("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	if o := c.QueryParam("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	users, total, err := h.subscriptionService.ListAllUsers(ctx, limit, offset)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to list users")
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{Message: "unable to list users", Status: "internal_error"})
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"results": users,
+		"total":   total,
+		"limit":   limit,
+		"offset":  offset,
+	})
 }

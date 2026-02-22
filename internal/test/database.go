@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/oxygenpay/oxygen/internal/db/connection/pg"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/rs/zerolog"
 )
 

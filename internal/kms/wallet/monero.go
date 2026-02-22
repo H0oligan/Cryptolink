@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/oxygenpay/oxygen/internal/provider/monero"
+	"github.com/cryptolink/cryptolink/internal/provider/monero"
 	"github.com/pkg/errors"
 )
 

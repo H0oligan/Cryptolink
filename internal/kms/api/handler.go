@@ -6,10 +6,10 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/kms/wallet"
-	httpServer "github.com/oxygenpay/oxygen/internal/server/http"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/internal/kms/wallet"
+	httpServer "github.com/cryptolink/cryptolink/internal/server/http"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )

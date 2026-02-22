@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"time"
 
-	kmswallet "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
+	kmswallet "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 )
 

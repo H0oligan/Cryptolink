@@ -40,6 +40,12 @@ const xpubProvider = {
         return response.data;
     },
 
+    async deleteXpubWallet(merchantId: string, walletId: string): Promise<void> {
+        await apiRequest.delete(
+            withApiPath(`/merchant/${merchantId}/xpub-wallet/${walletId}`)
+        );
+    },
+
     async getXpubWallet(merchantId: string, walletId: string): Promise<XpubWallet> {
         const response = await apiRequest.get(
             withApiPath(`/merchant/${merchantId}/xpub-wallet/${walletId}`)

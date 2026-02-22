@@ -6,15 +6,16 @@ import (
 
 	"github.com/labstack/echo/v4"
 	mw "github.com/labstack/echo/v4/middleware"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	v1 "github.com/oxygenpay/oxygen/internal/server/http/internalapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/merchantapi"
-	merchantauth "github.com/oxygenpay/oxygen/internal/server/http/merchantapi/auth"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/server/http/paymentapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/subscriptionapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/webhook"
-	"github.com/oxygenpay/oxygen/internal/service/user"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	v1 "github.com/cryptolink/cryptolink/internal/server/http/internalapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/emailapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/merchantapi"
+	merchantauth "github.com/cryptolink/cryptolink/internal/server/http/merchantapi/auth"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/server/http/paymentapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/subscriptionapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/webhook"
+	"github.com/cryptolink/cryptolink/internal/service/user"
 )
 
 // WithDashboardAPI setups routes for Merchant's Dashboard (app.o2pay.co)
@@ -23,12 +24,15 @@ func WithDashboardAPI(
 	handler *merchantapi.Handler,
 	authHandler *merchantauth.Handler,
 	subscriptionHandler *subscriptionapi.Handler,
+	emailHandler *emailapi.Handler,
 	tokensManager *auth.TokenAuthManager,
 	users *user.Service,
 	enableEmailAuth bool,
 	enableGoogleAuth bool,
 ) Opt {
 	return func(s *Server) {
+		s.echo.Use(middleware.SecurityHeaders())
+
 		guardsUsersMW := middleware.GuardsUsers()
 
 		dashboardAPI := s.echo.Group(
@@ -47,6 +51,8 @@ func WithDashboardAPI(
 		authGroup.GET("/provider", authHandler.ListAvailableProviders)
 		authGroup.GET("/csrf-cookie", authHandler.GetCookie)
 		authGroup.GET("/me", authHandler.GetMe, guardsUsersMW)
+		authGroup.PUT("/profile", authHandler.UpdateProfile, guardsUsersMW)
+		authGroup.PUT("/password", authHandler.UpdatePassword, guardsUsersMW)
 		authGroup.POST("/logout", authHandler.PostLogout, guardsUsersMW)
 
 		// email auth routes
@@ -98,15 +104,17 @@ func WithDashboardAPI(
 		merchantGroup.GET("/xpub-wallet", handler.ListXpubWallets)
 		merchantGroup.POST("/xpub-wallet", handler.CreateXpubWallet)
 		merchantGroup.GET("/xpub-wallet/:walletId", handler.GetXpubWallet)
+		merchantGroup.DELETE("/xpub-wallet/:walletId", handler.DeleteXpubWallet)
 		merchantGroup.POST("/xpub-wallet/:walletId/derive", handler.DeriveAddress)
 		merchantGroup.GET("/xpub-wallet/:walletId/next-address", handler.GetNextAddress)
 		merchantGroup.GET("/xpub-wallet/:walletId/addresses", handler.ListDerivedAddresses)
 
-		// Withdrawals (rate limited to prevent abuse)
-		withdrawalRL := mw.NewRateLimiterMemoryStore(10) // 10 requests per second
-		withdrawalGroup := merchantGroup.Group("/withdrawal", mw.RateLimiter(withdrawalRL))
-		withdrawalGroup.POST("", handler.CreateWithdrawal)
-		withdrawalGroup.GET("-fee", handler.GetWithdrawalFee)
+		// EVM Smart Contract Collector Wallets
+		merchantGroup.GET("/evm-collector", handler.ListEvmCollectors)
+		merchantGroup.POST("/evm-collector", handler.SetupEvmCollector)
+		merchantGroup.GET("/evm-collector/:blockchain", handler.GetEvmCollector)
+		merchantGroup.DELETE("/evm-collector/:blockchain", handler.DeleteEvmCollector)
+		merchantGroup.GET("/evm-collector/:blockchain/balance", handler.GetEvmCollectorBalance)
 
 		// Form
 		merchantGroup.POST("/form", handler.CreateFormSubmission)
@@ -122,10 +130,28 @@ func WithDashboardAPI(
 		merchantGroup.POST("/subscription/cancel", subscriptionHandler.CancelSubscription)
 		merchantGroup.GET("/subscription/usage", subscriptionHandler.GetUsageHistory)
 
-		// Admin subscription routes (super admin only)
+		// Admin routes (super admin only)
 		adminGroup := dashboardAPI.Group("/admin", guardsUsersMW, middleware.GuardsSuperAdmin())
 		adminGroup.GET("/subscription/stats", subscriptionHandler.GetSystemStats)
 		adminGroup.GET("/subscription/list", subscriptionHandler.ListAllSubscriptions)
+
+		// Admin plan CRUD
+		adminGroup.GET("/plans", subscriptionHandler.ListAllPlans)
+		adminGroup.POST("/plans", subscriptionHandler.CreatePlan)
+		adminGroup.GET("/plans/:planId", subscriptionHandler.GetPlanAdmin)
+		adminGroup.PUT("/plans/:planId", subscriptionHandler.UpdatePlan)
+
+		// Admin merchant & user management
+		adminGroup.GET("/merchants", subscriptionHandler.ListAllMerchants)
+		adminGroup.PUT("/merchants/:merchantId/plan", subscriptionHandler.AssignMerchantPlan)
+		adminGroup.GET("/users", subscriptionHandler.ListAllUsers)
+
+		// Admin email routes
+		adminGroup.GET("/email/settings", emailHandler.GetSettings)
+		adminGroup.PUT("/email/settings", emailHandler.UpdateSettings)
+		adminGroup.POST("/email/send", emailHandler.SendEmail)
+		adminGroup.POST("/email/test", emailHandler.TestEmail)
+		adminGroup.GET("/email/log", emailHandler.GetLogs)
 
 		setupCommonMerchantRoutes(merchantGroup, handler)
 	}

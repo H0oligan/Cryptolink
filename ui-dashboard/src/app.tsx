@@ -2,14 +2,19 @@ import "./app.scss";
 
 import * as React from "react";
 import {AxiosError} from "axios";
-import {Routes, Route, useLocation, useNavigate} from "react-router-dom";
+import {Routes, Route, useLocation, useNavigate, Navigate} from "react-router-dom";
 import {useMount} from "react-use";
 import {ProLayout, RouteContext, RouteContextType} from "@ant-design/pro-components";
-import {EditOutlined, LogoutOutlined, LinkOutlined, CheckOutlined} from "@ant-design/icons";
+import {
+    EditOutlined, LogoutOutlined, LinkOutlined, CheckOutlined, UserOutlined,
+    DashboardOutlined, ArrowLeftOutlined, CreditCardOutlined, WalletOutlined,
+    TeamOutlined, CrownOutlined, SettingOutlined, BookOutlined, ShopOutlined,
+    MailOutlined
+} from "@ant-design/icons";
 import {Select, Divider, Button, Avatar, Space, Dropdown, MenuProps, notification, FormInstance} from "antd";
 import {usePostHog} from "posthog-js/react";
 import bevis from "src/utils/bevis";
-import logoImg from "/fav/android-chrome-192x192.png";
+const logoImg = "/logo.svg";
 import SettingsPage from "src/pages/settings-page/settings-page";
 import {SupportMessage, User} from "src/types";
 import authProvider from "src/providers/auth-provider";
@@ -27,44 +32,43 @@ import CustomersPage from "src/pages/customers-page/customers-page";
 import {sleep} from "src/utils";
 import PaymentLinksPage from "src/pages/payment-links-page/payments-links-page";
 import WalletSetupPage from "src/pages/wallet-setup-page/wallet-setup-page";
+import ProfilePage from "src/pages/profile-page/profile-page";
+import SubscriptionPage from "src/pages/subscription-page/subscription-page";
+import AdminDashboardPage from "src/pages/admin/dashboard-page/dashboard-page";
+import AdminPlansPage from "src/pages/admin/plans-page/plans-page";
+import AdminMerchantsPage from "src/pages/admin/merchants-page/merchants-page";
+import AdminUsersPage from "src/pages/admin/users-page/users-page";
+import AdminEmailPage from "src/pages/admin/email-page/email-page";
 import useSharedPosthogStatus from "src/hooks/use-posthog-status";
 import {toggled} from "./providers/toggles";
+import ThemeToggle from "src/theme/theme-toggle";
+import {useTheme} from "src/theme/theme-context";
 
 interface MenuItem {
     path: string;
     name: string;
+    icon?: React.ReactNode;
     onClick?: () => void;
 }
 
 const defaultMenus: MenuItem[] = [
-    {
-        path: "/payments",
-        name: "Payments"
-    },
-    {
-        path: "/payment-links",
-        name: "Payment Links"
-    },
-    {
-        path: "/balance",
-        name: "Balance"
-    },
-    {
-        path: "/customers",
-        name: "Customers"
-    },
-    {
-        path: "/wallet-setup",
-        name: "Wallet Setup"
-    },
-    {
-        path: "/settings",
-        name: "Settings"
-    },
-    {
-        path: "https://cryptolink.cc/doc/",
-        name: "Documentation"
-    }
+    {path: "/payments", name: "Payments", icon: <CreditCardOutlined />},
+    {path: "/payment-links", name: "Payment Links", icon: <LinkOutlined />},
+    {path: "/balance", name: "Balance", icon: <WalletOutlined />},
+    {path: "/customers", name: "Customers", icon: <TeamOutlined />},
+    {path: "/subscription", name: "Subscription", icon: <CrownOutlined />},
+    {path: "/wallet-setup", name: "Wallet Setup", icon: <WalletOutlined />},
+    {path: "/settings", name: "Settings", icon: <SettingOutlined />},
+    {path: "https://cryptolink.cc/doc/", name: "Documentation", icon: <BookOutlined />}
+];
+
+const adminMenus: MenuItem[] = [
+    {path: "/admin/dashboard", name: "Admin Dashboard", icon: <DashboardOutlined />},
+    {path: "/admin/merchants", name: "Merchants", icon: <ShopOutlined />},
+    {path: "/admin/users", name: "Users", icon: <UserOutlined />},
+    {path: "/admin/plans", name: "Plans", icon: <CrownOutlined />},
+    {path: "/admin/email", name: "Email", icon: <MailOutlined />},
+    {path: "/payments", name: "Back to Merchant", icon: <ArrowLeftOutlined />}
 ];
 
 if (toggled("feedback")) {
@@ -77,11 +81,12 @@ if (toggled("feedback")) {
 const manageMerchantsMenus: MenuItem[] = [
     {
         path: "/manage-merchants",
-        name: "Manage Merchants"
+        name: "Manage Merchants",
+        icon: <ShopOutlined />
     }
 ];
 
-const menus = defaultMenus.concat(manageMerchantsMenus);
+const menus = defaultMenus.concat(manageMerchantsMenus).concat(adminMenus);
 
 const b = bevis("app");
 
@@ -95,6 +100,7 @@ const App: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [notificationApi, notificationElement] = notification.useNotification();
+    const {isDark} = useTheme();
 
     const {merchants, getMerchants} = useSharedMerchants();
     const {getMerchant} = useSharedMerchant();
@@ -219,7 +225,28 @@ const App: React.FC = () => {
         });
     };
 
+    const isAdminArea = location.pathname.startsWith("/admin") && user?.isSuperAdmin;
+
     const userMenu: MenuProps["items"] = [
+        {
+            label: (
+                <Space align="center" className={b("user-container")} onClick={() => navigate("/profile")}>
+                    <span className={b("user-text")}>Profile</span>
+                    <UserOutlined className={b("user-avatar")} />
+                </Space>
+            ),
+            key: "profile"
+        },
+        ...(user?.isSuperAdmin ? [{
+            label: (
+                <Space align="center" className={b("user-container")} onClick={() => navigate(isAdminArea ? "/payments" : "/admin/dashboard")}>
+                    <span className={b("user-text")}>{isAdminArea ? "Merchant Panel" : "Admin Panel"}</span>
+                    <DashboardOutlined className={b("user-avatar")} />
+                </Space>
+            ),
+            key: "admin"
+        }] : []),
+        {type: "divider" as const},
         {
             label: (
                 <Space align="center" className={b("user-container")} onClick={logout}>
@@ -269,7 +296,7 @@ const App: React.FC = () => {
                             }}
                             breakpoint="xl"
                             route={{
-                                routes: isManageMerchantsActive ? manageMerchantsMenus : defaultMenus
+                                routes: isAdminArea ? adminMenus : isManageMerchantsActive ? manageMerchantsMenus : defaultMenus
                             }}
                             logo={
                                 <RouteContext.Consumer>
@@ -284,11 +311,15 @@ const App: React.FC = () => {
                                 </RouteContext.Consumer>
                             }
                             loading={isLoading}
+                            navTheme={isDark ? "realDark" : "light"}
                             actionsRender={() => {
                                 return [
+                                    <ThemeToggle key="theme-toggle" />,
                                     !isManageMerchantsActive ? (
                                         <Select
+                                            key="merchant-select"
                                             className={b("select")}
+                                            getPopupContainer={() => document.body}
                                             dropdownRender={(menu) => (
                                                 <>
                                                     {menu}
@@ -324,7 +355,7 @@ const App: React.FC = () => {
                                             }}
                                         />
                                     ) : null,
-                                    <Dropdown menu={{items: userMenu}} trigger={["click"]} className={b("user-wrap")}>
+                                    <Dropdown key="user-dropdown" menu={{items: userMenu}} trigger={["click"]} className={b("user-wrap")} getPopupContainer={() => document.body}>
                                         <Space
                                             className={b("user-container", {
                                                 "user-container_selected": true
@@ -339,7 +370,7 @@ const App: React.FC = () => {
                                                             className={b("user-avatar")}
                                                         />
                                                         {routeCtx.isMobile ? null : (
-                                                            <div className={b("user-text")}>{user?.name}</div>
+                                                            <div className={b("user-text")}>{user?.email || user?.name}</div>
                                                         )}
                                                     </Space>
                                                 )}
@@ -383,6 +414,8 @@ const App: React.FC = () => {
                             defaultCollapsed
                             collapsedButtonRender={false}
                             layout="mix"
+                            splitMenus={false}
+                            headerTitleRender={() => null}
                         >
                             {notificationElement}
                             <Routes>
@@ -393,6 +426,13 @@ const App: React.FC = () => {
                                 <Route path="balance" element={<BalancePage />} />
                                 <Route path="customers" element={<CustomersPage />} />
                                 <Route path="wallet-setup" element={<WalletSetupPage />} />
+                                <Route path="subscription" element={<SubscriptionPage />} />
+                                <Route path="profile" element={<ProfilePage />} />
+                                <Route path="admin/dashboard" element={user?.isSuperAdmin ? <AdminDashboardPage /> : <Navigate to="/payments" replace />} />
+                                <Route path="admin/plans" element={user?.isSuperAdmin ? <AdminPlansPage /> : <Navigate to="/payments" replace />} />
+                                <Route path="admin/merchants" element={user?.isSuperAdmin ? <AdminMerchantsPage /> : <Navigate to="/payments" replace />} />
+                                <Route path="admin/users" element={user?.isSuperAdmin ? <AdminUsersPage /> : <Navigate to="/payments" replace />} />
+                                <Route path="admin/email" element={user?.isSuperAdmin ? <AdminEmailPage /> : <Navigate to="/payments" replace />} />
                                 <Route path="*" element={"not found"} />
                             </Routes>
                         </ProLayout>

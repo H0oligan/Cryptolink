@@ -41,8 +41,10 @@ const PaymentPage: React.FC = () => {
             const paymentResponce = await paymentProvider.getPayment(payment.id);
             setPayment(paymentResponce);
         } catch (error) {
-            setPaymentProcessError(true);
-            console.error("Error ocurred:", error);
+            // Transient network error — retry silently rather than showing an error.
+            // Real payment failures arrive as status:"failed" in the payment payload.
+            console.error("Error occurred polling payment:", error);
+            setTimeout(updatePayment, 3000);
         }
     };
 
@@ -304,7 +306,7 @@ const PaymentPage: React.FC = () => {
                         <Icon
                             name={getCryptoIconName(payment.paymentMethod.ticker)}
                             dir="crypto"
-                            className="absolute p-1 w-12 h-12 bg-white border rounded-full left-1/2 -translate-y-1/2 top-1/2 -translate-x-1/2"
+                            className="absolute p-1 w-12 h-12 bg-[#13131a] border border-[#2a2a3e] rounded-full left-1/2 -translate-y-1/2 top-1/2 -translate-x-1/2"
                         />
                     </div>
                     <span className="block mx-auto text-sm mb-7 font-medium text-center text-card-desc sm:hidden">

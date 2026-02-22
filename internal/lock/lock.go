@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"github.com/oxygenpay/oxygen/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/pkg/errors"
 )
 

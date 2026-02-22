@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oxygenpay/oxygen/internal/lock"
-	"github.com/oxygenpay/oxygen/internal/test"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/lock"
+	"github.com/cryptolink/cryptolink/internal/test"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/stretchr/testify/assert"
 )
 

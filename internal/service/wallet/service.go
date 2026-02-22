@@ -6,11 +6,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	kmswallet "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	kmsclient "github.com/oxygenpay/oxygen/pkg/api-kms/v1/client/wallet"
-	kmsmodel "github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	kmswallet "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	kmsclient "github.com/cryptolink/cryptolink/pkg/api-kms/v1/client/wallet"
+	kmsmodel "github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )

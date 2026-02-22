@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/money"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 )
 

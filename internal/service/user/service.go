@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/bus"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/service/registry"
+	"github.com/cryptolink/cryptolink/internal/bus"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/service/registry"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
@@ -190,6 +190,42 @@ func (s *Service) UpdatePassword(ctx context.Context, id int64, pass string) (*U
 		return nil, ErrNotFound
 	case err != nil:
 		return nil, err
+	}
+
+	return entryToUser(entry)
+}
+
+// UpdateProfile updates user name and/or email
+func (s *Service) UpdateProfile(ctx context.Context, id int64, name, email string) (*User, error) {
+	existing, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	newName := strings.TrimSpace(name)
+	if newName == "" {
+		newName = existing.Name
+	}
+
+	newEmail := strings.TrimSpace(email)
+	if newEmail == "" {
+		newEmail = existing.Email
+	} else {
+		if err := validateEmail(newEmail); err != nil {
+			return nil, errors.Wrap(err, "invalid email")
+		}
+	}
+
+	entry, err := s.store.UpdateUser(ctx, repository.UpdateUserParams{
+		ID:              id,
+		Name:            newName,
+		ProfileImageUrl: sql.NullString{},
+		GoogleID:        sql.NullString{},
+		UpdatedAt:       time.Now(),
+		SetGoogleID:     false,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update user")
 	}
 
 	return entryToUser(entry)

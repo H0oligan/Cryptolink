@@ -13,8 +13,8 @@ import (
 	//nolint:revive.
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/olekukonko/tablewriter"
-	"github.com/oxygenpay/oxygen/internal/config"
-	"github.com/oxygenpay/oxygen/scripts"
+	"github.com/cryptolink/cryptolink/internal/config"
+	"github.com/cryptolink/cryptolink/scripts"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/spf13/cobra"
 )

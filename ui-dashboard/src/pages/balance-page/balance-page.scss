@@ -30,8 +30,8 @@
     }
 
     &__withdraw-btn {
-        border-color: #4096ff;
-        color: #4096ff;
+        border-color: var(--cl-accent-primary);
+        color: var(--cl-accent-primary);
         margin-right: 10px;
     }
 }

@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	pgx "github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 )
 

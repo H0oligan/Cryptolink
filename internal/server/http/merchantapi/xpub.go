@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/service/xpub"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/service/xpub"
 	"github.com/pkg/errors"
 )
 
@@ -119,6 +119,27 @@ func (h *Handler) GetXpubWallet(c echo.Context) error {
 		LastDerivedIndex: wallet.LastDerivedIndex,
 		CreatedAt:        wallet.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	})
+}
+
+// DeleteXpubWallet deactivates an xpub wallet
+func (h *Handler) DeleteXpubWallet(c echo.Context) error {
+	ctx := c.Request().Context()
+	merchant := middleware.ResolveMerchant(c)
+
+	walletUUID, err := uuid.Parse(c.Param("walletId"))
+	if err != nil {
+		return common.ValidationErrorItemResponse(c, "walletId", "Invalid wallet UUID")
+	}
+
+	err = h.xpubService.DeactivateWallet(ctx, walletUUID, merchant.ID)
+	switch {
+	case errors.Is(err, xpub.ErrNotFound):
+		return common.ErrorResponse(c, "Xpub wallet not found")
+	case err != nil:
+		return errors.Wrap(err, "unable to delete xpub wallet")
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 // DeriveAddress derives a new address for an xpub wallet

@@ -6,12 +6,12 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 	"github.com/pkg/errors"
 )
 
@@ -172,6 +172,19 @@ func paymentToResponse(pr payment.PaymentWithRelations) *model.Payment {
 		if tx != nil {
 			info.SelectedCurrency = util.Ptr(tx.Currency.DisplayName())
 			info.ServiceFee = util.Ptr(tx.ServiceFee.String())
+
+			// Blockchain transaction details for enterprise tracking
+			if tx.HashID != nil && *tx.HashID != "" {
+				info.TransactionHash = tx.HashID
+				link, _ := tx.ExplorerLink()
+				info.ExplorerLink = &link
+			}
+			if tx.SenderAddress != nil && *tx.SenderAddress != "" {
+				info.SenderAddress = tx.SenderAddress
+			}
+			if tx.NetworkFee != nil {
+				info.NetworkFee = util.Ptr(tx.NetworkFee.String())
+			}
 		}
 
 		if customer != nil {

@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 )
 
 // GuardsSuperAdmin ensures the user is a super admin

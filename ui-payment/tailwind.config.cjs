@@ -4,19 +4,19 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                primary: "#f0fc7f",
-                "primary-darker": "#d5e33f",
+                primary: "#818cf8",
+                "primary-darker": "#6366f1",
                 card: {
-                    desc: "#8A9495",
-                    error: "#D63650"
+                    desc: "#94a3b8",
+                    error: "#ef4444"
                 },
                 main: {
-                    "green-1": "#50AF95",
-                    "green-2": "#49D1AC",
-                    "green-3": "#D0E6E8",
-                    "error": "#D63650", 
-                    "red-1": "#fff2f0",
-                    "red-2": "#ffccc7"
+                    "green-1": "#818cf8",
+                    "green-2": "#10b981",
+                    "green-3": "#0a0a0f",
+                    "error": "#ef4444",
+                    "red-1": "rgba(239, 68, 68, 0.08)",
+                    "red-2": "rgba(239, 68, 68, 0.15)"
                 }
             },
             maxWidth: {

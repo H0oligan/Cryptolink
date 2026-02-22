@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"net/mail"
 	"net/url"
 	"strconv"
@@ -14,14 +15,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/bus"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/merchant"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/bus"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -49,7 +50,7 @@ type Service struct {
 }
 
 // ExpirationPeriodForLocked expiration period for incoming payment when locked
-const ExpirationPeriodForLocked = time.Minute * 20
+const ExpirationPeriodForLocked = time.Minute * 60
 
 // ExpirationPeriodForNotLocked expiration period for non-locked payment
 // e.g. when payment is created but user haven't opened the page or haven't locked a cryptocurrency.
@@ -613,7 +614,7 @@ func (s *Service) Update(ctx context.Context, merchantID, id int64, props Update
 	}
 
 	if update.SetExpiresAt {
-		update.ExpiresAt = repository.TimeToNullable(time.Now().UTC().Add(ExpirationPeriodForLocked))
+		update.ExpiresAt = repository.TimeToNullable(time.Now().Add(ExpirationPeriodForLocked))
 	}
 
 	pt, err := s.repo.UpdatePayment(ctx, update)
@@ -853,6 +854,20 @@ func (p CreatePaymentProps) validateLink() error {
 	return nil
 }
 
+// privateIPNets contains RFC-1918 and other non-routable CIDR blocks blocked for SSRF protection.
+var privateIPNets = func() []*net.IPNet {
+	blocks := []string{
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+		"127.0.0.0/8", "169.254.0.0/16", "::1/128", "fc00::/7",
+	}
+	nets := make([]*net.IPNet, 0, len(blocks))
+	for _, b := range blocks {
+		_, n, _ := net.ParseCIDR(b)
+		nets = append(nets, n)
+	}
+	return nets
+}()
+
 func validateURL(u string) error {
 	parsed, err := url.ParseRequestURI(u)
 	if err != nil {
@@ -863,8 +878,27 @@ func validateURL(u string) error {
 		return errors.New("scheme should be HTTPS")
 	}
 
-	if parsed.Hostname() == "" {
+	hostname := parsed.Hostname()
+	if hostname == "" {
 		return errors.New("invalid hostname")
+	}
+
+	// Block private/loopback addresses to prevent SSRF.
+	ips, err := net.LookupHost(hostname)
+	if err != nil {
+		// Allow — DNS failure at validation time shouldn't block legitimate URLs.
+		return nil
+	}
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			continue
+		}
+		for _, block := range privateIPNets {
+			if block.Contains(ip) {
+				return errors.New("URL resolves to a private/internal address")
+			}
+		}
 	}
 
 	return nil

@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
-	"github.com/oxygenpay/oxygen/internal/test"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
+	"github.com/cryptolink/cryptolink/internal/test"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

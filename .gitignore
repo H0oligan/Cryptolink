@@ -8,3 +8,13 @@ config/*.yml
 web/redoc/**/*.json
 docker.env
 .actrc
+
+# Internal planning docs — not for public repo
+PLAN.md
+*.local.md
+
+# Never commit actual secrets
+*.pem
+*.key
+*.p12
+secrets/

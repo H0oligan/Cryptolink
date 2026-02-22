@@ -17,7 +17,7 @@
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 8px;
-        background: #f5f5f5;
+        background: var(--cl-code-bg);
         padding: 16px;
         border-radius: 8px;
     }
@@ -25,26 +25,26 @@
     &__mnemonic-word {
         display: flex;
         align-items: center;
-        background: white;
+        background: var(--cl-bg-container);
         padding: 8px 12px;
         border-radius: 4px;
-        border: 1px solid #d9d9d9;
+        border: 1px solid var(--cl-border);
     }
 
     &__word-number {
-        color: #999;
+        color: var(--cl-text-tertiary);
         font-size: 12px;
         margin-right: 8px;
         min-width: 20px;
     }
 
     &__word-text {
-        font-family: monospace;
+        font-family: var(--cl-monospace);
         font-weight: 500;
     }
 
     &__xpub-display {
-        background: #f5f5f5;
+        background: var(--cl-code-bg);
         padding: 12px;
         border-radius: 4px;
         margin-top: 8px;

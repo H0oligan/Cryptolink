@@ -1,4 +1,4 @@
-module github.com/oxygenpay/oxygen
+module github.com/cryptolink/cryptolink
 
 go 1.21
 

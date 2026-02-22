@@ -9,7 +9,9 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import posthog from "posthog-js";
 import {PostHogProvider} from "posthog-js/react";
 import {posthogConfig} from "./providers/posthog";
+import {App as AntdApp} from "antd";
 import App from "./app";
+import {ThemeProvider} from "./theme/theme-context";
 
 const queryClient = new QueryClient();
 
@@ -38,11 +40,15 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     // TODO: Return when https://github.com/ant-design/pro-components/issues/6264 will be fixed
     // <React.StrictMode>
     <PostHogProvider client={posthog}>
-        <BrowserRouter basename={determineBasename()}>
-            <QueryClientProvider client={queryClient}>
-                <App />
-            </QueryClientProvider>
-        </BrowserRouter>
+        <ThemeProvider>
+            <AntdApp>
+                <BrowserRouter basename={determineBasename()}>
+                    <QueryClientProvider client={queryClient}>
+                        <App />
+                    </QueryClientProvider>
+                </BrowserRouter>
+            </AntdApp>
+        </ThemeProvider>
     </PostHogProvider>
     // </React.StrictMode>
 );

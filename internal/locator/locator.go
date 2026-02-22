@@ -7,29 +7,31 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/bus"
-	"github.com/oxygenpay/oxygen/internal/config"
-	"github.com/oxygenpay/oxygen/internal/db/connection/pg"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/lock"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/provider/monero"
-	"github.com/oxygenpay/oxygen/internal/provider/solana"
-	"github.com/oxygenpay/oxygen/internal/provider/tatum"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/merchant"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/processing"
-	"github.com/oxygenpay/oxygen/internal/service/registry"
-	"github.com/oxygenpay/oxygen/internal/service/subscription"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/user"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/service/xpub"
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/client"
-	"github.com/oxygenpay/oxygen/pkg/graceful"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/bus"
+	"github.com/cryptolink/cryptolink/internal/config"
+	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/lock"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/provider/monero"
+	"github.com/cryptolink/cryptolink/internal/provider/solana"
+	"github.com/cryptolink/cryptolink/internal/provider/tatum"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/service/email"
+	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
+	"github.com/cryptolink/cryptolink/internal/service/registry"
+	"github.com/cryptolink/cryptolink/internal/service/subscription"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/user"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/service/xpub"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/client"
+	"github.com/cryptolink/cryptolink/pkg/graceful"
 	"github.com/rs/zerolog"
 )
 
@@ -69,8 +71,10 @@ type Locator struct {
 	paymentService       *payment.Service
 	walletService        *wallet.Service
 	xpubService          *xpub.Service
+	evmCollectorService  *evmcollector.Service
 	processingService    *processing.Service
 	subscriptionService  *subscription.Service
+	emailService         *email.Service
 	jobLogger            *log.JobLogger
 }
 
@@ -307,12 +311,28 @@ func (loc *Locator) XpubService() *xpub.Service {
 	return loc.xpubService
 }
 
+func (loc *Locator) EvmCollectorService() *evmcollector.Service {
+	loc.init("service.evmcollector", func() {
+		loc.evmCollectorService = evmcollector.New(loc.DB().Pool, loc.config.Evm.Config, loc.logger)
+	})
+
+	return loc.evmCollectorService
+}
+
 func (loc *Locator) SubscriptionService() *subscription.Service {
 	loc.init("service.subscription", func() {
 		loc.subscriptionService = subscription.New(loc.DB().Pool, loc.logger)
 	})
 
 	return loc.subscriptionService
+}
+
+func (loc *Locator) EmailService() *email.Service {
+	loc.init("service.email", func() {
+		loc.emailService = email.New(loc.DB().Pool, loc.logger)
+	})
+
+	return loc.emailService
 }
 
 func (loc *Locator) ProcessingService() *processing.Service {
@@ -324,6 +344,8 @@ func (loc *Locator) ProcessingService() *processing.Service {
 			loc.PaymentService(),
 			loc.TransactionService(),
 			loc.XpubService(),
+			loc.EvmCollectorService(),
+			loc.EmailService(),
 			loc.BlockchainService(),
 			loc.TatumProvider(),
 			loc.EventBus(),

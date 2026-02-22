@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/scheduler"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/pkg/api-admin/v1/model"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/scheduler"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/pkg/api-admin/v1/model"
 )
 
 func (h *Handler) RunSchedulerJob(c echo.Context) error {
@@ -29,12 +29,7 @@ func (h *Handler) RunSchedulerJob(c echo.Context) error {
 
 	jobs := map[string]func(context.Context) error{
 		"checkIncomingTransactionsProgress": h.scheduler.CheckIncomingTransactionsProgress,
-		"performInternalWalletTransfer":     h.scheduler.PerformInternalWalletTransfer,
-		"checkInternalTransferProgress":     h.scheduler.CheckInternalTransferProgress,
-		"performWithdrawalsCreation":        h.scheduler.PerformWithdrawalsCreation,
-		"checkWithdrawalsProgress":          h.scheduler.CheckWithdrawalsProgress,
 		"cancelExpiredPayments":             h.scheduler.CancelExpiredPayments,
-		"ensureOutboundWallets":             h.scheduler.EnsureOutboundWallets,
 	}
 
 	job, exists := jobs[req.Job]

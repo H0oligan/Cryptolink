@@ -4,9 +4,9 @@ import (
 	cryptorand "crypto/rand"
 	"testing"
 
-	"github.com/oxygenpay/oxygen/internal/db/connection/bolt"
-	"github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
+	"github.com/cryptolink/cryptolink/internal/db/connection/bolt"
+	"github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/rs/zerolog"
 	"go.etcd.io/bbolt"
 )

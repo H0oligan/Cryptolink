@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/oxygenpay/oxygen/internal/service/subscription"
+	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

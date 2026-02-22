@@ -8,17 +8,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/oxygenpay/oxygen/internal/bus"
-	kmswallet "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/lock"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/provider/tatum"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/merchant"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/service/xpub"
+	"github.com/cryptolink/cryptolink/internal/bus"
+	kmswallet "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/lock"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/provider/tatum"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/email"
+	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
+	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/service/xpub"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -31,17 +33,19 @@ type BlockchainService interface {
 }
 
 type Service struct {
-	config        Config
-	wallets       *wallet.Service
-	merchants     *merchant.Service
-	payments      *payment.Service
-	transactions  *transaction.Service
-	xpubService   *xpub.Service
-	blockchain    BlockchainService
-	tatumProvider *tatum.Provider
-	publisher     bus.Publisher
-	locker        *lock.Locker
-	logger        *zerolog.Logger
+	config           Config
+	wallets          *wallet.Service
+	merchants        *merchant.Service
+	payments         *payment.Service
+	transactions     *transaction.Service
+	xpubService      *xpub.Service
+	evmCollector     *evmcollector.Service
+	emailService     *email.Service
+	blockchain       BlockchainService
+	tatumProvider    *tatum.Provider
+	publisher        bus.Publisher
+	locker           *lock.Locker
+	logger           *zerolog.Logger
 }
 
 type Config struct {
@@ -77,6 +81,8 @@ func New(
 	payments *payment.Service,
 	transactions *transaction.Service,
 	xpubService *xpub.Service,
+	evmCollectorService *evmcollector.Service,
+	emailService *email.Service,
 	blockchainService BlockchainService,
 	tatumProvider *tatum.Provider,
 	publisher bus.Publisher,
@@ -86,17 +92,19 @@ func New(
 	log := logger.With().Str("channel", "processing_service").Logger()
 
 	return &Service{
-		config:        config,
-		wallets:       wallets,
-		merchants:     merchants,
-		payments:      payments,
-		transactions:  transactions,
-		xpubService:   xpubService,
-		blockchain:    blockchainService,
+		config:       config,
+		wallets:      wallets,
+		merchants:    merchants,
+		payments:     payments,
+		transactions: transactions,
+		xpubService:  xpubService,
+		evmCollector: evmCollectorService,
+		emailService: emailService,
+		blockchain:   blockchainService,
 		tatumProvider: tatumProvider,
-		publisher:     publisher,
-		locker:        locker,
-		logger:        &log,
+		publisher:    publisher,
+		locker:       locker,
+		logger:       &log,
 	}
 }
 
@@ -384,6 +392,14 @@ func (s *Service) createIncomingTransaction(
 		return s.createTransactionWithXpubAddress(ctx, pt, currency, xpubWallet, cryptoAmount, cryptoServiceFee, usdAmount)
 	}
 
+	// 2b. Check if merchant has an EVM collector for this blockchain
+	if s.evmCollector != nil {
+		collector, collectorErr := s.evmCollector.GetByMerchantAndBlockchain(ctx, pt.MerchantID, blockchain)
+		if collectorErr == nil && collector != nil {
+			return s.createTransactionWithCollectorAddress(ctx, pt, currency, collector, cryptoAmount, cryptoServiceFee, usdAmount)
+		}
+	}
+
 	// 3. Fall back to traditional wallet flow - Acquire available inbound wallet or create one.
 	acquiredWallet, err := s.wallets.AcquireLock(ctx, pt.MerchantID, currency, pt.IsTest)
 	if err != nil {
@@ -483,6 +499,50 @@ func (s *Service) createTransactionWithXpubAddress(
 		// Don't fail the transaction creation, just log the warning
 	}
 
+	// Subscribe the xpub-derived address to Tatum webhooks for real-time payment detection
+	if err := s.ensureXpubAddressSubscription(ctx, derivedAddr, currency); err != nil {
+		s.logger.Warn().Err(err).
+			Str("address", derivedAddr.Address).
+			Int64("payment_id", pt.ID).
+			Msg("unable to subscribe xpub address to Tatum webhooks")
+		// Don't fail - the scheduler will still poll for confirmation
+	}
+
+	return payment.MakeMethod(tx, currency), nil
+}
+
+// createTransactionWithCollectorAddress creates a transaction using a smart contract collector address.
+// The collector's contract address is permanent — all payments for a given merchant/chain go there.
+func (s *Service) createTransactionWithCollectorAddress(
+	ctx context.Context,
+	pt *payment.Payment,
+	currency money.CryptoCurrency,
+	collector *evmcollector.Collector,
+	cryptoAmount money.Money,
+	cryptoServiceFee money.Money,
+	usdAmount money.Money,
+) (*payment.Method, error) {
+	s.logger.Info().
+		Str("contract_address", collector.ContractAddress).
+		Str("blockchain", collector.Blockchain).
+		Int64("payment_id", pt.ID).
+		Msg("using EVM collector contract address for payment")
+
+	tx, err := s.transactions.Create(ctx, pt.MerchantID, transaction.CreateTransaction{
+		Type:             transaction.TypeIncoming,
+		EntityID:         pt.ID,
+		RecipientAddress: collector.ContractAddress,
+		Currency:         currency,
+		Amount:           cryptoAmount,
+		ServiceFee:       cryptoServiceFee,
+		USDAmount:        usdAmount,
+		IsTest:           pt.IsTest,
+	})
+
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create transaction with collector address")
+	}
+
 	return payment.MakeMethod(tx, currency), nil
 }
 
@@ -494,7 +554,7 @@ func (s *Service) changePaymentMethod(
 ) (*payment.Method, error) {
 	const cancelReason = "customer chose another payment method"
 
-	if tx.RecipientWalletID == nil {
+	if tx.RecipientWalletID == nil && tx.RecipientAddress == "" {
 		return nil, errors.New("wallet id is nil")
 	}
 
@@ -541,6 +601,56 @@ func (s *Service) ensureWalletSubscription(ctx context.Context, w *wallet.Wallet
 		if err := s.wallets.UpdateTatumSubscription(ctx, w, w.TatumSubscription); err != nil {
 			return errors.Wrap(err, "unable to update wallet")
 		}
+	}
+
+	return nil
+}
+
+func (s *Service) ensureXpubAddressSubscription(ctx context.Context, addr *xpub.DerivedAddress, currency money.CryptoCurrency) error {
+	bc := currency.Blockchain
+
+	params := func(networkID string, isTest bool) tatum.SubscriptionParams {
+		return tatum.SubscriptionParams{
+			Blockchain: bc,
+			Address:    addr.Address,
+			WebhookURL: s.walletWebhookURL(networkID, addr.UUID),
+			IsTest:     isTest,
+		}
+	}
+
+	mainnetSubID := addr.TatumMainnetSubscriptionID
+	testnetSubID := addr.TatumTestnetSubscriptionID
+	var updated bool
+
+	if testnetSubID == "" {
+		id, err := s.tatumProvider.SubscribeToWebhook(ctx, params(currency.TestNetworkID, true))
+		if err != nil {
+			s.logger.Warn().Err(err).Str("address", addr.Address).Msg("unable to subscribe xpub address to testnet webhook")
+		} else {
+			testnetSubID = id
+			updated = true
+		}
+	}
+
+	if mainnetSubID == "" {
+		id, err := s.tatumProvider.SubscribeToWebhook(ctx, params(currency.NetworkID, false))
+		if err != nil {
+			return errors.Wrap(err, "unable to subscribe xpub address to mainnet webhook")
+		}
+		mainnetSubID = id
+		updated = true
+	}
+
+	if updated {
+		if _, err := s.xpubService.UpdateDerivedAddressTatumSubscription(ctx, addr.ID, mainnetSubID, testnetSubID); err != nil {
+			return errors.Wrap(err, "unable to save xpub address Tatum subscription")
+		}
+
+		s.logger.Info().
+			Str("address", addr.Address).
+			Str("mainnet_sub_id", mainnetSubID).
+			Str("testnet_sub_id", testnetSubID).
+			Msg("subscribed xpub address to Tatum webhooks")
 	}
 
 	return nil

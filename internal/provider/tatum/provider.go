@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha512"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,9 +13,9 @@ import (
 	"net/http"
 	"time"
 
-	kms "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/registry"
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/registry"
 	"github.com/oxygenpay/tatum-sdk/tatum"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -200,7 +201,7 @@ func (p *Provider) ValidateHMAC(body []byte, hash string) bool {
 
 	expectedMAC := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
-	return expectedMAC == hash
+	return subtle.ConstantTimeCompare([]byte(expectedMAC), []byte(hash)) == 1
 }
 
 func (p *Provider) ensureHMAC(secret string, isForce bool) {

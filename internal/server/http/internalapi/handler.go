@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/scheduler"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/scheduler"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/rs/zerolog"
 )
 

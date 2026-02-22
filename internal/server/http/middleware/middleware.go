@@ -9,8 +9,8 @@ import (
 	"github.com/labstack/echo/v4"
 	mw "github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/rs/zerolog"
 )
 
@@ -140,6 +140,22 @@ func Recover(logger *zerolog.Logger) echo.MiddlewareFunc {
 			return common.ErrorResponse(c, "server error")
 		},
 	})
+}
+
+// SecurityHeaders adds hardening headers to every response.
+func SecurityHeaders() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			h := c.Response().Header()
+			h.Set("X-Frame-Options", "SAMEORIGIN")
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("X-XSS-Protection", "1; mode=block")
+			h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+			return next(c)
+		}
+	}
 }
 
 func parseSameSite(v string) http.SameSite {

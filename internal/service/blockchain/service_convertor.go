@@ -9,7 +9,7 @@ import (
 
 	"github.com/antihax/optional"
 	"github.com/jellydator/ttlcache/v3"
-	"github.com/oxygenpay/oxygen/internal/money"
+	"github.com/cryptolink/cryptolink/internal/money"
 	client "github.com/oxygenpay/tatum-sdk/tatum"
 	"github.com/pkg/errors"
 )

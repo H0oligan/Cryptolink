@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 )
 
 type Marshable interface {

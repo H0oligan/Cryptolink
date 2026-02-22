@@ -4,12 +4,12 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/service/user"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/service/user"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 	"github.com/rs/zerolog"
 )
 
@@ -67,6 +67,7 @@ func (h *Handler) GetMe(c echo.Context) error {
 		Email:           person.Email,
 		Name:            person.Name,
 		ProfileImageURL: person.ProfileImageURL,
+		IsSuperAdmin:    person.IsSuperAdmin,
 	})
 }
 
@@ -78,6 +79,68 @@ func (h *Handler) PostLogout(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+// UpdateProfile handles PUT /auth/profile
+func (h *Handler) UpdateProfile(c echo.Context) error {
+	person := middleware.ResolveUser(c)
+
+	var req struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return common.ValidationErrorResponse(c, "invalid request")
+	}
+
+	updated, err := h.users.UpdateProfile(c.Request().Context(), person.ID, req.Name, req.Email)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to update profile")
+		return common.ErrorResponse(c, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, &model.User{
+		UUID:            updated.UUID.String(),
+		Email:           updated.Email,
+		Name:            updated.Name,
+		ProfileImageURL: updated.ProfileImageURL,
+		IsSuperAdmin:    updated.IsSuperAdmin,
+	})
+}
+
+// UpdatePassword handles PUT /auth/password
+func (h *Handler) UpdatePassword(c echo.Context) error {
+	person := middleware.ResolveUser(c)
+
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return common.ValidationErrorResponse(c, "invalid request")
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		return common.ValidationErrorResponse(c, "currentPassword and newPassword are required")
+	}
+
+	// Verify current password
+	_, err := h.users.GetByEmailWithPasswordCheck(c.Request().Context(), person.Email, req.CurrentPassword)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, &model.ErrorResponse{
+			Message: "Current password is incorrect",
+			Status:  "validation_error",
+		})
+	}
+
+	// Update password
+	_, err = h.users.UpdatePassword(c.Request().Context(), person.ID, req.NewPassword)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to update password")
+		return common.ErrorResponse(c, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "Password updated successfully"})
 }
 
 func (h *Handler) persistSession(c echo.Context, source string, values map[string]any) error {

@@ -34,6 +34,15 @@ const authProvider = {
     async logout(): Promise<void> {
         const response = await apiRequest.post(withApiPath(`/auth/logout`));
         return response.data;
+    },
+
+    async updateProfile(data: {name?: string; email?: string}): Promise<User> {
+        const response = await apiRequest.put(withApiPath(`/auth/profile`), data);
+        return response.data;
+    },
+
+    async updatePassword(data: {currentPassword: string; newPassword: string}): Promise<void> {
+        await apiRequest.put(withApiPath(`/auth/password`), data);
     }
 };
 

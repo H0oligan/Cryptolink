@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgtype"
 	pgx "github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/pkg/errors"
 )
 
@@ -62,13 +62,13 @@ func (s *Service) Receive(
 
 		result = tx
 
-		if result.RecipientWalletID == nil {
-			return errors.New("recipient id is nil")
-		}
-
-		errRelease := wallet.ReleaseLock(ctx, q, *tx.RecipientWalletID, tx.Currency.Ticker, tx.NetworkID())
-		if errRelease != nil {
-			return errors.Wrap(err, "unable to release lock")
+		// EVM collector transactions use a contract address (RecipientAddress) rather
+		// than a managed wallet, so there is no wallet lock to release.
+		if result.RecipientWalletID != nil {
+			errRelease := wallet.ReleaseLock(ctx, q, *tx.RecipientWalletID, tx.Currency.Ticker, tx.NetworkID())
+			if errRelease != nil {
+				return errors.Wrap(errRelease, "unable to release lock")
+			}
 		}
 
 		return nil
@@ -267,16 +267,21 @@ func (s *Service) updateBalancesAfterTxConfirmation(
 	}
 
 	incrementRecipientBalance := func(ctx context.Context) (string, MetaData, error) {
-		if tx.RecipientWalletID == nil {
-			return "", nil, errors.New("recipient walletID is nil")
-		}
-
 		comment := fmt.Sprintf("incoming tx %s", params.TransactionHash)
 		metaData := MetaData{
-			MetaRecipientWalletID: strconv.FormatInt(*tx.RecipientWalletID, 10),
-			MetaMerchantID:        strconv.FormatInt(tx.MerchantID, 10),
-			MetaTransactionID:     strconv.FormatInt(tx.ID, 10),
+			MetaMerchantID:    strconv.FormatInt(tx.MerchantID, 10),
+			MetaTransactionID: strconv.FormatInt(tx.ID, 10),
 		}
+
+		// EVM collector transactions use a smart contract address instead of a
+		// managed hot wallet. Skip the internal wallet balance ledger update;
+		// funds are held on-chain in the contract. The merchant balance is still
+		// updated below by the caller.
+		if tx.RecipientWalletID == nil {
+			return comment, metaData, nil
+		}
+
+		metaData[MetaRecipientWalletID] = strconv.FormatInt(*tx.RecipientWalletID, 10)
 
 		updateQuery := wallet.UpdateBalanceQuery{
 			EntityID:   *tx.RecipientWalletID,

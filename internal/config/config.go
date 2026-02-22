@@ -8,16 +8,17 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/olekukonko/tablewriter"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/db/connection/bolt"
-	"github.com/oxygenpay/oxygen/internal/db/connection/pg"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/provider/tatum"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
-	"github.com/oxygenpay/oxygen/internal/server/http"
-	"github.com/oxygenpay/oxygen/internal/service/processing"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/client"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/db/connection/bolt"
+	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/provider/tatum"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
+	"github.com/cryptolink/cryptolink/internal/server/http"
+	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/client"
 	"github.com/samber/lo"
 )
 
@@ -37,6 +38,8 @@ type Config struct {
 	Providers Providers `yaml:"providers"`
 
 	Notifications Notifications `yaml:"notifications"`
+
+	Evm Evm `yaml:"evm"`
 }
 
 type Oxygen struct {
@@ -84,6 +87,11 @@ type MoneroConfig struct {
 
 type Notifications struct {
 	SlackWebhookURL string `yaml:"slack_webhook_url" env:"NOTIFICATIONS_SLACK_WEBHOOK_URL" env-description:"Internal variable"`
+}
+
+// Evm holds EVM chain configuration for smart contract collector wallets.
+type Evm struct {
+	evmcollector.Config `yaml:",inline"`
 }
 
 var once = sync.Once{}

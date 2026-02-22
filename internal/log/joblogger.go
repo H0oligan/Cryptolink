@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgtype"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/util"
 )
 
 type JobLogger struct {

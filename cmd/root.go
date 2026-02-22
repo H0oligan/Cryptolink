@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/oxygenpay/oxygen/internal/config"
+	"github.com/cryptolink/cryptolink/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -18,9 +18,9 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "oxygen",
-	Short: "OxygenPay",
-	Long:  "OxygenPay: Accept crypto payments. Free and source-available crypto payment gateway",
+	Use:   "cryptolink",
+	Short: "CryptoLink",
+	Long:  "CryptoLink: Non-custodial, decentralized crypto payment gateway",
 }
 
 var envHelp = &cobra.Command{
@@ -59,7 +59,7 @@ func envCommand(_ *cobra.Command, _ []string) {
 
 // nolint gochecknoinits
 func init() {
-	rootCmd.PersistentFlags().StringVar(&configPath, "config", "oxygen.yml", "path to yml config")
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", "cryptolink.yml", "path to yml config")
 	rootCmd.PersistentFlags().BoolVar(&skipConfig, "skip-config", false, "skips config and uses ENV only")
 
 	rootCmd.AddCommand(serveWebCommand)

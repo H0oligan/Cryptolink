@@ -256,3 +256,64 @@ func (q *Queries) UpdateXpubWalletTatumSubscription(ctx context.Context, arg Upd
 	)
 	return i, err
 }
+
+// -- Manually added queries for reactivation support --
+
+const getXpubWalletByMerchantAndBlockchainAny = `
+SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active FROM xpub_wallets
+WHERE merchant_id = $1 AND blockchain = $2
+LIMIT 1
+`
+
+// GetXpubWalletByMerchantAndBlockchainAny finds a wallet regardless of is_active status
+func (q *Queries) GetXpubWalletByMerchantAndBlockchainAny(ctx context.Context, arg GetXpubWalletByMerchantAndBlockchainParams) (XpubWallet, error) {
+	row := q.db.QueryRow(ctx, getXpubWalletByMerchantAndBlockchainAny, arg.MerchantID, arg.Blockchain)
+	var i XpubWallet
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.MerchantID,
+		&i.Blockchain,
+		&i.Xpub,
+		&i.DerivationPath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TatumSubscriptionID,
+		&i.LastDerivedIndex,
+		&i.IsActive,
+	)
+	return i, err
+}
+
+const reactivateXpubWallet = `
+UPDATE xpub_wallets
+SET xpub = $2, derivation_path = $3, is_active = true, last_derived_index = 0, updated_at = $4
+WHERE id = $1
+RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active
+`
+
+type ReactivateXpubWalletParams struct {
+	ID             int64
+	Xpub           string
+	DerivationPath string
+	UpdatedAt      time.Time
+}
+
+func (q *Queries) ReactivateXpubWallet(ctx context.Context, arg ReactivateXpubWalletParams) (XpubWallet, error) {
+	row := q.db.QueryRow(ctx, reactivateXpubWallet, arg.ID, arg.Xpub, arg.DerivationPath, arg.UpdatedAt)
+	var i XpubWallet
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.MerchantID,
+		&i.Blockchain,
+		&i.Xpub,
+		&i.DerivationPath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TatumSubscriptionID,
+		&i.LastDerivedIndex,
+		&i.IsActive,
+	)
+	return i, err
+}

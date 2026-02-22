@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/money"
-	tatumprovider "github.com/oxygenpay/oxygen/internal/provider/tatum"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/registry"
+	"github.com/cryptolink/cryptolink/internal/money"
+	tatumprovider "github.com/cryptolink/cryptolink/internal/provider/tatum"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/registry"
 	"github.com/oxygenpay/tatum-sdk/tatum"
 	"github.com/rs/zerolog"
 )

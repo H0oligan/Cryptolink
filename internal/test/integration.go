@@ -10,32 +10,32 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	kmsapi "github.com/oxygenpay/oxygen/internal/kms/api"
-	"github.com/oxygenpay/oxygen/internal/lock"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/money"
-	tatumprovider "github.com/oxygenpay/oxygen/internal/provider/tatum"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
-	httpServer "github.com/oxygenpay/oxygen/internal/server/http"
-	"github.com/oxygenpay/oxygen/internal/server/http/merchantapi"
-	merchantauth "github.com/oxygenpay/oxygen/internal/server/http/merchantapi/auth"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/server/http/paymentapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/webhook"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/merchant"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/processing"
-	"github.com/oxygenpay/oxygen/internal/service/registry"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/user"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/service/xpub"
-	"github.com/oxygenpay/oxygen/internal/test/fakes"
-	"github.com/oxygenpay/oxygen/internal/util"
-	kmsmock "github.com/oxygenpay/oxygen/pkg/api-kms/v1/mock"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	kmsapi "github.com/cryptolink/cryptolink/internal/kms/api"
+	"github.com/cryptolink/cryptolink/internal/lock"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/money"
+	tatumprovider "github.com/cryptolink/cryptolink/internal/provider/tatum"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
+	httpServer "github.com/cryptolink/cryptolink/internal/server/http"
+	"github.com/cryptolink/cryptolink/internal/server/http/merchantapi"
+	merchantauth "github.com/cryptolink/cryptolink/internal/server/http/merchantapi/auth"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/server/http/paymentapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/webhook"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/service/registry"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/user"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/service/xpub"
+	"github.com/cryptolink/cryptolink/internal/test/fakes"
+	"github.com/cryptolink/cryptolink/internal/util"
+	kmsmock "github.com/cryptolink/cryptolink/pkg/api-kms/v1/mock"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -163,6 +163,8 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 		paymentsService,
 		transactionsService,
 		xpubService,
+		nil, // evmCollectorService (not needed in tests)
+		nil, // emailService (not needed in tests)
 		globalFaker,
 		tatumProvider,
 		globalFaker.Bus,
@@ -181,6 +183,10 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 		authTokenManager,
 		paymentsService,
 		walletsService,
+		xpubService,
+		nil, // evmCollectorService (not needed in tests)
+		nil, // tatumProvider (not needed in tests)
+		"",  // webhookBasePath (not needed in tests)
 		globalFaker,
 		globalFaker.Bus,
 		&logger,
@@ -220,6 +226,8 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 			webConfig,
 			merchantAPIHandler,
 			dashboardAuthHandler,
+			nil, // subscriptionHandler (not needed in tests)
+			nil, // emailHandler (not needed in tests)
 			authTokenManager,
 			usersService,
 			true,

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
-	"github.com/oxygenpay/oxygen/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/kms/wallet"
 )
 
 type Merchant struct {

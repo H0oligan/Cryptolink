@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 
-	"github.com/oxygenpay/oxygen/internal/app"
-	"github.com/oxygenpay/oxygen/internal/config"
-	"github.com/oxygenpay/oxygen/pkg/graceful"
+	"github.com/cryptolink/cryptolink/internal/app"
+	"github.com/cryptolink/cryptolink/internal/config"
+	"github.com/cryptolink/cryptolink/pkg/graceful"
 	"github.com/spf13/cobra"
 )
 
 var serveWebCommand = &cobra.Command{
 	Use:   "serve-web",
-	Short: "Start Oxygen Server",
+	Short: "Start CryptoLink Server",
 	Run:   serveWeb,
 }
 
@@ -25,6 +25,7 @@ func serveWeb(_ *cobra.Command, _ []string) {
 	setupOnBeforeRun(service, cfg)
 
 	service.RunServer()
+	service.RunScheduler()
 	if err := graceful.WaitShutdown(); err != nil {
 		service.Logger().Error().Err(err).Msg("unable to shutdown service gracefully")
 		return

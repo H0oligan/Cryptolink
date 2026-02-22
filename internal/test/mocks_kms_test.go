@@ -3,9 +3,9 @@ package test
 import (
 	"testing"
 
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	kmswallet "github.com/oxygenpay/oxygen/pkg/api-kms/v1/client/wallet"
-	kmsmodel "github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	kmswallet "github.com/cryptolink/cryptolink/pkg/api-kms/v1/client/wallet"
+	kmsmodel "github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 	"github.com/stretchr/testify/assert"
 )
 

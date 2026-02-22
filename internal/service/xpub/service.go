@@ -3,13 +3,16 @@ package xpub
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/wemeetagain/go-hdwallet"
@@ -45,6 +48,8 @@ type DerivedAddress struct {
 	PublicKey       *string
 	IsUsed          bool
 	PaymentID       *int64
+	TatumMainnetSubscriptionID string
+	TatumTestnetSubscriptionID string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -66,14 +71,15 @@ func New(store repository.Storage, logger *zerolog.Logger) *Service {
 	}
 }
 
-// CreateXpubWallet creates a new xpub wallet for a merchant
-func (s *Service) CreateXpubWallet(ctx context.Context, merchantID int64, blockchain, xpub, derivationPath string) (*XpubWallet, error) {
+// CreateXpubWallet creates a new xpub wallet for a merchant.
+// If a deactivated wallet exists for this blockchain, it reactivates it with the new xpub.
+func (s *Service) CreateXpubWallet(ctx context.Context, merchantID int64, blockchain, xpubKey, derivationPath string) (*XpubWallet, error) {
 	// Validate xpub format
-	if !s.validateXpub(xpub) {
+	if !s.validateXpub(xpubKey) {
 		return nil, ErrInvalidXpub
 	}
 
-	// Check if wallet already exists for this merchant/blockchain
+	// Check if an active wallet already exists for this merchant/blockchain
 	_, err := s.store.GetXpubWalletByMerchantAndBlockchain(ctx, repository.GetXpubWalletByMerchantAndBlockchainParams{
 		MerchantID: merchantID,
 		Blockchain: blockchain,
@@ -86,11 +92,33 @@ func (s *Service) CreateXpubWallet(ctx context.Context, merchantID int64, blockc
 	}
 
 	now := time.Now()
+
+	// Check if a deactivated wallet exists (unique constraint on merchant_id + blockchain).
+	// If so, reactivate it with the new xpub instead of inserting a new row.
+	existingEntry, findErr := s.store.GetXpubWalletByMerchantAndBlockchainAny(ctx, repository.GetXpubWalletByMerchantAndBlockchainParams{
+		MerchantID: merchantID,
+		Blockchain: blockchain,
+	})
+	if findErr == nil {
+		// Deactivated wallet found — reactivate with new xpub
+		reactivated, reErr := s.store.ReactivateXpubWallet(ctx, repository.ReactivateXpubWalletParams{
+			ID:             existingEntry.ID,
+			Xpub:           xpubKey,
+			DerivationPath: derivationPath,
+			UpdatedAt:      now,
+		})
+		if reErr != nil {
+			return nil, reErr
+		}
+		return entryToXpubWallet(reactivated), nil
+	}
+
+	// No existing wallet at all — create new
 	entry, err := s.store.CreateXpubWallet(ctx, repository.CreateXpubWalletParams{
 		Uuid:             uuid.New(),
 		MerchantID:       merchantID,
 		Blockchain:       blockchain,
-		Xpub:             xpub,
+		Xpub:             xpubKey,
 		DerivationPath:   derivationPath,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -260,12 +288,61 @@ func (s *Service) ListDerivedAddresses(ctx context.Context, walletID int64) ([]*
 	return addresses, nil
 }
 
+// DeactivateWallet deactivates an xpub wallet (soft delete)
+func (s *Service) DeactivateWallet(ctx context.Context, walletUUID uuid.UUID, merchantID int64) error {
+	entry, err := s.store.GetXpubWalletByUUID(ctx, walletUUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	// Ensure the wallet belongs to this merchant
+	if entry.MerchantID != merchantID {
+		return ErrNotFound
+	}
+
+	return s.store.DeactivateXpubWallet(ctx, repository.DeactivateXpubWalletParams{
+		ID:        entry.ID,
+		UpdatedAt: time.Now(),
+	})
+}
+
 // MarkAddressAsUsed marks an address as used by a payment
 func (s *Service) MarkAddressAsUsed(ctx context.Context, addressID int64, paymentID int64) (*DerivedAddress, error) {
 	entry, err := s.store.MarkAddressAsUsed(ctx, repository.MarkAddressAsUsedParams{
 		ID:        addressID,
 		PaymentID: repository.Int64ToNullable(paymentID),
 		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return entryToDerivedAddress(entry), nil
+}
+
+// GetDerivedAddressByUUID finds a derived address by its UUID
+func (s *Service) GetDerivedAddressByUUID(ctx context.Context, addrUUID uuid.UUID) (*DerivedAddress, error) {
+	entry, err := s.store.GetDerivedAddressByUUID(ctx, addrUUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrAddressNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return entryToDerivedAddress(entry), nil
+}
+
+// UpdateDerivedAddressTatumSubscription updates the Tatum subscription IDs for a derived address
+func (s *Service) UpdateDerivedAddressTatumSubscription(ctx context.Context, addressID int64, mainnetSubID, testnetSubID string) (*DerivedAddress, error) {
+	entry, err := s.store.UpdateDerivedAddressTatumSubscription(ctx, repository.UpdateDerivedAddressTatumSubscriptionParams{
+		ID:                         addressID,
+		TatumMainnetSubscriptionID: repository.StringToNullable(mainnetSubID),
+		TatumTestnetSubscriptionID: repository.StringToNullable(testnetSubID),
+		UpdatedAt:                  time.Now(),
 	})
 	if err != nil {
 		return nil, err
@@ -317,26 +394,38 @@ func (s *Service) deriveAddressFromXpub(xpub, blockchain string, index int) (str
 		return "", "", errors.Wrap(err, "failed to derive child key")
 	}
 
-	// Get address based on blockchain
-	var address string
-	pubKeyStr := childKey.String()
+	// childKey.Key is the 33-byte compressed public key
+	compressedPubKey := childKey.Key
+	pubKeyHex := hex.EncodeToString(compressedPubKey)
 
 	switch wallet.Blockchain(blockchain) {
 	case wallet.BTC:
-		address = childKey.Address()
-	case wallet.ETH, wallet.MATIC, wallet.BSC, wallet.ARBITRUM, wallet.AVAX:
-		// For EVM chains, derive Ethereum-style address
-		// Note: This is a simplified version - proper implementation would use
-		// secp256k1 to derive the Ethereum address from the public key
-		address = childKey.Address() // This needs proper EVM address derivation
-	case wallet.TRON:
-		// TRON uses different address format
-		address = childKey.Address() // This needs proper TRON address derivation
-	default:
-		address = childKey.Address()
-	}
+		// Bitcoin P2PKH address (go-hdwallet handles this correctly)
+		return childKey.Address(), pubKeyHex, nil
 
-	return address, pubKeyStr, nil
+	case wallet.ETH, wallet.MATIC, wallet.BSC, wallet.ARBITRUM, wallet.AVAX:
+		// Decompress the public key and compute keccak256-based ETH address
+		ecdsaPubKey, err := crypto.DecompressPubkey(compressedPubKey)
+		if err != nil {
+			return "", "", errors.Wrap(err, "failed to decompress public key for ETH")
+		}
+		address := crypto.PubkeyToAddress(*ecdsaPubKey).Hex()
+		return address, pubKeyHex, nil
+
+	case wallet.TRON:
+		// TRON uses same derivation as ETH but with 0x41 prefix + base58check
+		ecdsaPubKey, err := crypto.DecompressPubkey(compressedPubKey)
+		if err != nil {
+			return "", "", errors.Wrap(err, "failed to decompress public key for TRON")
+		}
+		ethAddr := crypto.PubkeyToAddress(*ecdsaPubKey).Hex()
+		tronHex := "41" + ethAddr[2:]
+		address := util.TronHexToBase58(tronHex)
+		return address, pubKeyHex, nil
+
+	default:
+		return childKey.Address(), pubKeyHex, nil
+	}
 }
 
 // Helper functions to convert database entries to domain models
@@ -370,6 +459,15 @@ func entryToDerivedAddress(entry repository.DerivedAddress) *DerivedAddress {
 		isUsed = entry.IsUsed.Bool
 	}
 
+	mainnetSubID := ""
+	if entry.TatumMainnetSubscriptionID.Valid {
+		mainnetSubID = entry.TatumMainnetSubscriptionID.String
+	}
+	testnetSubID := ""
+	if entry.TatumTestnetSubscriptionID.Valid {
+		testnetSubID = entry.TatumTestnetSubscriptionID.String
+	}
+
 	return &DerivedAddress{
 		ID:              entry.ID,
 		UUID:            entry.Uuid,
@@ -382,6 +480,8 @@ func entryToDerivedAddress(entry repository.DerivedAddress) *DerivedAddress {
 		PublicKey:       repository.NullableStringToPointer(entry.PublicKey),
 		IsUsed:          isUsed,
 		PaymentID:       repository.NullableInt64ToPointer(entry.PaymentID),
+		TatumMainnetSubscriptionID: mainnetSubID,
+		TatumTestnetSubscriptionID: testnetSubID,
 		CreatedAt:       entry.CreatedAt,
 		UpdatedAt:       entry.UpdatedAt,
 	}
