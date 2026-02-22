@@ -15,7 +15,7 @@ import (
 	cr "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 )
 
 // NewCreateWalletParams creates a new CreateWalletParams object,
@@ -54,10 +54,12 @@ func NewCreateWalletParamsWithHTTPClient(client *http.Client) *CreateWalletParam
 	}
 }
 
-/* CreateWalletParams contains all the parameters to send to the API endpoint
-   for the create wallet operation.
+/*
+CreateWalletParams contains all the parameters to send to the API endpoint
 
-   Typically these are written to a http.Request.
+	for the create wallet operation.
+
+	Typically these are written to a http.Request.
 */
 type CreateWalletParams struct {
 

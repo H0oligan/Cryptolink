@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )

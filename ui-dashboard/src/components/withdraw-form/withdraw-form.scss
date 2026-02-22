@@ -1,7 +1,7 @@
 .withdraw-form {
     &__input-disabled {
-        color: #000000 !important;
-        background-color: #ffffff !important;
+        color: var(--cl-text-primary) !important;
+        background-color: var(--cl-bg-container) !important;
         cursor: initial !important;
     }
 

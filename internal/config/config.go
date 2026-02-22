@@ -8,16 +8,17 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/olekukonko/tablewriter"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/db/connection/bolt"
-	"github.com/oxygenpay/oxygen/internal/db/connection/pg"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/provider/tatum"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
-	"github.com/oxygenpay/oxygen/internal/server/http"
-	"github.com/oxygenpay/oxygen/internal/service/processing"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/client"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/db/connection/bolt"
+	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/provider/tatum"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
+	"github.com/cryptolink/cryptolink/internal/server/http"
+	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/client"
 	"github.com/samber/lo"
 )
 
@@ -37,13 +38,20 @@ type Config struct {
 	Providers Providers `yaml:"providers"`
 
 	Notifications Notifications `yaml:"notifications"`
+
+	Evm Evm `yaml:"evm"`
 }
 
 type Oxygen struct {
-	Server     http.Config       `yaml:"server"`
-	Auth       auth.Config       `yaml:"auth"`
-	Postgres   pg.Config         `yaml:"postgres"`
-	Processing processing.Config `yaml:"processing"`
+	Server       http.Config       `yaml:"server"`
+	Auth         auth.Config       `yaml:"auth"`
+	Postgres     pg.Config         `yaml:"postgres"`
+	Processing   processing.Config `yaml:"processing"`
+	Subscription Subscription      `yaml:"subscription"`
+}
+
+type Subscription struct {
+	AdminMerchantID int64 `yaml:"admin_merchant_id" env:"OXYGEN_SUBSCRIPTION_ADMIN_MERCHANT_ID" env-description:"Admin merchant ID for receiving subscription payments"`
 }
 
 type KMS struct {
@@ -60,10 +68,30 @@ type Providers struct {
 	Tatum     tatum.Config    `yaml:"tatum"`
 	Trongrid  trongrid.Config `yaml:"trongrid"`
 	KmsClient client.Config   `yaml:"kms"`
+	Solana    SolanaConfig    `yaml:"solana"`
+	Monero    MoneroConfig    `yaml:"monero"`
+}
+
+type SolanaConfig struct {
+	RPCEndpoint        string `yaml:"rpc_endpoint" env:"PROVIDERS_SOLANA_RPC_ENDPOINT" env-default:"https://api.mainnet-beta.solana.com" env-description:"Solana RPC endpoint"`
+	DevnetRPCEndpoint  string `yaml:"devnet_rpc_endpoint" env:"PROVIDERS_SOLANA_DEVNET_RPC_ENDPOINT" env-default:"https://api.devnet.solana.com" env-description:"Solana devnet RPC endpoint"`
+	APIKey             string `yaml:"api_key" env:"PROVIDERS_SOLANA_API_KEY" env-description:"Solana RPC API key (optional, for paid services)"`
+}
+
+type MoneroConfig struct {
+	WalletRPCEndpoint        string `yaml:"wallet_rpc_endpoint" env:"PROVIDERS_MONERO_WALLET_RPC_ENDPOINT" env-default:"http://localhost:18082/json_rpc" env-description:"Monero wallet RPC endpoint"`
+	TestnetWalletRPCEndpoint string `yaml:"testnet_wallet_rpc_endpoint" env:"PROVIDERS_MONERO_TESTNET_WALLET_RPC_ENDPOINT" env-default:"http://localhost:28082/json_rpc" env-description:"Monero testnet wallet RPC endpoint"`
+	RPCUsername              string `yaml:"rpc_username" env:"PROVIDERS_MONERO_RPC_USERNAME" env-description:"Monero wallet RPC username"`
+	RPCPassword              string `yaml:"rpc_password" env:"PROVIDERS_MONERO_RPC_PASSWORD" env-description:"Monero wallet RPC password"`
 }
 
 type Notifications struct {
 	SlackWebhookURL string `yaml:"slack_webhook_url" env:"NOTIFICATIONS_SLACK_WEBHOOK_URL" env-description:"Internal variable"`
+}
+
+// Evm holds EVM chain configuration for smart contract collector wallets.
+type Evm struct {
+	evmcollector.Config `yaml:",inline"`
 }
 
 var once = sync.Once{}

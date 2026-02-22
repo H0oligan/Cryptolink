@@ -3,7 +3,7 @@ package fakes
 import (
 	"sync"
 
-	"github.com/oxygenpay/oxygen/internal/bus"
+	"github.com/cryptolink/cryptolink/internal/bus"
 	"github.com/samber/lo"
 )
 

@@ -1,7 +1,7 @@
 .custom-card {
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--cl-border-secondary);
     border-radius: 8px;
-    background: #fff;
+    background: var(--cl-bg-container);
     display: flex;
     align-items: center;
     padding: 8px 16px;
@@ -11,7 +11,7 @@
     }
 
     &__title {
-        color: rgba(0, 0, 0, 0.88);
+        color: var(--cl-text-primary);
         font-weight: 600;
         font-size: 16px;
         min-width: 150px;
@@ -23,7 +23,7 @@
     }
 
     &__description {
-        color: rgba(0, 0, 0, 0.88);
+        color: var(--cl-text-primary);
         font-size: 14px;
         line-height: 1.5714285714285714;
         margin-left: 24px;

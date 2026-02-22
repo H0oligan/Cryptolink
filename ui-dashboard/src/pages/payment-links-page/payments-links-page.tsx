@@ -128,7 +128,7 @@ const PaymentLinksPage: React.FC = () => {
     ];
 
     useMount(async () => {
-        if (merchantId) {
+        if (!merchantId) {
             return;
         }
 
@@ -138,7 +138,9 @@ const PaymentLinksPage: React.FC = () => {
     });
 
     React.useEffect(() => {
-        listPaymentLinks.refetch();
+        if (merchantId) {
+            listPaymentLinks.refetch();
+        }
     }, [merchantId]);
 
     const uploadCreatedPaymentLink = async (value: PaymentLinkParams, form: FormInstance<PaymentLinkParams>) => {

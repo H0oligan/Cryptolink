@@ -33,6 +33,18 @@ type AdditionalPaymentInfo struct {
 	// Example: 1.20
 	// Required: true
 	ServiceFee *string `json:"serviceFee"`
+
+	// Blockchain transaction hash
+	TransactionHash *string `json:"transactionHash,omitempty"`
+
+	// Block explorer link for the transaction
+	ExplorerLink *string `json:"explorerLink,omitempty"`
+
+	// Sender's blockchain address
+	SenderAddress *string `json:"senderAddress,omitempty"`
+
+	// Network fee paid for this transaction
+	NetworkFee *string `json:"networkFee,omitempty"`
 }
 
 // Validate validates this additional payment info

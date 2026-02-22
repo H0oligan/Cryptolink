@@ -8,6 +8,7 @@ import SuccessPage from "src/pages/SuccessPage";
 import PaymentPage from "src/pages/PaymentPage";
 import NotFoundPage from "src/pages/NotFoundPage";
 import ErrorPage from "src/pages/ErrorPage";
+import SupportPage from "src/pages/SupportPage";
 import PaymentContext from "src/hooks/paymentContext";
 import PaymentLinkContext from "src/hooks/linkContext";
 import paymentProvider from "src/providers/paymentProvider";
@@ -68,13 +69,13 @@ const App: React.FC = () => {
 
     React.useEffect(() => {
         if (payment) {
-            document.title = `O2Pay Payment: ${payment.merchantName}`;
+            document.title = `CryptoLink Payment: ${payment.merchantName}`;
         }
     }, [payment]);
 
     React.useEffect(() => {
         if (paymentLink) {
-            document.title = `O2Pay Payment Link: ${paymentLink.merchantName}`;
+            document.title = `CryptoLink Payment Link: ${paymentLink.merchantName}`;
         }
     }, [paymentLink]);
 
@@ -83,17 +84,18 @@ const App: React.FC = () => {
             <PaymentLinkContext.Provider value={{paymentLink, setPaymentLink}}>
                 <main className="min-h-screen bg-main-green-3">
                     <div className="wrapper container mx-auto py-8 sm:pt-8 pb-0 relative">
-                        <Icon
-                            name="logo"
-                            className="absolute m-auto left-0 right-0 top-[59px] sm:top-3.5 w-32 h-6 sm:w-44 sm:h-8"
-                        />
+                        <div className="absolute m-auto left-0 right-0 top-[59px] sm:top-3.5 flex items-center justify-center gap-2">
+                            <img src="/logo.svg" alt="CryptoLink" style={{width: "24px", height: "24px", flexShrink: 0}} />
+                            <span style={{color: "#ffffff", fontWeight: 700, fontSize: "17px", letterSpacing: "-0.3px"}}>CryptoLink</span>
+                        </div>
                         <div className="sm:h-mobile-card-height sm:min-h-mobile-card flex flex-row justify-center mt-[4.4rem] sm:mt-7">
-                            <div className="bg-white lg:w-[370px] xs:w-full md:w-[390px] max-w-md lg:rounded-[30px] sm:rounded-t-[30px] shadow-md p-[34px] xs:pt-4">
+                            <div className="bg-[#13131a] text-white lg:w-[370px] xs:w-full md:w-[390px] max-w-md lg:rounded-[30px] sm:rounded-t-[30px] shadow-[0_0_40px_rgba(129,140,248,0.08)] border border-[#2a2a3e] p-[34px] xs:pt-4">
                                 <Routes>
                                     <Route path="not-found/:id" element={<NotFoundPage />} />
                                     <Route path="success/:id" element={<SuccessPage />} />
                                     <Route path="pay/:id" element={<PaymentPage />} />
                                     <Route path="error/:id" element={<ErrorPage />} />
+                                    <Route path="support" element={<SupportPage />} />
                                     <Route path="link/:id" element={<LinkPage />} />
                                     <Route path="*" element={<NotFoundPage />} />
                                 </Routes>
@@ -103,8 +105,8 @@ const App: React.FC = () => {
                             <div className="pt-2 pb-4 text-sm sm:hidden">
                                 <p className="text-center text-gray-500">
                                     Powered by self-hosted{" "}
-                                    <a className="color-oxygen" target="_blank" href="https://o2pay.co">
-                                        OxygenPay
+                                    <a className="color-oxygen" target="_blank" href="https://cryptolink.cc">
+                                        CryptoLink
                                     </a>
                                 </p>
                             </div>

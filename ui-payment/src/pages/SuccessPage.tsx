@@ -68,13 +68,13 @@ const SuccessPage: React.FC = () => {
                         {payment?.description || <i>No description provided</i>}
                     </span>
                     <div className="relative mb-8 sm:mb-8 after:absolute after:top-1/2 after:-translate-y-1/2 after:w-[calc(100%-32px)] after:h-px after:border-dashed after:border-[1px] after:my-auto after:border-main-green-3 after:left-1/2 after:-translate-x-1/2">
-                        <div className="before:absolute before:-left-4 before:w-8 before:h-8 before:rounded-full before:my-auto before:bg-white before:top-1/2 before:-translate-y-1/2 after:absolute after:-right-4 after:w-8 after:h-8 after:rounded-full after:my-auto after:bg-white after:top-1/2 after:-translate-y-1/2">
-                            <div className="w-full bg-[#ECF5F5] h-36 flex items-center justify-center">
+                        <div className="before:absolute before:-left-4 before:w-8 before:h-8 before:rounded-full before:my-auto before:bg-[#13131a] before:top-1/2 before:-translate-y-1/2 after:absolute after:-right-4 after:w-8 after:h-8 after:rounded-full after:my-auto after:bg-[#13131a] after:top-1/2 after:-translate-y-1/2">
+                            <div className="w-full bg-[#1a1a2e] h-36 flex items-center justify-center">
                                 <span className="block mx-auto text-[30px] leading-[30px] font-medium text-center text-main-green-1 sm:max-w-sm-desc-size">
                                     Payment successful!
                                 </span>
                             </div>
-                            <div className="bg-[#ECF5F5] h-28 flex items-center justify-center pb-5">
+                            <div className="bg-[#1a1a2e] h-28 flex items-center justify-center pb-5">
                                 <div>
                                     <span className="block mx-auto text-[40px] leading-[40px] font-medium text-center m-4">
                                         {renderCurrency(payment.currency, payment.price)}

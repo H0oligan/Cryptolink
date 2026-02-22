@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	kmswallet "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	kmswallet "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 )
 

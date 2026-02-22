@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/test"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/test"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 	"github.com/stretchr/testify/assert"
 )
 

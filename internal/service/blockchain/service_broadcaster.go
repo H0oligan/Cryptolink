@@ -12,9 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	kms "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/provider/tatum"
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/provider/tatum"
 	client "github.com/oxygenpay/tatum-sdk/tatum"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -55,6 +55,43 @@ func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blo
 		} else {
 			txHash.TxId = hashID
 		}
+	case kms.ARBITRUM:
+		rpc, errRPC := s.providers.Tatum.ArbitrumRPC(ctx, isTest)
+		if errRPC != nil {
+			return "", errors.Wrap(errRPC, "unable to get Arbitrum RPC")
+		}
+		defer rpc.Close()
+
+		hashID, errBroadcast := s.broadcastRawTransaction(ctx, rpc, rawTX)
+		if errBroadcast != nil {
+			err = errBroadcast
+		} else {
+			txHash.TxId = hashID
+		}
+	case kms.AVAX:
+		rpc, errRPC := s.providers.Tatum.AvalancheRPC(ctx, isTest)
+		if errRPC != nil {
+			return "", errors.Wrap(errRPC, "unable to get Avalanche RPC")
+		}
+		defer rpc.Close()
+
+		hashID, errBroadcast := s.broadcastRawTransaction(ctx, rpc, rawTX)
+		if errBroadcast != nil {
+			err = errBroadcast
+		} else {
+			txHash.TxId = hashID
+		}
+	case kms.SOL:
+		// Decode the raw transaction (base64 encoded signed transaction)
+		hashID, errSolana := s.providers.Solana.SendTransaction(ctx, []byte(rawTX), isTest)
+		if errSolana != nil {
+			return "", errors.Wrap(errSolana, "unable to broadcast Solana transaction")
+		}
+		return hashID, nil
+	case kms.XMR:
+		// Monero uses a different approach - the transaction is created and broadcast via wallet-RPC
+		// The rawTX here is actually the transfer params encoded as JSON
+		return "", fmt.Errorf("Monero broadcasting is handled through wallet service, not via raw transaction")
 	default:
 		return "", fmt.Errorf("broadcast for %q is not implemented yet", blockchain)
 	}
@@ -117,9 +154,13 @@ func (s *Service) getTransactionReceipt(
 	isTest bool,
 ) (*TransactionReceipt, error) {
 	const (
-		ethConfirmations   = 12
-		maticConfirmations = 30
-		bscConfirmations   = 15
+		ethConfirmations      = 12
+		maticConfirmations    = 30
+		bscConfirmations      = 15
+		arbitrumConfirmations = 20
+		avaxConfirmations     = 20
+		solanaConfirmations   = 32
+		moneroConfirmations   = 10
 	)
 
 	nativeCoin, err := s.GetNativeCoin(blockchain)
@@ -133,6 +174,7 @@ func (s *Service) getTransactionReceipt(
 		if err != nil {
 			return nil, err
 		}
+		defer rpc.Close()
 
 		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, ethConfirmations, isTest)
 	case kms.MATIC:
@@ -140,6 +182,7 @@ func (s *Service) getTransactionReceipt(
 		if err != nil {
 			return nil, err
 		}
+		defer rpc.Close()
 
 		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, maticConfirmations, isTest)
 	case kms.BSC:
@@ -147,8 +190,25 @@ func (s *Service) getTransactionReceipt(
 		if err != nil {
 			return nil, err
 		}
+		defer rpc.Close()
 
 		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, bscConfirmations, isTest)
+	case kms.ARBITRUM:
+		rpc, err := s.providers.Tatum.ArbitrumRPC(ctx, isTest)
+		if err != nil {
+			return nil, err
+		}
+		defer rpc.Close()
+
+		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, arbitrumConfirmations, isTest)
+	case kms.AVAX:
+		rpc, err := s.providers.Tatum.AvalancheRPC(ctx, isTest)
+		if err != nil {
+			return nil, err
+		}
+		defer rpc.Close()
+
+		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, avaxConfirmations, isTest)
 	case kms.TRON:
 		receipt, err := s.providers.Trongrid.GetTransactionReceipt(ctx, transactionID, isTest)
 		if err != nil {
@@ -171,6 +231,10 @@ func (s *Service) getTransactionReceipt(
 			Confirmations: receipt.Confirmations,
 			IsConfirmed:   receipt.IsConfirmed,
 		}, nil
+	case kms.SOL:
+		return s.getSolanaReceipt(ctx, nativeCoin, transactionID, solanaConfirmations, isTest)
+	case kms.XMR:
+		return s.getMoneroReceipt(ctx, nativeCoin, transactionID, moneroConfirmations, isTest)
 	}
 
 	return nil, kms.ErrUnknownBlockchain
@@ -292,4 +356,74 @@ func parseBroadcastError(_ money.Blockchain, body []byte) error {
 	default:
 		return errors.Wrap(ErrInvalidTransaction, msg.Message)
 	}
+}
+
+// broadcastRawTransaction broadcasts a raw signed transaction to an EVM-compatible blockchain via RPC
+func (s *Service) broadcastRawTransaction(ctx context.Context, rpc *ethclient.Client, rawTX string) (string, error) {
+	// Decode the hex-encoded raw transaction
+	tx := new(types.Transaction)
+	txBytes := common.FromHex(rawTX)
+	if err := tx.UnmarshalBinary(txBytes); err != nil {
+		return "", errors.Wrap(err, "unable to decode raw transaction")
+	}
+
+	// Broadcast the transaction
+	if err := rpc.SendTransaction(ctx, tx); err != nil {
+		return "", errors.Wrap(err, "unable to send transaction")
+	}
+
+	return tx.Hash().Hex(), nil
+}
+
+// getSolanaReceipt retrieves transaction receipt from Solana blockchain
+func (s *Service) getSolanaReceipt(
+	ctx context.Context,
+	nativeCoin money.CryptoCurrency,
+	txID string,
+	requiredConfirmations int64,
+	isTest bool,
+) (*TransactionReceipt, error) {
+	// Confirm the transaction and get details
+	confirmed, err := s.providers.Solana.ConfirmTransaction(ctx, txID, isTest, 30)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to confirm Solana transaction")
+	}
+
+	// For now, we'll return a basic receipt
+	// TODO: Implement full transaction parsing to get sender, recipient, and fee details
+	return &TransactionReceipt{
+		Blockchain:    nativeCoin.Blockchain,
+		IsTest:        isTest,
+		Sender:        "", // Would need to parse transaction data
+		Recipient:     "", // Would need to parse transaction data
+		Hash:          txID,
+		NetworkFee:    nativeCoin.MakeAmountMust("0.000005"), // Typical Solana fee is ~0.000005 SOL
+		Success:       confirmed,
+		Confirmations: requiredConfirmations, // Solana finality is very fast
+		IsConfirmed:   confirmed,
+	}, nil
+}
+
+// getMoneroReceipt retrieves transaction receipt from Monero blockchain
+func (s *Service) getMoneroReceipt(
+	ctx context.Context,
+	nativeCoin money.CryptoCurrency,
+	txID string,
+	requiredConfirmations int64,
+	isTest bool,
+) (*TransactionReceipt, error) {
+	// Monero transactions are managed through wallet-RPC
+	// For now, return a placeholder receipt
+	// TODO: Implement using Monero wallet-RPC GetTransfers and check transaction status
+	return &TransactionReceipt{
+		Blockchain:    nativeCoin.Blockchain,
+		IsTest:        isTest,
+		Sender:        "", // Monero privacy - sender not publicly visible
+		Recipient:     "", // Recipient address from wallet
+		Hash:          txID,
+		NetworkFee:    nativeCoin.MakeAmountMust("0"), // Would need to query from wallet-RPC
+		Success:       true,
+		Confirmations: 0, // Would need to query from wallet-RPC
+		IsConfirmed:   false,
+	}, nil
 }

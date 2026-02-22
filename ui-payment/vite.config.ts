@@ -7,6 +7,7 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    base: process.env.VITE_ROOTPATH || "/p/",
     resolve: {
         alias: {
             src: path.resolve(__dirname, "/src")

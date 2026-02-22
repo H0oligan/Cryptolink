@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 	//nolint:revive.
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/olekukonko/tablewriter"
-	"github.com/oxygenpay/oxygen/internal/config"
-	"github.com/oxygenpay/oxygen/scripts"
+	"github.com/cryptolink/cryptolink/internal/config"
+	"github.com/cryptolink/cryptolink/scripts"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/spf13/cobra"
 )
@@ -131,10 +132,11 @@ func parseConn(raw string) (string, error) {
 	}
 
 	dataSource := fmt.Sprintf(
-		"postgres://%s:%s@%s/%s?sslmode=%s",
-		connCfg.User,
-		connCfg.Password,
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		url.QueryEscape(connCfg.User),
+		url.QueryEscape(connCfg.Password),
 		connCfg.Host,
+		connCfg.Port,
 		connCfg.Database,
 		sslMode,
 	)

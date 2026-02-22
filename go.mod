@@ -1,6 +1,6 @@
-module github.com/oxygenpay/oxygen
+module github.com/cryptolink/cryptolink
 
-go 1.20
+go 1.21
 
 require (
 	github.com/antihax/optional v1.0.0
@@ -83,6 +83,7 @@ require (
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

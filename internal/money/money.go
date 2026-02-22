@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 )
 
@@ -109,6 +109,14 @@ func (c CryptoCurrency) ChooseContractAddress(isTest bool) string {
 
 func (c CryptoCurrency) MakeAmount(raw string) (Money, error) {
 	return CryptoFromRaw(c.Ticker, raw, c.Decimals)
+}
+
+func (c CryptoCurrency) MakeAmountMust(raw string) Money {
+	m, err := c.MakeAmount(raw)
+	if err != nil {
+		panic(err)
+	}
+	return m
 }
 
 func (c CryptoCurrency) MakeAmountFromBigInt(amount *big.Int) (Money, error) {

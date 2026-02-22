@@ -50,7 +50,7 @@ const WebhookSettingsForm: React.FC<Props> = (props: Props) => {
                                 </Typography.Text>
                             </Typography.Paragraph>
                             <Typography.Paragraph>
-                                <Typography.Link href="https://docs.o2pay.co/webhooks" target="_blank">
+                                <Typography.Link href="https://cryptolink.cc/doc/#webhooks" target="_blank">
                                     Read more about webhook signatures
                                 </Typography.Link>
                             </Typography.Paragraph>

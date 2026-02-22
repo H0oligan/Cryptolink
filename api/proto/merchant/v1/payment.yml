@@ -90,7 +90,7 @@ definitions:
       paymentUrl:
         type: string
         description: URL for client payment screen
-        example: https://pay.o2pay.co/payment/00000000-0000-0000-0000-000000000000
+        example: https://cryptolink.cc/p/payment/00000000-0000-0000-0000-000000000000
         x-nullable: false
         x-omitempty: false
       additionalInfo:

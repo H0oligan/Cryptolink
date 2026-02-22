@@ -36,31 +36,35 @@
         "Segoe UI Symbol";
 }
 
-html {
+html, body {
     font-family: "General Sans", var(--system-ui);
+    background-color: #0a0a0f;
+    margin: 0;
 }
 
 * {
     scrollbar-width: thin;
-    scrollbar-color: #d0e6e8 #ffffff;
+    scrollbar-color: #2a2a3e #0a0a0f;
 }
 
 /* Chrome, Edge, and Safari */
 *::-webkit-scrollbar {
-    width: 15px;
+    width: 8px;
 }
 
 *::-webkit-scrollbar-track {
-    background: #d0e6e8;
-    border-radius: 5px;
+    background: #0a0a0f;
 }
 
 *::-webkit-scrollbar-thumb {
-    background-color: #ffffff;
-    border-radius: 14px;
-    border: 3px solid #d0e6e8;
+    background-color: #2a2a3e;
+    border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background-color: #818cf8;
 }
 
 .color-oxygen {
-    color: rgb(80, 175, 149);
+    color: #818cf8;
 }

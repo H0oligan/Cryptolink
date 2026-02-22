@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/util"
 )
 
 // SendWebhook sends message to Slack channel based.

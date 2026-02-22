@@ -28,7 +28,7 @@ const DevelopersSection: React.FC<Props> = (props: Props) => {
                 </Space>
 
                 <Space style={{marginLeft: "10px"}}>
-                    <Button href={"https://docs.o2pay.co/specs/merchant/v1/"} target={"_blank"} icon={<CodeOutlined />}>
+                    <Button href={"https://cryptolink.cc/doc/"} target={"_blank"} icon={<CodeOutlined />}>
                         API Reference
                     </Button>
                 </Space>

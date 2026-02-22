@@ -32,6 +32,9 @@ type User struct {
 	// user UUID
 	// Example: 1eb5fbb5-ece0-475c-9ddd-23c524a33e06
 	UUID string `json:"uuid,omitempty"`
+
+	// is super admin
+	IsSuperAdmin bool `json:"isSuperAdmin"`
 }
 
 // Validate validates this user

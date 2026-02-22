@@ -3,7 +3,7 @@ package fakes
 import (
 	"testing"
 
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 )
 
 // Fakes global faker struct. Supported mocks:

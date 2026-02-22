@@ -4,8 +4,10 @@ import (
 	"time"
 
 	"github.com/jellydator/ttlcache/v3"
-	"github.com/oxygenpay/oxygen/internal/provider/tatum"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
+	"github.com/cryptolink/cryptolink/internal/provider/monero"
+	"github.com/cryptolink/cryptolink/internal/provider/solana"
+	"github.com/cryptolink/cryptolink/internal/provider/tatum"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	client "github.com/oxygenpay/tatum-sdk/tatum"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -23,6 +25,8 @@ var (
 type Providers struct {
 	Tatum    *tatum.Provider
 	Trongrid *trongrid.Provider
+	Solana   *solana.Provider
+	Monero   *monero.Provider
 }
 
 type Service struct {

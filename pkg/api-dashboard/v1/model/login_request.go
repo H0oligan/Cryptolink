@@ -28,6 +28,9 @@ type LoginRequest struct {
 	// Required: true
 	// Min Length: 8
 	Password string `json:"password"`
+
+	// Name (optional, used during registration)
+	Name string `json:"name,omitempty"`
 }
 
 // Validate validates this login request
@@ -50,7 +53,7 @@ func (m *LoginRequest) Validate(formats strfmt.Registry) error {
 
 func (m *LoginRequest) validateEmail(formats strfmt.Registry) error {
 
-	if err := validate.Required("email", "body", strfmt.Email(m.Email)); err != nil {
+	if err := validate.Required("email", "body", m.Email); err != nil {
 		return err
 	}
 

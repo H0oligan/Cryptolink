@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgtype"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
 )
 
 type Transaction struct {
@@ -141,7 +141,7 @@ const (
 	// TypeWithdrawal is for moving assets from outbound wallets to merchant's address
 	TypeWithdrawal Type = "withdrawal"
 
-	// TypeVirtual is for moving assets within OxygenPay w/o reflecting it on blockchain
+	// TypeVirtual is for moving assets within CryptoLink w/o reflecting it on blockchain
 	// (e.g. merchant to merchant, system to merchant, ...)
 	TypeVirtual Type = "virtual"
 )

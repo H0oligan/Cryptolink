@@ -28,6 +28,12 @@ paths:
   /wallet/{walletId}/transaction/tron:
     $ref: './v1/wallet.yml#/paths/~1wallet~1{walletId}~1transaction~1tron'
 
+  /wallet/{walletId}/transaction/solana:
+    $ref: './v1/wallet.yml#/paths/~1wallet~1{walletId}~1transaction~1solana'
+
+  /wallet/{walletId}/transaction/monero:
+    $ref: './v1/wallet.yml#/paths/~1wallet~1{walletId}~1transaction~1monero'
+
 definitions:
   ErrorResponseItem:
     type: object

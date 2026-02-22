@@ -2,10 +2,10 @@ import "./login-page.scss";
 
 import * as React from "react";
 import {AxiosError} from "axios";
-import {useNavigate, useLocation} from "react-router-dom";
-import {Modal, Button, Typography, Form, Input, notification} from "antd";
+import {useNavigate, useLocation, useSearchParams} from "react-router-dom";
+import {Button, Typography, Form, Input, notification} from "antd";
 import {GoogleOutlined, CheckOutlined} from "@ant-design/icons";
-import logoImg from "/fav/android-chrome-192x192.png";
+const logoImg = "/logo.svg";
 import bevis from "src/utils/bevis";
 import {useMount} from "react-use";
 import localStorage from "src/utils/local-storage";
@@ -20,11 +20,17 @@ interface LoginState {
     isNeedLogout: boolean;
 }
 
+interface RegisterForm extends UserCreateForm {
+    confirmPassword?: string;
+}
+
 const LoginPage: React.FC = () => {
-    const [form] = Form.useForm<UserCreateForm>();
+    const [form] = Form.useForm<RegisterForm>();
     const [api, contextHolder] = notification.useNotification();
     const [isFormSubmitting, setIsFormSubmitting] = React.useState<boolean>(false);
     const [providersList, setProvidersList] = React.useState<AuthProvider[]>([]);
+    const [searchParams] = useSearchParams();
+    const [isRegisterMode, setIsRegisterMode] = React.useState<boolean>(searchParams.get("mode") === "register");
     const navigate = useNavigate();
     const state: LoginState = useLocation().state;
 
@@ -37,14 +43,21 @@ const LoginPage: React.FC = () => {
         });
     };
 
-    const onSubmit = async (values: UserCreateForm) => {
+    const onSubmit = async (values: RegisterForm) => {
         try {
             setIsFormSubmitting(true);
-            await authProvider.createUser(values);
+
+            if (isRegisterMode) {
+                await authProvider.register(values);
+                openNotification("Welcome!", "Your account has been created successfully");
+            } else {
+                await authProvider.login(values);
+                openNotification("Welcome back!", "");
+            }
+
             navigate("/", {
                 state: {realoadUserInfo: true}
             });
-            openNotification("Welcome to the our community", "");
 
             await sleep(1000);
             form.resetFields();
@@ -53,6 +66,11 @@ const LoginPage: React.FC = () => {
         } finally {
             setIsFormSubmitting(false);
         }
+    };
+
+    const toggleMode = () => {
+        setIsRegisterMode(!isRegisterMode);
+        form.resetFields();
     };
 
     const googleRedirectLink = (): string => {
@@ -88,91 +106,144 @@ const LoginPage: React.FC = () => {
     const isLoading = providersList.length === 0;
 
     return (
-        <>
+        <div className={b()}>
             {contextHolder}
-            <Modal
-                title={
-                    <>
-                        <div className={b("logo")}>
-                            <img src={logoImg} alt="logo" className={b("logo-img")} />
-                            <Typography.Title className={b("logo-text")}>OxygenPay</Typography.Title>
-                        </div>
-                        <Typography.Title level={2}>Sign In 🔐</Typography.Title>
-                        <SpinWithMask isLoading={isLoading} />
-                        {!isLoading ? (
-                            <>
-                                {providersList.findIndex((item) => item.name === "email") !== -1 ? (
-                                    <Form<UserCreateForm>
-                                        form={form}
-                                        onFinish={onSubmit}
-                                        layout="vertical"
-                                        className={b("form")}
-                                    >
+            <div className={b("container")}>
+                <div className={b("card")}>
+                    <div className={b("logo")}>
+                        <img src={logoImg} alt="logo" className={b("logo-img")} />
+                        <Typography.Title className={b("logo-text")} level={3}>CryptoLink</Typography.Title>
+                    </div>
+
+                    <Typography.Title level={2} style={{marginBottom: 24}}>
+                        {isRegisterMode ? "Create Account" : "Sign In"}
+                    </Typography.Title>
+
+                    <SpinWithMask isLoading={isLoading} />
+
+                    {!isLoading ? (
+                        <>
+                            {providersList.findIndex((item) => item.name === "email") !== -1 ? (
+                                <Form<RegisterForm>
+                                    form={form}
+                                    onFinish={onSubmit}
+                                    layout="vertical"
+                                    className={b("form")}
+                                >
+                                    {isRegisterMode && (
                                         <Form.Item
-                                            name="email"
+                                            name="name"
                                             rules={[
                                                 {
-                                                    type: "email",
-                                                    message: "The input is not valid email"
+                                                    required: true,
+                                                    message: "Please input your name"
                                                 },
                                                 {
-                                                    required: true,
-                                                    message: "Please input your email"
+                                                    min: 2,
+                                                    message: "Name must be at least 2 characters"
                                                 }
                                             ]}
                                         >
-                                            <Input placeholder="Email" />
+                                            <Input placeholder="Full Name" size="large" />
                                         </Form.Item>
+                                    )}
+                                    <Form.Item
+                                        name="email"
+                                        rules={[
+                                            {
+                                                type: "email",
+                                                message: "The input is not valid email"
+                                            },
+                                            {
+                                                required: true,
+                                                message: "Please input your email"
+                                            }
+                                        ]}
+                                    >
+                                        <Input placeholder="Email" size="large" />
+                                    </Form.Item>
+                                    <Form.Item
+                                        name="password"
+                                        rules={[
+                                            {
+                                                required: true,
+                                                message: "Please input your password"
+                                            },
+                                            {
+                                                min: 8,
+                                                message: "Password must be at least 8 characters"
+                                            }
+                                        ]}
+                                    >
+                                        <Input.Password placeholder="Password" size="large" />
+                                    </Form.Item>
+                                    {isRegisterMode && (
                                         <Form.Item
-                                            name="password"
+                                            name="confirmPassword"
+                                            dependencies={["password"]}
                                             rules={[
                                                 {
                                                     required: true,
-                                                    message: "Please input your password"
-                                                }
+                                                    message: "Please confirm your password"
+                                                },
+                                                ({getFieldValue}) => ({
+                                                    validator(_, value) {
+                                                        if (!value || getFieldValue("password") === value) {
+                                                            return Promise.resolve();
+                                                        }
+                                                        return Promise.reject(
+                                                            new Error("Passwords do not match")
+                                                        );
+                                                    }
+                                                })
                                             ]}
                                         >
-                                            <Input.Password placeholder="Password" />
+                                            <Input.Password placeholder="Confirm Password" size="large" />
                                         </Form.Item>
-                                        <Button
-                                            disabled={isFormSubmitting}
-                                            loading={isFormSubmitting}
-                                            type="primary"
-                                            htmlType="submit"
-                                            className={b("btn")}
-                                        >
-                                            Sign in
-                                        </Button>
-                                    </Form>
-                                ) : null}
-
-                                {providersList.length == 2 ? (
-                                    <Typography.Text className={b("text-or")}>OR</Typography.Text>
-                                ) : null}
-
-                                {providersList.findIndex((item) => item.name === "google") !== -1 ? (
+                                    )}
                                     <Button
-                                        key="submit"
+                                        disabled={isFormSubmitting}
+                                        loading={isFormSubmitting}
                                         type="primary"
-                                        href={googleRedirectLink()}
+                                        htmlType="submit"
                                         className={b("btn")}
+                                        size="large"
                                     >
-                                        Sign in / Register with Google <GoogleOutlined />
+                                        {isRegisterMode ? "Create Account" : "Sign in"}
                                     </Button>
-                                ) : null}
-                            </>
-                        ) : null}
-                    </>
-                }
-                maskStyle={{
-                    backgroundColor: "#ffffff"
-                }}
-                centered
-                open
-                closable={false}
-                footer={null}
-            />
-        </>
+                                    <div style={{textAlign: "center", marginTop: "16px"}}>
+                                        <Typography.Link onClick={toggleMode}>
+                                            {isRegisterMode
+                                                ? "Already have an account? Sign in"
+                                                : "Don't have an account? Register"}
+                                        </Typography.Link>
+                                    </div>
+                                </Form>
+                            ) : null}
+
+                            {providersList.length == 2 ? (
+                                <Typography.Text className={b("text-or")}>OR</Typography.Text>
+                            ) : null}
+
+                            {providersList.findIndex((item) => item.name === "google") !== -1 ? (
+                                <Button
+                                    key="submit"
+                                    type="primary"
+                                    href={googleRedirectLink()}
+                                    className={b("btn")}
+                                    size="large"
+                                >
+                                    Sign in / Register with Google <GoogleOutlined />
+                                </Button>
+                            ) : null}
+                        </>
+                    ) : null}
+                </div>
+                <div className={b("footer")}>
+                    Powered by CryptoLink — Self-hosted crypto payments
+                </div>
+            </div>
+        </div>
     );
 };
 

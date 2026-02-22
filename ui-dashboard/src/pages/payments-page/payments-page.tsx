@@ -4,8 +4,8 @@ import * as React from "react";
 import {flatten} from "lodash-es";
 
 import {PageContainer} from "@ant-design/pro-components";
-import {Button, Result, Table, Typography, Row, notification, FormInstance} from "antd";
-import {CheckOutlined} from "@ant-design/icons";
+import {Button, Result, Table, Typography, Row, notification, FormInstance, Tooltip, Tag} from "antd";
+import {CheckOutlined, LinkOutlined, CopyOutlined} from "@ant-design/icons";
 import {ColumnsType} from "antd/es/table";
 import {useMount} from "react-use";
 import {CURRENCY_SYMBOL, Payment, PaymentParams} from "src/types";
@@ -18,6 +18,7 @@ import PaymentDescCard from "src/components/payment-desc-card/payment-desc-card"
 import PaymentStatusLabel from "src/components/payment-status/payment-status";
 import TimeLabel from "src/components/time-label/time-label";
 import {sleep} from "src/utils";
+import copyToClipboard from "src/utils/copy-to-clipboard";
 
 const displayPrice = (record: Payment) => {
     let ticker = record.currency + " ";
@@ -26,6 +27,11 @@ const displayPrice = (record: Payment) => {
     }
 
     return ticker + record.price;
+};
+
+const truncateHash = (hash: string) => {
+    if (hash.length <= 18) return hash;
+    return hash.slice(0, 10) + "..." + hash.slice(-8);
 };
 
 const columns: ColumnsType<Payment> = [
@@ -47,6 +53,39 @@ const columns: ColumnsType<Payment> = [
         key: "price",
         width: "min-content",
         render: (_, record) => <span style={{whiteSpace: "nowrap"}}>{displayPrice(record)}</span>
+    },
+    {
+        title: "Crypto",
+        dataIndex: "selectedCurrency",
+        key: "selectedCurrency",
+        render: (_, record) =>
+            record.additionalInfo?.payment?.selectedCurrency ? (
+                <Tag color="blue" style={{fontSize: 11}}>
+                    {record.additionalInfo.payment.selectedCurrency}
+                </Tag>
+            ) : null
+    },
+    {
+        title: "Tx Hash",
+        dataIndex: "txHash",
+        key: "txHash",
+        render: (_, record) => {
+            const hash = record.additionalInfo?.payment?.transactionHash;
+            const link = record.additionalInfo?.payment?.explorerLink;
+            if (!hash) return null;
+            return (
+                <span style={{whiteSpace: "nowrap", fontFamily: "monospace", fontSize: 12}}>
+                    {truncateHash(hash)}
+                    {link && (
+                        <Tooltip title="View on explorer">
+                            <a href={link} target="_blank" rel="noopener noreferrer" style={{marginLeft: 4}}>
+                                <LinkOutlined />
+                            </a>
+                        </Tooltip>
+                    )}
+                </span>
+            );
+        }
     },
     {
         title: "Order ID",
@@ -80,7 +119,7 @@ const PaymentsPage: React.FC = () => {
     const isLoading = listPayments.isLoading || createPayment.isLoading || listPayments.isFetching;
 
     useMount(async () => {
-        if (merchantId) {
+        if (!merchantId) {
             return;
         }
 
@@ -95,7 +134,9 @@ const PaymentsPage: React.FC = () => {
     }, [listPayments.data]);
 
     React.useEffect(() => {
-        listPayments.refetch();
+        if (merchantId) {
+            listPayments.refetch();
+        }
     }, [merchantId]);
 
     const openNotification = (title: string, description: string) => {
@@ -129,6 +170,29 @@ const PaymentsPage: React.FC = () => {
         }
     };
 
+    const exportCSV = () => {
+        const headers = ["Date", "Status", "Price", "Currency", "Crypto", "TxHash", "Sender", "OrderID", "Description"];
+        const rows = payments.map((p) => [
+            p.createdAt,
+            p.status,
+            p.price,
+            p.currency,
+            p.additionalInfo?.payment?.selectedCurrency || "",
+            p.additionalInfo?.payment?.transactionHash || "",
+            p.additionalInfo?.payment?.senderAddress || "",
+            p.orderId || "",
+            p.description || ""
+        ]);
+        const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csv], {type: "text/csv"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <PageContainer
             header={{
@@ -139,9 +203,12 @@ const PaymentsPage: React.FC = () => {
             {contextHolder}
             <Row align="middle" justify="space-between">
                 <Typography.Title>Payments</Typography.Title>
-                <Button type="primary" onClick={() => setFormOpen(true)} style={{marginTop: 20}}>
-                    New Payment
-                </Button>
+                <Row gap={8} style={{gap: 8, marginTop: 20}}>
+                    <Button onClick={exportCSV}>Export CSV</Button>
+                    <Button type="primary" onClick={() => setFormOpen(true)}>
+                        New Payment
+                    </Button>
+                </Row>
             </Row>
             <Table
                 columns={columns}
@@ -151,6 +218,7 @@ const PaymentsPage: React.FC = () => {
                 loading={isLoading}
                 pagination={false}
                 size="middle"
+                scroll={{x: "max-content"}}
                 footer={() => (
                     <Button
                         type="primary"
@@ -197,7 +265,7 @@ const PaymentsPage: React.FC = () => {
                 changeIsFormOpen={changeIsCardOpen}
                 formBody={<PaymentDescCard data={openedCard[0]} openNotificationFunc={openNotification} />}
                 hasCloseBtn
-                width={540}
+                width={600}
             />
         </PageContainer>
     );

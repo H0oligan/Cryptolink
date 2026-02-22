@@ -6,13 +6,14 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/oxygenpay/oxygen/internal/bus"
-	"github.com/oxygenpay/oxygen/internal/service/merchant"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/processing"
-	"github.com/oxygenpay/oxygen/internal/slack"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/internal/webhook"
+	"github.com/cryptolink/cryptolink/internal/bus"
+	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/service/subscription"
+	"github.com/cryptolink/cryptolink/internal/slack"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/internal/webhook"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -21,6 +22,7 @@ type Handler struct {
 	merchants       *merchant.Service
 	processing      *processing.Service
 	payments        *payment.Service
+	subscriptions   *subscription.Service
 	slackWebhookURL string
 	logger          *zerolog.Logger
 }
@@ -29,6 +31,7 @@ func New(
 	merchants *merchant.Service,
 	processingService *processing.Service,
 	payments *payment.Service,
+	subscriptions *subscription.Service,
 	slackWebhookURL string,
 	logger *zerolog.Logger,
 ) *Handler {
@@ -38,6 +41,7 @@ func New(
 		merchants:       merchants,
 		processing:      processingService,
 		payments:        payments,
+		subscriptions:   subscriptions,
 		slackWebhookURL: slackWebhookURL,
 		logger:          &log,
 	}
@@ -142,6 +146,34 @@ func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Me
 		Int64("payment_id", req.PaymentID).
 		Str("webhook_url", webhookURL).
 		Msg("sent webhook to merchant")
+
+	// Handle subscription activation if payment is for a subscription
+	if p.Payment.Status == payment.StatusSuccess {
+		if err := h.handleSubscriptionPayment(ctx, p.Payment.ID); err != nil {
+			h.logger.Error().Err(err).
+				Int64("payment_id", p.Payment.ID).
+				Msg("failed to handle subscription payment")
+			// Don't fail the whole webhook processing if subscription activation fails
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) handleSubscriptionPayment(ctx context.Context, paymentID int64) error {
+	// Try to activate subscription webhook - it will check if payment has subscription metadata
+	if err := h.subscriptions.HandlePaymentWebhook(ctx, paymentID, ""); err != nil {
+		// Only log if it's a real error, not just "no subscription" case
+		if !errors.Is(err, subscription.ErrSubscriptionNotFound) {
+			return errors.Wrap(err, "failed to handle payment webhook")
+		}
+		// Not a subscription payment, skip silently
+		return nil
+	}
+
+	h.logger.Info().
+		Int64("payment_id", paymentID).
+		Msg("subscription activated successfully from payment webhook")
 
 	return nil
 }

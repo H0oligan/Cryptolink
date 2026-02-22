@@ -3,12 +3,16 @@ package processing
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	"github.com/google/uuid"
-	kms "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/email"
+	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/service/xpub"
 	"github.com/pkg/errors"
 )
 
@@ -69,13 +73,39 @@ func (s *Service) ProcessIncomingWebhook(ctx context.Context, walletID uuid.UUID
 		return nil
 	}
 
-	// 1. Resolve wallet
-	wt, err := s.wallets.GetByUUID(ctx, walletID)
-	if err != nil {
-		return errors.Wrap(err, "unable to get wallet by uuid")
+	// 1. Try to resolve as traditional wallet first
+	wt, walletErr := s.wallets.GetByUUID(ctx, walletID)
+	if walletErr == nil {
+		// Traditional wallet flow
+		return s.processTraditionalWebhook(ctx, wt, networkID, wh)
 	}
 
-	// 2. Resolve currency
+	// 2. Try to resolve as xpub-derived address
+	derivedAddr, xpubErr := s.xpubService.GetDerivedAddressByUUID(ctx, walletID)
+	if xpubErr == nil {
+		// Xpub address flow
+		return s.processXpubWebhook(ctx, derivedAddr, networkID, wh)
+	}
+
+	// 3. Try to resolve as EVM collector contract address
+	if s.evmCollector != nil {
+		collector, collectorErr := s.evmCollector.GetByUUID(ctx, walletID)
+		if collectorErr == nil {
+			return s.processCollectorWebhook(ctx, collector, networkID, wh)
+		}
+	}
+
+	// None of the known webhook targets matched
+	s.logger.Error().
+		Err(walletErr).
+		Str("wallet_uuid", walletID.String()).
+		Msg("unable to resolve webhook target (not a wallet, xpub address, or evm collector)")
+
+	return errors.Wrap(walletErr, "unable to get wallet by uuid")
+}
+
+// processTraditionalWebhook handles webhooks for traditional (hot wallet) addresses
+func (s *Service) processTraditionalWebhook(ctx context.Context, wt *wallet.Wallet, networkID string, wh TatumWebhook) error {
 	currency, err := s.resolveCurrencyFromWebhook(wt.Blockchain.ToMoneyBlockchain(), networkID, wh)
 	if err != nil {
 		return errors.Wrap(err, "unable to resolve currency from webhook")
@@ -103,21 +133,185 @@ func (s *Service) ProcessIncomingWebhook(ctx context.Context, walletID uuid.UUID
 	for _, ingest := range processors {
 		err := ingest(ctx, wt, input)
 
-		// webhook was skipped by current processor. Try next one
 		if errors.Is(err, errSkippedProcessor) {
 			continue
 		}
 
-		// current processor failed. Return error
 		if err != nil {
 			return errors.Wrap(err, "unable to process webhook")
 		}
 
-		// webhook was processed successfully. Break the loop
 		break
 	}
 
 	return nil
+}
+
+// processXpubWebhook handles webhooks for xpub-derived addresses (non-custodial flow)
+func (s *Service) processXpubWebhook(ctx context.Context, addr *xpub.DerivedAddress, networkID string, wh TatumWebhook) error {
+	bc := money.Blockchain(addr.Blockchain)
+
+	currency, err := s.resolveCurrencyFromWebhook(bc, networkID, wh)
+	if err != nil {
+		return errors.Wrap(err, "unable to resolve currency from xpub webhook")
+	}
+
+	amount, err := money.CryptoFromStringFloat(currency.Ticker, wh.Amount, currency.Decimals)
+	if err != nil {
+		return errors.Wrap(err, "unable to make crypto amount from xpub webhook data")
+	}
+
+	input := Input{
+		Currency:      currency,
+		Amount:        amount,
+		SenderAddress: wh.Sender,
+		TransactionID: wh.TransactionID,
+		NetworkID:     networkID,
+	}
+
+	// Find pending transaction by recipient address
+	tx, err := s.transactions.GetByFilter(ctx, transaction.Filter{
+		RecipientAddress: addr.Address,
+		NetworkID:        input.NetworkID,
+		Currency:         input.Currency.Ticker,
+		Statuses:         []transaction.Status{transaction.StatusPending},
+		Types:            []transaction.Type{transaction.TypeIncoming},
+		HashIsEmpty:      true,
+	})
+
+	if err != nil {
+		if errors.Is(err, transaction.ErrNotFound) {
+			s.logger.Info().
+				Str("address", addr.Address).
+				Str("blockchain_tx_hash_id", wh.TransactionID).
+				Msg("no pending xpub transaction found for webhook, might be unexpected")
+			return nil
+		}
+		return errors.Wrap(err, "unable to find xpub transaction")
+	}
+
+	// Process the inbound transaction (nil wallet is fine for xpub flow)
+	if err := s.ProcessInboundTransaction(ctx, tx, nil, input); err != nil {
+		return errors.Wrap(err, "unable to process xpub incoming transaction")
+	}
+
+	s.logger.Info().
+		Str("address", addr.Address).
+		Int64("transaction_id", tx.ID).
+		Str("blockchain_tx_hash_id", wh.TransactionID).
+		Msg("processed xpub incoming transaction via webhook")
+
+	return nil
+}
+
+// processCollectorWebhook handles webhooks for EVM smart contract collector addresses.
+func (s *Service) processCollectorWebhook(ctx context.Context, collector *evmcollector.Collector, networkID string, wh TatumWebhook) error {
+	bc := money.Blockchain(collector.Blockchain)
+
+	// The webhook URL may carry the blockchain name (e.g. "ETH") instead of the
+	// numeric chain ID (e.g. "1") that resolveCurrencyFromWebhook and transaction
+	// filters require. Use the chain ID stored on the collector record instead.
+	effectiveNetworkID := networkID
+	if collector.ChainID != 0 {
+		effectiveNetworkID = strconv.Itoa(collector.ChainID)
+	}
+
+	currency, err := s.resolveCurrencyFromWebhook(bc, effectiveNetworkID, wh)
+	if err != nil {
+		return errors.Wrap(err, "unable to resolve currency from collector webhook")
+	}
+
+	amount, err := money.CryptoFromStringFloat(currency.Ticker, wh.Amount, currency.Decimals)
+	if err != nil {
+		return errors.Wrap(err, "unable to make crypto amount from collector webhook data")
+	}
+
+	input := Input{
+		Currency:      currency,
+		Amount:        amount,
+		SenderAddress: wh.Sender,
+		TransactionID: wh.TransactionID,
+		NetworkID:     effectiveNetworkID,
+	}
+
+	// Find pending transaction for this collector's contract address
+	tx, err := s.transactions.GetByFilter(ctx, transaction.Filter{
+		RecipientAddress: collector.ContractAddress,
+		NetworkID:        input.NetworkID,
+		Currency:         input.Currency.Ticker,
+		Statuses:         []transaction.Status{transaction.StatusPending},
+		Types:            []transaction.Type{transaction.TypeIncoming},
+		HashIsEmpty:      true,
+	})
+
+	if err != nil {
+		if errors.Is(err, transaction.ErrNotFound) {
+			s.logger.Info().
+				Str("contract_address", collector.ContractAddress).
+				Str("blockchain_tx_hash_id", wh.TransactionID).
+				Str("amount", wh.Amount).
+				Str("ticker", currency.Ticker).
+				Msg("no pending collector transaction found for webhook (unexpected payment to collector)")
+			return nil
+		}
+		return errors.Wrap(err, "unable to find collector transaction")
+	}
+
+	// Process the inbound transaction
+	if err := s.ProcessInboundTransaction(ctx, tx, nil, input); err != nil {
+		return errors.Wrap(err, "unable to process collector incoming transaction")
+	}
+
+	s.logger.Info().
+		Str("contract_address", collector.ContractAddress).
+		Int64("transaction_id", tx.ID).
+		Str("blockchain_tx_hash_id", wh.TransactionID).
+		Msg("processed collector incoming transaction via webhook")
+
+	// Send payment received email notification (best-effort, non-blocking)
+	if s.emailService != nil {
+		go s.sendPaymentReceivedEmail(context.Background(), collector.MerchantID, tx, currency, wh)
+	}
+
+	return nil
+}
+
+// sendPaymentReceivedEmail looks up the merchant email and sends the payment notification.
+func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64, tx *transaction.Transaction, currency money.CryptoCurrency, wh TatumWebhook) {
+	mt, err := s.merchants.GetByID(ctx, merchantID, false)
+	if err != nil {
+		s.logger.Warn().Err(err).Int64("merchant_id", merchantID).Msg("unable to get merchant for payment email")
+		return
+	}
+
+	merchantEmail, err := s.evmCollector.GetMerchantEmail(ctx, merchantID)
+	if err != nil || merchantEmail == "" {
+		s.logger.Warn().Err(err).Int64("merchant_id", merchantID).Msg("no merchant email found for payment notification")
+		return
+	}
+
+	explorerLink := ""
+	if link, linkErr := tx.ExplorerLink(); linkErr == nil {
+		explorerLink = link
+	}
+
+	networkName := string(currency.Blockchain)
+
+	params := email.PaymentReceivedParams{
+		MerchantEmail:    merchantEmail,
+		MerchantName:     mt.Name,
+		TxHash:           wh.TransactionID,
+		Amount:           wh.Amount,
+		Ticker:           currency.Ticker,
+		USDAmount:        tx.USDAmount.String(),
+		SenderAddress:    wh.Sender,
+		RecipientAddress: wh.Address,
+		ExplorerLink:     explorerLink,
+		Network:          networkName,
+		ReceivedAt:       tx.CreatedAt,
+	}
+
+	s.emailService.SendPaymentReceived(ctx, params)
 }
 
 var errSkippedProcessor = errors.New("processor is skipped")

@@ -6,14 +6,16 @@ import (
 
 	"github.com/labstack/echo/v4"
 	mw "github.com/labstack/echo/v4/middleware"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	v1 "github.com/oxygenpay/oxygen/internal/server/http/internalapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/merchantapi"
-	merchantauth "github.com/oxygenpay/oxygen/internal/server/http/merchantapi/auth"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/server/http/paymentapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/webhook"
-	"github.com/oxygenpay/oxygen/internal/service/user"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	v1 "github.com/cryptolink/cryptolink/internal/server/http/internalapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/emailapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/merchantapi"
+	merchantauth "github.com/cryptolink/cryptolink/internal/server/http/merchantapi/auth"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/server/http/paymentapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/subscriptionapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/webhook"
+	"github.com/cryptolink/cryptolink/internal/service/user"
 )
 
 // WithDashboardAPI setups routes for Merchant's Dashboard (app.o2pay.co)
@@ -21,12 +23,16 @@ func WithDashboardAPI(
 	cfg Config,
 	handler *merchantapi.Handler,
 	authHandler *merchantauth.Handler,
+	subscriptionHandler *subscriptionapi.Handler,
+	emailHandler *emailapi.Handler,
 	tokensManager *auth.TokenAuthManager,
 	users *user.Service,
 	enableEmailAuth bool,
 	enableGoogleAuth bool,
 ) Opt {
 	return func(s *Server) {
+		s.echo.Use(middleware.SecurityHeaders())
+
 		guardsUsersMW := middleware.GuardsUsers()
 
 		dashboardAPI := s.echo.Group(
@@ -45,11 +51,14 @@ func WithDashboardAPI(
 		authGroup.GET("/provider", authHandler.ListAvailableProviders)
 		authGroup.GET("/csrf-cookie", authHandler.GetCookie)
 		authGroup.GET("/me", authHandler.GetMe, guardsUsersMW)
+		authGroup.PUT("/profile", authHandler.UpdateProfile, guardsUsersMW)
+		authGroup.PUT("/password", authHandler.UpdatePassword, guardsUsersMW)
 		authGroup.POST("/logout", authHandler.PostLogout, guardsUsersMW)
 
 		// email auth routes
 		if enableEmailAuth {
 			authGroup.POST("/login", authHandler.PostLogin)
+			authGroup.POST("/register", authHandler.PostRegister)
 		}
 
 		// google auth routes
@@ -77,10 +86,12 @@ func WithDashboardAPI(
 		merchantGroup.PUT("/webhook", handler.UpdateMerchantWebhook)
 		merchantGroup.PUT("/supported-method", handler.UpdateMerchantSupportedMethods)
 
-		// Merchant Tokens
-		merchantGroup.GET("/token", handler.ListMerchantTokens)
-		merchantGroup.POST("/token", handler.CreateMerchantToken)
-		merchantGroup.DELETE("/token/:tokenId", handler.DeleteMerchantTokens)
+		// Merchant Tokens (rate limited to prevent abuse)
+		tokenRL := mw.NewRateLimiterMemoryStore(20) // 20 requests per second
+		tokenGroup := merchantGroup.Group("/token", mw.RateLimiter(tokenRL))
+		tokenGroup.GET("", handler.ListMerchantTokens)
+		tokenGroup.POST("", handler.CreateMerchantToken)
+		tokenGroup.DELETE("/:tokenId", handler.DeleteMerchantTokens)
 
 		// Merchant Addresses
 		merchantGroup.GET("/address", handler.ListMerchantAddresses)
@@ -89,15 +100,58 @@ func WithDashboardAPI(
 		merchantGroup.PUT("/address/:addressId", handler.UpdateMerchantAddress)
 		merchantGroup.DELETE("/address/:addressId", handler.DeleteMerchantAddress)
 
-		// Withdrawals
-		merchantGroup.POST("/withdrawal", handler.CreateWithdrawal)
-		merchantGroup.GET("/withdrawal-fee", handler.GetWithdrawalFee)
+		// Xpub Wallets
+		merchantGroup.GET("/xpub-wallet", handler.ListXpubWallets)
+		merchantGroup.POST("/xpub-wallet", handler.CreateXpubWallet)
+		merchantGroup.GET("/xpub-wallet/:walletId", handler.GetXpubWallet)
+		merchantGroup.DELETE("/xpub-wallet/:walletId", handler.DeleteXpubWallet)
+		merchantGroup.POST("/xpub-wallet/:walletId/derive", handler.DeriveAddress)
+		merchantGroup.GET("/xpub-wallet/:walletId/next-address", handler.GetNextAddress)
+		merchantGroup.GET("/xpub-wallet/:walletId/addresses", handler.ListDerivedAddresses)
+
+		// EVM Smart Contract Collector Wallets
+		merchantGroup.GET("/evm-collector", handler.ListEvmCollectors)
+		merchantGroup.POST("/evm-collector", handler.SetupEvmCollector)
+		merchantGroup.GET("/evm-collector/:blockchain", handler.GetEvmCollector)
+		merchantGroup.DELETE("/evm-collector/:blockchain", handler.DeleteEvmCollector)
+		merchantGroup.GET("/evm-collector/:blockchain/balance", handler.GetEvmCollectorBalance)
 
 		// Form
 		merchantGroup.POST("/form", handler.CreateFormSubmission)
 
 		// Currency
 		merchantGroup.GET("/currency-convert", handler.GetCurrencyConvert)
+
+		// Subscription routes
+		dashboardAPI.GET("/subscription/plans", subscriptionHandler.ListPlans)
+
+		merchantGroup.GET("/subscription", subscriptionHandler.GetCurrentSubscription)
+		merchantGroup.POST("/subscription/upgrade", subscriptionHandler.UpgradePlan)
+		merchantGroup.POST("/subscription/cancel", subscriptionHandler.CancelSubscription)
+		merchantGroup.GET("/subscription/usage", subscriptionHandler.GetUsageHistory)
+
+		// Admin routes (super admin only)
+		adminGroup := dashboardAPI.Group("/admin", guardsUsersMW, middleware.GuardsSuperAdmin())
+		adminGroup.GET("/subscription/stats", subscriptionHandler.GetSystemStats)
+		adminGroup.GET("/subscription/list", subscriptionHandler.ListAllSubscriptions)
+
+		// Admin plan CRUD
+		adminGroup.GET("/plans", subscriptionHandler.ListAllPlans)
+		adminGroup.POST("/plans", subscriptionHandler.CreatePlan)
+		adminGroup.GET("/plans/:planId", subscriptionHandler.GetPlanAdmin)
+		adminGroup.PUT("/plans/:planId", subscriptionHandler.UpdatePlan)
+
+		// Admin merchant & user management
+		adminGroup.GET("/merchants", subscriptionHandler.ListAllMerchants)
+		adminGroup.PUT("/merchants/:merchantId/plan", subscriptionHandler.AssignMerchantPlan)
+		adminGroup.GET("/users", subscriptionHandler.ListAllUsers)
+
+		// Admin email routes
+		adminGroup.GET("/email/settings", emailHandler.GetSettings)
+		adminGroup.PUT("/email/settings", emailHandler.UpdateSettings)
+		adminGroup.POST("/email/send", emailHandler.SendEmail)
+		adminGroup.POST("/email/test", emailHandler.TestEmail)
+		adminGroup.GET("/email/log", emailHandler.GetLogs)
 
 		setupCommonMerchantRoutes(merchantGroup, handler)
 	}
@@ -120,13 +174,17 @@ func WithMerchantAPI(handler *merchantapi.Handler, tokensManager *auth.TokenAuth
 // session auth: "/api/dashboard/v1/merchant/{merchant}/*"
 // token auth: "/api/merchant/v1/merchant/{merchant}/*"
 func setupCommonMerchantRoutes(g *echo.Group, handler *merchantapi.Handler) {
-	paymentGroup := g.Group("/payment")
+	// Payment routes (rate limited to prevent abuse)
+	paymentRL := mw.NewRateLimiterMemoryStore(100) // 100 requests per second
+	paymentGroup := g.Group("/payment", mw.RateLimiter(paymentRL))
 
 	paymentGroup.GET("", handler.ListPayments)
 	paymentGroup.GET("/:paymentId", handler.GetPayment)
 	paymentGroup.POST("", handler.CreatePayment)
 
-	paymentLinkGroup := g.Group("/payment-link")
+	// Payment link routes (rate limited to prevent abuse)
+	paymentLinkRL := mw.NewRateLimiterMemoryStore(50) // 50 requests per second
+	paymentLinkGroup := g.Group("/payment-link", mw.RateLimiter(paymentLinkRL))
 
 	paymentLinkGroup.GET("", handler.ListPaymentLinks)
 	paymentLinkGroup.GET("/:paymentLinkId", handler.GetPaymentLink)

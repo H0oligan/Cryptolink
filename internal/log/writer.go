@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/oxygenpay/oxygen/internal/slack"
+	"github.com/cryptolink/cryptolink/internal/slack"
 	"github.com/rs/zerolog"
 )
 

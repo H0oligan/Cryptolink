@@ -3,12 +3,12 @@ package processing_test
 import (
 	"testing"
 
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
-	"github.com/oxygenpay/oxygen/internal/service/processing"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/test"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/test"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

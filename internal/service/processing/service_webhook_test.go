@@ -3,9 +3,9 @@ package processing_test
 import (
 	"testing"
 
-	"github.com/oxygenpay/oxygen/internal/service/processing"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/test"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/test"
 	"github.com/stretchr/testify/assert"
 )
 

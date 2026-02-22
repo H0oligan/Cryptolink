@@ -13,14 +13,14 @@ info:
     <a href="https://github.com/go-swagger/go-swagger" target="_blank">go-swagger</a>.
     
     ## Authentication 🔐
-    API uses token based authentication that you need to provide in each request. `X-O2PAY-TOKEN` is used as key. 
+    API uses token based authentication that you need to provide in each request. `X-CRYPTOLINK-TOKEN` is used as key.
     You can obtain API token in merchant's settings in dashboard at
-    <a href="https://app.o2pay.co" target="_blank">app.o2pay.co</a>
-    
+    <a href="https://cryptolink.cc/dashboard" target="_blank">cryptolink.cc/dashboard</a>
+
     Example request:
     ```bash
-      curl --header 'X-O2PAY-TOKEN: <your-token>' \
-        https://api.o2pay.co/api/merchant/v1/merchant/5a51e7a5-f0c8-48dc-a9fb-a335481ae846/balance
+      curl --header 'X-CRYPTOLINK-TOKEN: <your-token>' \
+        https://cryptolink.cc/api/merchant/v1/merchant/5a51e7a5-f0c8-48dc-a9fb-a335481ae846/balance
     ```
     
     Unauthorized requests return `401 Unauthorized` response:
@@ -34,7 +34,7 @@ info:
     ## Quickstart 🚀
     - [Create payment](#tag/Payment/operation/createPayment) 
 
-host: api.o2pay.co
+host: cryptolink.cc
 basePath: /api/merchant/v1
 produces: [ application/json ]
 schemes: [ https ]
@@ -43,7 +43,7 @@ securityDefinitions:
   TokenAuth:
     type: apiKey
     in: header
-    name: X-O2PAY-TOKEN
+    name: X-CRYPTOLINK-TOKEN
 security:
   - TokenAuth: [ ]
 
@@ -54,7 +54,7 @@ tags:
     description: |
       Links are the easy way of accepting payments from your customers.
       Each link represents a pre-defined payment with amount and description.
-      Customer can create a payment on-the-fly by visiting `https://pay.o2pay.co/link/<link>`
+      Customer can create a payment on-the-fly by visiting `https://cryptolink.cc/p/link/<link>`
 
 paths:
   /merchant/{merchantId}/payment:

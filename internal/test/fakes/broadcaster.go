@@ -7,10 +7,10 @@ import (
 	"sync"
 	"testing"
 
-	kms "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	kmsmodel "github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	kmsmodel "github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )

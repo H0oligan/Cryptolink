@@ -12,7 +12,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 )
 
 // CreateBSCTransactionReader is a Reader for the CreateBSCTransaction structure.
@@ -45,7 +45,8 @@ func NewCreateBSCTransactionCreated() *CreateBSCTransactionCreated {
 	return &CreateBSCTransactionCreated{}
 }
 
-/* CreateBSCTransactionCreated describes a response with status code 201, with default header values.
+/*
+	CreateBSCTransactionCreated describes a response with status code 201, with default header values.
 
 Transaction Created
 */
@@ -77,7 +78,8 @@ func NewCreateBSCTransactionBadRequest() *CreateBSCTransactionBadRequest {
 	return &CreateBSCTransactionBadRequest{}
 }
 
-/* CreateBSCTransactionBadRequest describes a response with status code 400, with default header values.
+/*
+	CreateBSCTransactionBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

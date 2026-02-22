@@ -4,10 +4,10 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/server/http/middleware"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/util"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 )
 
 func (h *Handler) ListBalances(c echo.Context) error {

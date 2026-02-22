@@ -22,11 +22,12 @@ INSERT INTO users (
     uuid,
     google_id,
     profile_image_url,
+    is_super_admin,
     created_at,
     updated_at,
     deleted_at,
     settings
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: UpdateUser :one
@@ -49,3 +50,14 @@ RETURNING *;
 -- name: DeleteUser :exec
 DELETE FROM users
 WHERE id = $1;
+
+-- name: MarkUserAsSuperAdmin :exec
+UPDATE users
+SET is_super_admin = true, updated_at = NOW()
+WHERE id = $1;
+
+-- name: GetSuperAdmins :many
+SELECT * FROM users
+WHERE is_super_admin = true
+AND deleted_at is null
+ORDER BY id ASC;

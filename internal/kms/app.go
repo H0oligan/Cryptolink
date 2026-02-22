@@ -7,14 +7,14 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/oxygenpay/oxygen/internal/config"
-	"github.com/oxygenpay/oxygen/internal/db/connection/bolt"
-	"github.com/oxygenpay/oxygen/internal/kms/api"
-	"github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
-	httpServer "github.com/oxygenpay/oxygen/internal/server/http"
-	"github.com/oxygenpay/oxygen/pkg/graceful"
+	"github.com/cryptolink/cryptolink/internal/config"
+	"github.com/cryptolink/cryptolink/internal/db/connection/bolt"
+	"github.com/cryptolink/cryptolink/internal/kms/api"
+	"github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
+	httpServer "github.com/cryptolink/cryptolink/internal/server/http"
+	"github.com/cryptolink/cryptolink/pkg/graceful"
 	"github.com/rs/zerolog"
 	"go.etcd.io/bbolt"
 )
@@ -64,12 +64,16 @@ func (app *App) runWebServer(ctx context.Context) {
 		AddProvider(&wallet.EthProvider{Blockchain: wallet.ETH, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.EthProvider{Blockchain: wallet.MATIC, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.EthProvider{Blockchain: wallet.BSC, CryptoReader: cryptorand.Reader}).
+		AddProvider(&wallet.EthProvider{Blockchain: wallet.ARBITRUM, CryptoReader: cryptorand.Reader}).
+		AddProvider(&wallet.EthProvider{Blockchain: wallet.AVAX, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.BitcoinProvider{Blockchain: wallet.BTC, CryptoReader: cryptorand.Reader}).
 		AddProvider(&wallet.TronProvider{
 			Blockchain:   wallet.TRON,
 			Trongrid:     trongrid.New(app.config.Providers.Trongrid, app.logger),
 			CryptoReader: cryptorand.Reader,
-		})
+		}).
+		AddProvider(&wallet.SolanaProvider{Blockchain: wallet.SOL, CryptoReader: cryptorand.Reader}).
+		AddProvider(&wallet.MoneroProvider{Blockchain: wallet.XMR})
 
 	walletRepo := wallet.NewRepository(app.db)
 	kmsService := wallet.New(walletRepo, walletGenerator, app.logger)

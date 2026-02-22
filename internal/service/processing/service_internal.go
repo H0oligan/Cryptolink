@@ -7,11 +7,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/transaction"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
@@ -553,6 +553,59 @@ func (s *Service) getOutboundWalletsWithBalancesAsMap(ctx context.Context) (
 
 			for _, b := range balances {
 				results[balanceKey(b)] = b
+			}
+
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, nil, err
+	}
+
+	return walletsMap, results, nil
+}
+
+// getInboundWalletsWithBalancesAsMap returns hot wallets (inbound) with their balances
+// Used for direct sweep withdrawals - skips internal wallet consolidation
+func (s *Service) getInboundWalletsWithBalancesAsMap(ctx context.Context) (
+	map[int64]*wallet.Wallet,
+	map[string]*wallet.Balance,
+	error,
+) {
+	wallets, _, err := s.wallets.List(ctx, wallet.Pagination{
+		Limit:        1000, // Higher limit - merchants may have many hot wallets
+		FilterByType: wallet.TypeInbound,
+	})
+
+	walletsMap := util.KeyFunc(wallets, func(w *wallet.Wallet) int64 { return w.ID })
+
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to list inbound wallets")
+	}
+
+	group, ctx := errgroup.WithContext(ctx)
+	group.SetLimit(8) // More concurrent since there are more hot wallets
+
+	results := make(map[string]*wallet.Balance)
+	mu := sync.Mutex{}
+
+	for i := range wallets {
+		w := wallets[i]
+		group.Go(func() error {
+			balances, err := s.wallets.ListBalances(ctx, wallet.EntityTypeWallet, w.ID, false)
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			for _, b := range balances {
+				// Only include balances with funds
+				if !b.Amount.IsZero() {
+					results[balanceKey(b)] = b
+				}
 			}
 
 			return nil

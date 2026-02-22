@@ -61,16 +61,16 @@ const ErrorPage: React.FC = () => {
                             Payment ID <br /> {payment.id}
                         </span>
                         <div className="mx-auto flex items-center justify-center mb-3">
-                            <a
-                                className="relative border rounded-3xl border-main-green-1 w-full h-14 color-black font-medium text-xl flex items-center justify-center"
-                                href={import.meta.env.VITE_SUPPORT_EMAIL}
+                            <button
+                                className="relative border rounded-3xl border-main-green-1 w-full h-14 text-white font-medium text-xl flex items-center justify-center"
+                                onClick={() => navigate("/support", {state: {paymentId: payment.id}})}
                             >
                                 Contact Support
                                 <Icon
                                     name="arrow_right_black"
                                     className="h-5 w-5 absolute right-10 xs:right-4 md:right-14"
                                 />
-                            </a>
+                            </button>
                         </div>
                     </>
                 )}

@@ -7,15 +7,15 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/service/merchant"
-	"github.com/oxygenpay/oxygen/internal/service/user"
-	"github.com/oxygenpay/oxygen/pkg/api-dashboard/v1/model"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/user"
+	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 )
 
 // nolint gosec
 const (
-	TokenHeader     = "X-O2PAY-TOKEN"
+	TokenHeader     = "X-CRYPTOLINK-TOKEN"
 	CSRFTokenHeader = "X-CSRF-TOKEN"
 
 	UserContextKey        = "user"

@@ -55,7 +55,7 @@ type Payment struct {
 	OrderID *string `json:"orderId"`
 
 	// URL for client payment screen
-	// Example: https://pay.o2pay.co/payment/00000000-0000-0000-0000-000000000000
+	// Example: https://cryptolink.cc/p/payment/00000000-0000-0000-0000-000000000000
 	PaymentURL string `json:"paymentUrl"`
 
 	// Payment price or withdrawal amount

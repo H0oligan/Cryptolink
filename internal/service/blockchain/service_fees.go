@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"time"
 
-	kmswallet "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
+	kmswallet "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 )
 
@@ -33,8 +33,16 @@ func (s *Service) CalculateFee(ctx context.Context, baseCurrency, currency money
 		return s.maticFee(ctx, baseCurrency, currency, isTest)
 	case kmswallet.BSC:
 		return s.bscFee(ctx, baseCurrency, currency, isTest)
+	case kmswallet.ARBITRUM:
+		return s.arbitrumFee(ctx, baseCurrency, currency, isTest)
+	case kmswallet.AVAX:
+		return s.avaxFee(ctx, baseCurrency, currency, isTest)
 	case kmswallet.TRON:
 		return s.tronFee(ctx, baseCurrency, currency, isTest)
+	case kmswallet.SOL:
+		return s.solanaFee(ctx, baseCurrency, currency, isTest)
+	case kmswallet.XMR:
+		return s.moneroFee(ctx, baseCurrency, currency, isTest)
 	}
 
 	return Fee{}, errors.New("unsupported blockchain for fees calculations " + currency.Ticker)
@@ -64,9 +72,21 @@ func (s *Service) CalculateWithdrawalFeeUSD(
 	case kmswallet.BSC:
 		f, _ := fee.ToBSCFee()
 		usdFee = f.totalCostUSD
+	case kmswallet.ARBITRUM:
+		f, _ := fee.ToArbitrumFee()
+		usdFee = f.totalCostUSD
+	case kmswallet.AVAX:
+		f, _ := fee.ToAvaxFee()
+		usdFee = f.totalCostUSD
 	case kmswallet.TRON:
 		f, _ := fee.ToTronFee()
 		usdFee = f.feeLimitUSD
+	case kmswallet.SOL:
+		f, _ := fee.ToSolanaFee()
+		usdFee = f.totalCostUSD
+	case kmswallet.XMR:
+		f, _ := fee.ToMoneroFee()
+		usdFee = f.totalCostUSD
 	default:
 		return money.Money{}, ErrCurrencyNotFound
 	}
@@ -437,5 +457,277 @@ func (s *Service) tronFee(ctx context.Context, baseCurrency, currency money.Cryp
 		FeeLimitUSD: conv.To.String(),
 
 		feeLimitUSD: conv.To,
+	}), nil
+}
+
+// Arbitrum Fee structures and methods
+type ArbitrumFee struct {
+	GasUnits     uint   `json:"gasUnits"`
+	GasPrice     string `json:"gasPrice"`
+	PriorityFee  string `json:"priorityFee"`
+	TotalCostWEI string `json:"totalCostWei"`
+	TotalCostETH string `json:"totalCostEth"`
+	TotalCostUSD string `json:"totalCostUsd"`
+
+	totalCostUSD money.Money
+}
+
+func (f *Fee) ToArbitrumFee() (ArbitrumFee, error) {
+	if fee, ok := f.raw.(ArbitrumFee); ok {
+		return fee, nil
+	}
+	return ArbitrumFee{}, errors.New("invalid fee type assertion for ARBITRUM")
+}
+
+func (s *Service) arbitrumFee(ctx context.Context, baseCurrency, currency money.CryptoCurrency, isTest bool) (Fee, error) {
+	const (
+		gasUnitsForCoin  = 21_000
+		gasUnitsForToken = 65_000
+		gasConfidentRate = 1.10 // Arbitrum has lower and more stable fees than ETH mainnet
+	)
+
+	bigIntToETH := func(i *big.Int) (money.Money, error) {
+		return money.NewFromBigInt(money.Crypto, baseCurrency.Ticker, i, baseCurrency.Decimals)
+	}
+
+	client, err := s.providers.Tatum.ArbitrumRPC(ctx, isTest)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to setup Arbitrum RPC")
+	}
+	defer client.Close()
+
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to suggest gas price")
+	}
+
+	gasPriceETH, err := bigIntToETH(gasPrice)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to make ETH from gas price")
+	}
+
+	gasPriceConfident, err := gasPriceETH.MultiplyFloat64(gasConfidentRate)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to multiply gas price")
+	}
+
+	priorityFee, err := client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to suggest gas tip cap")
+	}
+
+	priorityFeeETH, err := bigIntToETH(priorityFee)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to make ETH from priorityFee")
+	}
+
+	totalFeePerGas, err := gasPriceConfident.Add(priorityFeeETH)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total fee per gas")
+	}
+
+	gasUnits := gasUnitsForCoin
+	if currency.Type == money.Token {
+		gasUnits = gasUnitsForToken
+	}
+
+	totalCost, err := totalFeePerGas.MultiplyFloat64(float64(gasUnits))
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total tx cost")
+	}
+
+	conv, err := s.CryptoToFiat(ctx, totalCost, money.USD)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total cost in USD")
+	}
+
+	return NewFee(currency, time.Now().UTC(), isTest, ArbitrumFee{
+		GasUnits:     uint(gasUnits),
+		GasPrice:     gasPriceConfident.StringRaw(),
+		PriorityFee:  priorityFeeETH.StringRaw(),
+		TotalCostWEI: totalCost.StringRaw(),
+		TotalCostETH: totalCost.String(),
+		TotalCostUSD: conv.To.String(),
+		totalCostUSD: conv.To,
+	}), nil
+}
+
+// Avalanche Fee structures and methods
+type AvaxFee struct {
+	GasUnits      uint   `json:"gasUnits"`
+	GasPrice      string `json:"gasPrice"`
+	PriorityFee   string `json:"priorityFee"`
+	TotalCostWEI  string `json:"totalCostWei"`
+	TotalCostAVAX string `json:"totalCostAvax"`
+	TotalCostUSD  string `json:"totalCostUsd"`
+
+	totalCostUSD money.Money
+}
+
+func (f *Fee) ToAvaxFee() (AvaxFee, error) {
+	if fee, ok := f.raw.(AvaxFee); ok {
+		return fee, nil
+	}
+	return AvaxFee{}, errors.New("invalid fee type assertion for AVAX")
+}
+
+func (s *Service) avaxFee(ctx context.Context, baseCurrency, currency money.CryptoCurrency, isTest bool) (Fee, error) {
+	const (
+		gasUnitsForCoin  = 21_000
+		gasUnitsForToken = 65_000
+		gasConfidentRate = 1.10 // Avalanche C-Chain uses similar gas model to Ethereum
+	)
+
+	bigIntToAVAX := func(i *big.Int) (money.Money, error) {
+		return money.NewFromBigInt(money.Crypto, baseCurrency.Ticker, i, baseCurrency.Decimals)
+	}
+
+	client, err := s.providers.Tatum.AvalancheRPC(ctx, isTest)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to setup Avalanche RPC")
+	}
+	defer client.Close()
+
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to suggest gas price")
+	}
+
+	gasPriceAVAX, err := bigIntToAVAX(gasPrice)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to make AVAX from gas price")
+	}
+
+	gasPriceConfident, err := gasPriceAVAX.MultiplyFloat64(gasConfidentRate)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to multiply gas price")
+	}
+
+	priorityFee, err := client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to suggest gas tip cap")
+	}
+
+	priorityFeeAVAX, err := bigIntToAVAX(priorityFee)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to make AVAX from priorityFee")
+	}
+
+	totalFeePerGas, err := gasPriceConfident.Add(priorityFeeAVAX)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total fee per gas")
+	}
+
+	gasUnits := gasUnitsForCoin
+	if currency.Type == money.Token {
+		gasUnits = gasUnitsForToken
+	}
+
+	totalCost, err := totalFeePerGas.MultiplyFloat64(float64(gasUnits))
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total tx cost")
+	}
+
+	conv, err := s.CryptoToFiat(ctx, totalCost, money.USD)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total cost in USD")
+	}
+
+	return NewFee(currency, time.Now().UTC(), isTest, AvaxFee{
+		GasUnits:      uint(gasUnits),
+		GasPrice:      gasPriceConfident.StringRaw(),
+		PriorityFee:   priorityFeeAVAX.StringRaw(),
+		TotalCostWEI:  totalCost.StringRaw(),
+		TotalCostAVAX: totalCost.String(),
+		TotalCostUSD:  conv.To.String(),
+		totalCostUSD:  conv.To,
+	}), nil
+}
+
+// Solana Fee structures and methods
+type SolanaFee struct {
+	FeePerSignature uint64 `json:"feePerSignature"`
+	TotalCostSOL    string `json:"totalCostSol"`
+	TotalCostUSD    string `json:"totalCostUsd"`
+
+	totalCostUSD money.Money
+}
+
+func (f *Fee) ToSolanaFee() (SolanaFee, error) {
+	if fee, ok := f.raw.(SolanaFee); ok {
+		return fee, nil
+	}
+	return SolanaFee{}, errors.New("invalid fee type assertion for SOL")
+}
+
+func (s *Service) solanaFee(ctx context.Context, baseCurrency, currency money.CryptoCurrency, isTest bool) (Fee, error) {
+	// Solana has fixed fees per signature (currently 5000 lamports = 0.000005 SOL)
+	// This is much simpler than EVM chains
+	const (
+		feePerSignatureLamports = uint64(5000) // Standard Solana fee
+	)
+
+	// Convert lamports to SOL
+	feeInSOL, err := baseCurrency.MakeAmountFromBigInt(big.NewInt(int64(feePerSignatureLamports)))
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to make SOL from lamports")
+	}
+
+	conv, err := s.CryptoToFiat(ctx, feeInSOL, money.USD)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total cost in USD")
+	}
+
+	return NewFee(currency, time.Now().UTC(), isTest, SolanaFee{
+		FeePerSignature: feePerSignatureLamports,
+		TotalCostSOL:    feeInSOL.String(),
+		TotalCostUSD:    conv.To.String(),
+		totalCostUSD:    conv.To,
+	}), nil
+}
+
+// Monero Fee structures and methods
+type MoneroFee struct {
+	FeePerKB     uint64 `json:"feePerKb"`
+	TotalCostXMR string `json:"totalCostXmr"`
+	TotalCostUSD string `json:"totalCostUsd"`
+
+	totalCostUSD money.Money
+}
+
+func (f *Fee) ToMoneroFee() (MoneroFee, error) {
+	if fee, ok := f.raw.(MoneroFee); ok {
+		return fee, nil
+	}
+	return MoneroFee{}, errors.New("invalid fee type assertion for XMR")
+}
+
+func (s *Service) moneroFee(ctx context.Context, baseCurrency, currency money.CryptoCurrency, isTest bool) (Fee, error) {
+	// Monero has dynamic fees based on network congestion
+	// For simplicity, we'll use a conservative estimate
+	// Typical Monero transaction is ~2KB, fees are ~0.00001-0.0001 XMR
+	const (
+		estimatedTxSizeKB = 2
+		feePerKBPiconeros = uint64(20000000) // ~0.00002 XMR per KB (conservative estimate)
+	)
+
+	totalFeePiconeros := feePerKBPiconeros * estimatedTxSizeKB
+
+	// Convert piconeros to XMR (1 XMR = 1e12 piconeros)
+	feeInXMR, err := baseCurrency.MakeAmountFromBigInt(big.NewInt(int64(totalFeePiconeros)))
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to make XMR from piconeros")
+	}
+
+	conv, err := s.CryptoToFiat(ctx, feeInXMR, money.USD)
+	if err != nil {
+		return Fee{}, errors.Wrap(err, "unable to calculate total cost in USD")
+	}
+
+	return NewFee(currency, time.Now().UTC(), isTest, MoneroFee{
+		FeePerKB:     feePerKBPiconeros,
+		TotalCostXMR: feeInXMR.String(),
+		TotalCostUSD: conv.To.String(),
+		totalCostUSD: conv.To,
 	}), nil
 }

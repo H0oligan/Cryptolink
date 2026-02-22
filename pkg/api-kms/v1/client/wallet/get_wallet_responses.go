@@ -12,7 +12,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 )
 
 // GetWalletReader is a Reader for the GetWallet structure.
@@ -45,7 +45,8 @@ func NewGetWalletOK() *GetWalletOK {
 	return &GetWalletOK{}
 }
 
-/* GetWalletOK describes a response with status code 200, with default header values.
+/*
+	GetWalletOK describes a response with status code 200, with default header values.
 
 Wallet
 */
@@ -77,7 +78,8 @@ func NewGetWalletBadRequest() *GetWalletBadRequest {
 	return &GetWalletBadRequest{}
 }
 
-/* GetWalletBadRequest describes a response with status code 400, with default header values.
+/*
+	GetWalletBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

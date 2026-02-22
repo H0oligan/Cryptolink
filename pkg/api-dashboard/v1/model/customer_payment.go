@@ -26,7 +26,7 @@ type CustomerPayment struct {
 	CreatedAt strfmt.DateTime `json:"createdAt,omitempty"`
 
 	// Fiat currency
-	// Enum: [USD EUR]
+	// Enum: ["USD","EUR"]
 	Currency string `json:"currency,omitempty"`
 
 	// Order UUID
@@ -38,7 +38,7 @@ type CustomerPayment struct {
 	Price string `json:"price,omitempty"`
 
 	// Payment status
-	// Enum: [pending inProgress success failed]
+	// Enum: ["pending","inProgress","success","failed"]
 	Status string `json:"status,omitempty"`
 }
 
@@ -76,7 +76,7 @@ func (m *CustomerPayment) validateCreatedAt(formats strfmt.Registry) error {
 	return nil
 }
 
-var customerPaymentTypeCurrencyPropEnum []interface{}
+var customerPaymentTypeCurrencyPropEnum []any
 
 func init() {
 	var res []string
@@ -118,7 +118,7 @@ func (m *CustomerPayment) validateCurrency(formats strfmt.Registry) error {
 	return nil
 }
 
-var customerPaymentTypeStatusPropEnum []interface{}
+var customerPaymentTypeStatusPropEnum []any
 
 func init() {
 	var res []string

@@ -109,6 +109,69 @@ definitions:
         type: integer
         description: Contract call fee limit in SUN
 
+  CreateSolanaTransactionRequest:
+    type: object
+    required: [ assetType, recipient, amount, isTestnet ]
+    properties:
+      assetType:
+        $ref: '#/definitions/AssetType'
+      isTestnet:
+        type: boolean
+        description: Mainnet / Devnet selection
+        example: false
+        x-nullable: false
+        x-omitempty: false
+      recipient:
+        type: string
+        description: Recipient address in base58
+        example: 9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g
+        x-nullable: false
+        x-omitempty: false
+      tokenMint:
+        type: string
+        description: SPL token mint address (for token transfers)
+        example: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+      amount:
+        type: string
+        description: Raw amount in lamports or token decimals
+        example: 1000000
+        x-nullable: false
+        x-omitempty: false
+
+  CreateMoneroTransactionRequest:
+    type: object
+    required: [ recipient, amount, isTestnet ]
+    properties:
+      isTestnet:
+        type: boolean
+        description: Mainnet / Testnet selection
+        example: false
+        x-nullable: false
+        x-omitempty: false
+      recipient:
+        type: string
+        description: Recipient address
+        example: 44AFFq5kSiGBoZ4NMDwYtN18obc8AemS33DBLWs3H7otXft3XjrpDtQGv7SqSsaBYBb98uNbr2VBBEt7f2wfn3RVGQBEP3A
+        x-nullable: false
+        x-omitempty: false
+      amount:
+        type: string
+        description: Raw amount in atomic units (piconeros)
+        example: 100000000000
+        x-nullable: false
+        x-omitempty: false
+      accountIndex:
+        type: integer
+        description: Wallet account index (for multi-account wallets)
+        example: 0
+        x-nullable: false
+        x-omitempty: false
+      priority:
+        type: integer
+        description: Transaction priority (0=default, 1=unimportant, 2=normal, 3=elevated, 4=priority)
+        example: 0
+        default: 0
+
   ##########################################################
   # Entities
   ##########################################################
@@ -116,7 +179,7 @@ definitions:
   Blockchain:
     type: string
     description: Supported blockchain
-    enum: [ BTC, ETH, TRON, MATIC, BSC ]
+    enum: [ BTC, ETH, TRON, MATIC, BSC, ARBITRUM, AVAX, SOL, XMR ]
     x-nullable: false
     x-omitempty: false
 
@@ -189,6 +252,58 @@ definitions:
         type: array
         items:
           type: string
+        x-nullable: false
+        x-omitempty: false
+
+  SolanaTransaction:
+    type: object
+    description: Signed Solana transaction
+    properties:
+      rawTransaction:
+        type: string
+        description: Base64-encoded signed transaction
+        example: AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQABAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQABAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        x-nullable: false
+        x-omitempty: false
+      signature:
+        type: string
+        description: Base58-encoded transaction signature
+        example: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQtW
+        x-nullable: false
+        x-omitempty: false
+      txHash:
+        type: string
+        description: Transaction hash (same as signature for Solana)
+        example: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQtW
+        x-nullable: false
+        x-omitempty: false
+
+  MoneroTransaction:
+    type: object
+    description: Monero transaction created via wallet-RPC
+    properties:
+      txHash:
+        type: string
+        description: Transaction hash
+        example: 6e62e6a67e1a0ef1d4e4e6e0f6e1e4e0e6e1e4e0e6e1e4e0e6e1e4e0e6e1e4e0
+        x-nullable: false
+        x-omitempty: false
+      txKey:
+        type: string
+        description: Transaction key (for payment proof)
+        example: c1e1e4e0e6e1e4e0e6e1e4e0e6e1e4e0e6e1e4e0e6e1e4e0e6e1e4e0e6e1e4e0
+        x-nullable: false
+        x-omitempty: false
+      fee:
+        type: string
+        description: Transaction fee in atomic units (piconeros)
+        example: 48000000
+        x-nullable: false
+        x-omitempty: false
+      amount:
+        type: string
+        description: Amount sent in atomic units (piconeros)
+        example: 100000000000
         x-nullable: false
         x-omitempty: false
 
@@ -328,6 +443,50 @@ paths:
           description: Transaction Created
           schema:
             $ref: '#/definitions/TronTransaction'
+        400:
+          description: Validation error / Not found
+          schema:
+            $ref: '../kms-v1.yml#/definitions/ErrorResponse'
+
+  /wallet/{walletId}/transaction/solana:
+    post:
+      summary: Create Solana Transaction
+      operationId: createSolanaTransaction
+      tags: [ Wallet ]
+      parameters:
+        - $ref: '#/parameters/WalletId'
+        - in: body
+          name: data
+          required: true
+          schema:
+            $ref: '#/definitions/CreateSolanaTransactionRequest'
+      responses:
+        201:
+          description: Transaction Created
+          schema:
+            $ref: '#/definitions/SolanaTransaction'
+        400:
+          description: Validation error / Not found
+          schema:
+            $ref: '../kms-v1.yml#/definitions/ErrorResponse'
+
+  /wallet/{walletId}/transaction/monero:
+    post:
+      summary: Create Monero Transaction
+      operationId: createMoneroTransaction
+      tags: [ Wallet ]
+      parameters:
+        - $ref: '#/parameters/WalletId'
+        - in: body
+          name: data
+          required: true
+          schema:
+            $ref: '#/definitions/CreateMoneroTransactionRequest'
+      responses:
+        201:
+          description: Transaction Created
+          schema:
+            $ref: '#/definitions/MoneroTransaction'
         400:
           description: Validation error / Not found
           schema:

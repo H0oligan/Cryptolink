@@ -5,6 +5,9 @@
 
 body {
     margin: 0;
+    background-color: var(--cl-bg-deepest);
+    color: var(--cl-text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 @media (min-width: 2560px) {
@@ -19,21 +22,26 @@ body {
     }
 
     &__logo {
-        padding: 8px;
-        margin-right: 10px;
+        padding: 0;
+        margin-right: 8px;
         flex-wrap: nowrap;
         display: flex;
         align-items: center;
+        gap: 8px;
 
         &-img {
-            background-color: #333333;
-            border-radius: 5px;
-            padding: 2px;
+            width: 24px;
+            height: 24px;
+            border-radius: 0;
+            padding: 0;
+            flex-shrink: 0;
         }
 
         &-text {
-            color: #333333;
-            margin-left: 5px;
+            color: var(--cl-logo-text);
+            font-weight: 600;
+            font-size: 15px;
+            letter-spacing: -0.3px;
         }
     }
 
@@ -48,14 +56,14 @@ body {
 
         &-text {
             font-size: 14px;
-            color: rgba(0, 0, 0, 0.65);
+            color: var(--cl-text-secondary);
             white-space: nowrap;
         }
 
         &-avatar {
             width: 28px;
             height: 28px;
-            color: rgba(0, 0, 0, 0.65);
+            color: var(--cl-text-secondary);
         }
     }
 
@@ -76,6 +84,77 @@ body {
 
 ._user-container_selected {
     height: 44px;
+}
+
+// Dark theme overrides
+[data-theme="dark"] {
+    // ProLayout sidebar border
+    .ant-pro-sider {
+        border-right: 1px solid var(--cl-border) !important;
+    }
+
+    // Card glow effects
+    .ant-card {
+        box-shadow: var(--cl-card-border-glow);
+        border-color: var(--cl-border);
+        transition: box-shadow 0.3s ease, border-color 0.3s ease;
+
+        &:hover {
+            box-shadow: 0 0 20px rgba(129, 140, 248, 0.08);
+        }
+    }
+
+    // Primary button glow
+    .ant-btn-primary {
+        box-shadow: 0 2px 8px rgba(129, 140, 248, 0.35);
+
+        &:hover {
+            box-shadow: 0 4px 16px rgba(129, 140, 248, 0.5);
+        }
+    }
+
+    // Table styling
+    .ant-table {
+        background: var(--cl-bg-container);
+    }
+
+    // Monospace for crypto data
+    .ant-tag {
+        font-family: var(--cl-monospace);
+    }
+
+    // ProLayout content area
+    .ant-pro-layout .ant-layout {
+        background: var(--cl-bg-deepest);
+    }
+
+    // Page container
+    .ant-pro-page-container {
+        background: transparent;
+    }
+
+    // Scrollbar styling
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: var(--cl-bg-deepest);
+    }
+    ::-webkit-scrollbar-thumb {
+        background: var(--cl-border);
+        border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--cl-accent-primary);
+    }
+}
+
+// Light theme overrides
+[data-theme="light"] {
+    .ant-pro-sider {
+        border-right: 1px solid var(--cl-border-secondary) !important;
+    }
 }
 
 @media (max-width: 576px) {

@@ -35,6 +35,18 @@ const (
 
 	// BlockchainBSC captures enum value "BSC"
 	BlockchainBSC Blockchain = "BSC"
+
+	// BlockchainARBITRUM captures enum value "ARBITRUM"
+	BlockchainARBITRUM Blockchain = "ARBITRUM"
+
+	// BlockchainAVAX captures enum value "AVAX"
+	BlockchainAVAX Blockchain = "AVAX"
+
+	// BlockchainSOL captures enum value "SOL"
+	BlockchainSOL Blockchain = "SOL"
+
+	// BlockchainXMR captures enum value "XMR"
+	BlockchainXMR Blockchain = "XMR"
 )
 
 // for schema
@@ -42,7 +54,7 @@ var blockchainEnum []interface{}
 
 func init() {
 	var res []Blockchain
-	if err := json.Unmarshal([]byte(`["BTC","ETH","TRON","MATIC","BSC"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["BTC","ETH","TRON","MATIC","BSC","ARBITRUM","AVAX","SOL","XMR"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {

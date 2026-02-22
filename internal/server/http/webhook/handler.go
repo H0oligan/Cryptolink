@@ -1,7 +1,7 @@
 package webhook
 
 import (
-	"github.com/oxygenpay/oxygen/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
 	"github.com/rs/zerolog"
 )
 

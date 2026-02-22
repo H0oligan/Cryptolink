@@ -9,13 +9,26 @@ oxygen:
     port: 80
     session:
       path: /opt/oxygen/sessions/
-      secret: session-secret
+      # SECURITY WARNING: Generate a strong random secret (minimum 32 characters)
+      # Use: openssl rand -base64 32
+      # DO NOT use the example value below in production!
+      secret: REPLACE_WITH_STRONG_RANDOM_SECRET_MIN_32_CHARS
     cors:
       allow_origins:
         - https://pay.site.com
   processing:
     webhook_base_path: https://pay.site.com
     payment_frontend_base_path: https://pay.site.com
+    # Minimum hot wallet balance required for sweep during withdrawal (in USD)
+    # Hot wallets below these thresholds won't be included in withdrawal sweep
+    # This prevents wasting fees on dust amounts
+    min_withdrawal_sweep_usd:
+      ETH: "50"      # Don't sweep ETH hot wallets with < $50 (high gas fees)
+      USDT: "10"     # Don't sweep USDT hot wallets with < $10
+      USDC: "10"     # Don't sweep USDC hot wallets with < $10
+      MATIC: "5"     # Don't sweep MATIC hot wallets with < $5 (low fees)
+      TRX: "5"       # Don't sweep TRX hot wallets with < $5 (low fees)
+      BNB: "10"      # Don't sweep BNB hot wallets with < $10
   auth:
     email:
       merchant_email: your.address@gmail.com
@@ -36,3 +49,15 @@ providers:
     api_key: <trongrid-api-key>
   kms:
     host: localhost:14000
+  solana:
+    rpc_endpoint: https://api.mainnet-beta.solana.com
+    devnet_rpc_endpoint: https://api.devnet.solana.com
+    # Optional: Use paid RPC service for better reliability
+    # rpc_endpoint: https://solana-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+    # api_key: YOUR-API-KEY
+  monero:
+    wallet_rpc_endpoint: http://localhost:18082/json_rpc
+    testnet_wallet_rpc_endpoint: http://localhost:28082/json_rpc
+    # Enable authentication for production
+    # rpc_username: monero_rpc_user
+    # rpc_password: <strong-random-password>

@@ -7,24 +7,26 @@ import (
 	"os"
 	"time"
 
-	"github.com/oxygenpay/oxygen/internal/bus"
-	"github.com/oxygenpay/oxygen/internal/config"
-	"github.com/oxygenpay/oxygen/internal/event/paymentevents"
-	"github.com/oxygenpay/oxygen/internal/event/userevents"
-	"github.com/oxygenpay/oxygen/internal/locator"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/scheduler"
-	httpServer "github.com/oxygenpay/oxygen/internal/server/http"
-	"github.com/oxygenpay/oxygen/internal/server/http/internalapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/merchantapi"
-	merchantauth "github.com/oxygenpay/oxygen/internal/server/http/merchantapi/auth"
-	"github.com/oxygenpay/oxygen/internal/server/http/paymentapi"
-	"github.com/oxygenpay/oxygen/internal/server/http/webhook"
-	"github.com/oxygenpay/oxygen/internal/service/user"
-	"github.com/oxygenpay/oxygen/pkg/graceful"
-	uidashboard "github.com/oxygenpay/oxygen/ui-dashboard"
-	uipayment "github.com/oxygenpay/oxygen/ui-payment"
-	"github.com/oxygenpay/oxygen/web"
+	"github.com/cryptolink/cryptolink/internal/bus"
+	"github.com/cryptolink/cryptolink/internal/config"
+	"github.com/cryptolink/cryptolink/internal/event/paymentevents"
+	"github.com/cryptolink/cryptolink/internal/event/userevents"
+	"github.com/cryptolink/cryptolink/internal/locator"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/scheduler"
+	httpServer "github.com/cryptolink/cryptolink/internal/server/http"
+	"github.com/cryptolink/cryptolink/internal/server/http/internalapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/merchantapi"
+	merchantauth "github.com/cryptolink/cryptolink/internal/server/http/merchantapi/auth"
+	"github.com/cryptolink/cryptolink/internal/server/http/paymentapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/emailapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/subscriptionapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/webhook"
+	"github.com/cryptolink/cryptolink/internal/service/user"
+	"github.com/cryptolink/cryptolink/pkg/graceful"
+	uidashboard "github.com/cryptolink/cryptolink/ui-dashboard"
+	uipayment "github.com/cryptolink/cryptolink/ui-payment"
+	"github.com/cryptolink/cryptolink/web"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog"
@@ -42,7 +44,7 @@ type BeforeRun func(ctx context.Context, app *App) error
 
 func New(ctx context.Context, cfg *config.Config) *App {
 	hostname, _ := os.Hostname()
-	logger := log.New(cfg.Logger, "oxygen", cfg.GitVersion, cfg.Env, hostname)
+	logger := log.New(cfg.Logger, "cryptolink", cfg.GitVersion, cfg.Env, hostname)
 
 	return &App{
 		config:   cfg,
@@ -71,6 +73,10 @@ func (app *App) RunServer() {
 		app.services.TokenManagerService(),
 		app.services.PaymentService(),
 		app.services.WalletService(),
+		app.services.XpubService(),
+		app.services.EvmCollectorService(),
+		app.services.TatumProvider(),
+		app.config.Oxygen.Processing.WebhookBasePath,
 		app.services.BlockchainService(),
 		app.services.EventBus(),
 		app.Logger(),
@@ -97,10 +103,24 @@ func (app *App) RunServer() {
 		app.Logger(),
 	)
 
+	// Subscription handler
+	subscriptionHandler := subscriptionapi.New(
+		app.services.SubscriptionService(),
+		app.services.PaymentService(),
+		app.services.MerchantService(),
+		app.services.UserService(),
+		app.config.Oxygen.Subscription.AdminMerchantID,
+		app.Logger(),
+	)
+
+	// Email handler
+	emailHandler := emailapi.New(
+		app.services.EmailService(),
+		app.Logger(),
+	)
+
 	schedulerHandler := scheduler.New(
 		app.services.PaymentService(),
-		app.services.BlockchainService(),
-		app.services.WalletService(),
 		app.services.ProcessingService(),
 		app.services.TransactionService(),
 		app.services.JobLogger(),
@@ -118,6 +138,8 @@ func (app *App) RunServer() {
 			app.config.Oxygen.Server,
 			merchantAPIHandler,
 			dashboardAuthHandler,
+			subscriptionHandler,
+			emailHandler,
 			app.services.TokenManagerService(),
 			app.services.UserService(),
 			app.config.Oxygen.Auth.Email.Enabled,
@@ -149,7 +171,7 @@ func (app *App) RunServer() {
 			return nil
 		}
 
-		u, err := app.services.UserService().Register(ctx, cfg.FirstUserEmail, cfg.FirstUserPass)
+		u, err := app.services.UserService().Register(ctx, cfg.FirstUserEmail, cfg.FirstUserPass, "")
 		switch {
 		case errors.Is(err, user.ErrAlreadyExists):
 			app.Logger().Info().Msg("Skipped user registration from config: already exists")
@@ -193,8 +215,6 @@ func (app *App) RunScheduler() {
 
 	jobs := scheduler.New(
 		app.services.PaymentService(),
-		app.services.BlockchainService(),
-		app.services.WalletService(),
 		app.services.ProcessingService(),
 		app.services.TransactionService(),
 		app.services.JobLogger(),
@@ -203,12 +223,6 @@ func (app *App) RunScheduler() {
 	app.registerEventHandlers()
 
 	register("@every 30s", "checkIncomingTransactionsProgress", jobs.CheckIncomingTransactionsProgress, false)
-
-	register("@every 10m", "performInternalWalletTransfer", jobs.PerformInternalWalletTransfer, true)
-	register("@every 2m", "checkInternalTransferProgress", jobs.CheckInternalTransferProgress, false)
-
-	register("@every 10m", "performWithdrawalsCreation", jobs.PerformWithdrawalsCreation, true)
-	register("@every 2m", "checkWithdrawalsProgress", jobs.CheckWithdrawalsProgress, false)
 
 	register("@every 2m", "cancelExpiredPayments", jobs.CancelExpiredPayments, false)
 }
@@ -219,6 +233,7 @@ func (app *App) registerEventHandlers() {
 			app.services.MerchantService(),
 			app.services.ProcessingService(),
 			app.services.PaymentService(),
+			app.services.SubscriptionService(),
 			app.config.Notifications.SlackWebhookURL,
 			app.logger,
 		),

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	kms "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/util"
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 )
 
@@ -320,13 +320,25 @@ func DefaultSetup(s *CurrencyResolver) error {
 
 func CreatePaymentLink(addr string, currency money.CryptoCurrency, amount money.Money, isTest bool) (string, error) {
 	switch kms.Blockchain(currency.Blockchain) {
-	case kms.ETH, kms.MATIC, kms.BSC:
+	case kms.BTC:
+		return bitcoinPaymentLink(addr, currency, amount, isTest), nil
+	case kms.ETH, kms.MATIC, kms.BSC, kms.ARBITRUM, kms.AVAX:
 		return ethPaymentLink(addr, currency, amount, isTest), nil
 	case kms.TRON:
 		return tronPaymentLink(addr, currency, amount, isTest), nil
+	case kms.SOL:
+		return solanaPaymentLink(addr, currency, amount, isTest), nil
+	case kms.XMR:
+		return moneroPaymentLink(addr, currency, amount, isTest), nil
 	}
 
 	return "", errors.Errorf("unable to create payment link for %s", currency.Blockchain)
+}
+
+// Bitcoin payment link using BIP21 URI scheme
+// https://github.com/bitcoin/bips/blob/master/bip-0021.mediawiki
+func bitcoinPaymentLink(addr string, _ money.CryptoCurrency, amount money.Money, _ bool) string {
+	return fmt.Sprintf("bitcoin:%s?amount=%s", addr, amount.String())
 }
 
 // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-681.md
@@ -355,15 +367,39 @@ func tronPaymentLink(addr string, _ money.CryptoCurrency, amount money.Money, _ 
 	return fmt.Sprintf("tron:%s?amount=%s", addr, amount.String())
 }
 
+// Solana payment link using solana: URI scheme
+func solanaPaymentLink(addr string, currency money.CryptoCurrency, amount money.Money, _ bool) string {
+	if currency.Type == money.Coin {
+		return fmt.Sprintf("solana:%s?amount=%s", addr, amount.String())
+	}
+	// SPL token transfer
+	return fmt.Sprintf("solana:%s?spl-token=%s&amount=%s", addr, currency.TokenContractAddress, amount.String())
+}
+
+// Monero payment link using monero: URI scheme
+func moneroPaymentLink(addr string, _ money.CryptoCurrency, amount money.Money, _ bool) string {
+	return fmt.Sprintf("monero:%s?tx_amount=%s", addr, amount.String())
+}
+
 var explorers = map[string]string{
-	"ETH/1":        "https://etherscan.io/tx/%s",
-	"ETH/5":        "https://goerli.etherscan.io/tx/%s",
-	"MATIC/137":    "https://polygonscan.com/tx/%s",
-	"MATIC/80001":  "https://mumbai.polygonscan.com/tx/%s",
-	"BSC/56":       "https://bscscan.com/tx/%s",
-	"BSC/97":       "https://testnet.bscscan.com/tx/%s",
-	"TRON/mainnet": "https://tronscan.org/#/transaction/%s",
-	"TRON/testnet": "https://shasta.tronscan.org/#/transaction/%s",
+	"BTC/mainnet":        "https://blockchair.com/bitcoin/transaction/%s",
+	"BTC/testnet":        "https://blockchair.com/bitcoin/testnet/transaction/%s",
+	"ETH/1":              "https://etherscan.io/tx/%s",
+	"ETH/5":              "https://goerli.etherscan.io/tx/%s",
+	"MATIC/137":          "https://polygonscan.com/tx/%s",
+	"MATIC/80001":        "https://mumbai.polygonscan.com/tx/%s",
+	"BSC/56":             "https://bscscan.com/tx/%s",
+	"BSC/97":             "https://testnet.bscscan.com/tx/%s",
+	"TRON/mainnet":       "https://tronscan.org/#/transaction/%s",
+	"TRON/testnet":       "https://shasta.tronscan.org/#/transaction/%s",
+	"ARBITRUM/42161":     "https://arbiscan.io/tx/%s",
+	"ARBITRUM/421614":    "https://sepolia.arbiscan.io/tx/%s",
+	"AVAX/43114":         "https://snowtrace.io/tx/%s",
+	"AVAX/43113":         "https://testnet.snowtrace.io/tx/%s",
+	"SOL/mainnet-beta":   "https://explorer.solana.com/tx/%s",
+	"SOL/devnet":         "https://explorer.solana.com/tx/%s?cluster=devnet",
+	"XMR/mainnet":        "https://xmrchain.net/tx/%s",
+	"XMR/testnet":        "https://testnet.xmrchain.net/tx/%s",
 }
 
 func CreateExplorerTXLink(blockchain money.Blockchain, networkID, txID string) (string, error) {

@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	kms "github.com/oxygenpay/oxygen/internal/kms/wallet"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	admin "github.com/oxygenpay/oxygen/pkg/api-admin/v1/model"
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	admin "github.com/cryptolink/cryptolink/pkg/api-admin/v1/model"
 	"github.com/pkg/errors"
 )
 

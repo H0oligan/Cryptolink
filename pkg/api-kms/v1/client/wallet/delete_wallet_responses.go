@@ -12,7 +12,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 )
 
 // DeleteWalletReader is a Reader for the DeleteWallet structure.
@@ -45,7 +45,8 @@ func NewDeleteWalletNoContent() *DeleteWalletNoContent {
 	return &DeleteWalletNoContent{}
 }
 
-/* DeleteWalletNoContent describes a response with status code 204, with default header values.
+/*
+	DeleteWalletNoContent describes a response with status code 204, with default header values.
 
 Wallet deleted
 */
@@ -66,7 +67,8 @@ func NewDeleteWalletBadRequest() *DeleteWalletBadRequest {
 	return &DeleteWalletBadRequest{}
 }
 
-/* DeleteWalletBadRequest describes a response with status code 400, with default header values.
+/*
+	DeleteWalletBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

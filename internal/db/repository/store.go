@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/connection/pg"
+	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
 )
 
 // Store combines features of a repo and db connection (e.g. transaction support)

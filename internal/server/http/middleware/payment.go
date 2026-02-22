@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/pkg/errors"
 )
 

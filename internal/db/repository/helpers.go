@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgtype"
-	"github.com/oxygenpay/oxygen/internal/money"
+	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 )
 

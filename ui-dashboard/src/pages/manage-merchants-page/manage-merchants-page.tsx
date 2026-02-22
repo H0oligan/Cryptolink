@@ -51,7 +51,7 @@ const ManageMerchantsPage: React.FC = () => {
             const merchant = await createMerchantReq(value);
             resetValuesFn();
             setMerchantId(merchant.id);
-            openNotification("Welcome to the O2Pay", `Hello, ${value.name}!`);
+            openNotification("Welcome to CryptoLink", `Hello, ${value.name}!`);
 
             await sleep(1000);
             form.resetFields();

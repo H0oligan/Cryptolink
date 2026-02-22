@@ -22,7 +22,7 @@ type CreatePaymentRequest struct {
 
 	// Fiat currency
 	// Required: true
-	// Enum: [USD EUR]
+	// Enum: ["USD","EUR"]
 	Currency string `json:"currency"`
 
 	// Optional payment description
@@ -86,7 +86,7 @@ func (m *CreatePaymentRequest) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-var createPaymentRequestTypeCurrencyPropEnum []interface{}
+var createPaymentRequestTypeCurrencyPropEnum []any
 
 func init() {
 	var res []string
@@ -143,7 +143,7 @@ func (m *CreatePaymentRequest) validateDescription(formats strfmt.Registry) erro
 
 func (m *CreatePaymentRequest) validateID(formats strfmt.Registry) error {
 
-	if err := validate.Required("id", "body", strfmt.UUID(m.ID)); err != nil {
+	if err := validate.Required("id", "body", m.ID); err != nil {
 		return err
 	}
 
@@ -156,7 +156,7 @@ func (m *CreatePaymentRequest) validateID(formats strfmt.Registry) error {
 
 func (m *CreatePaymentRequest) validatePrice(formats strfmt.Registry) error {
 
-	if err := validate.Required("price", "body", float64(m.Price)); err != nil {
+	if err := validate.Required("price", "body", m.Price); err != nil {
 		return err
 	}
 

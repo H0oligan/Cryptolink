@@ -15,7 +15,6 @@ import (
 // TronTransaction Signed transaction.
 // See https://developers.tron.network/reference/createtransaction
 //
-//
 // swagger:model tronTransaction
 type TronTransaction struct {
 

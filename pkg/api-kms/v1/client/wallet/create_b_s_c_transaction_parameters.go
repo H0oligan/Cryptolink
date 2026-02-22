@@ -15,7 +15,7 @@ import (
 	cr "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 )
 
 // NewCreateBSCTransactionParams creates a new CreateBSCTransactionParams object,
@@ -54,10 +54,12 @@ func NewCreateBSCTransactionParamsWithHTTPClient(client *http.Client) *CreateBSC
 	}
 }
 
-/* CreateBSCTransactionParams contains all the parameters to send to the API endpoint
-   for the create b s c transaction operation.
+/*
+CreateBSCTransactionParams contains all the parameters to send to the API endpoint
 
-   Typically these are written to a http.Request.
+	for the create b s c transaction operation.
+
+	Typically these are written to a http.Request.
 */
 type CreateBSCTransactionParams struct {
 

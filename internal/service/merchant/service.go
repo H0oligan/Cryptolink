@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )

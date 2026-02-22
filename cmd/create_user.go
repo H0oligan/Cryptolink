@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 
-	"github.com/oxygenpay/oxygen/internal/app"
-	"github.com/oxygenpay/oxygen/internal/service/user"
+	"github.com/cryptolink/cryptolink/internal/app"
+	"github.com/cryptolink/cryptolink/internal/service/user"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +29,7 @@ func createUser(_ *cobra.Command, args []string) {
 		email, pass = args[0], args[1]
 	)
 
-	u, err := users.Register(ctx, email, pass)
+	u, err := users.Register(ctx, email, pass, "")
 
 	switch {
 	case errors.Is(err, user.ErrAlreadyExists):

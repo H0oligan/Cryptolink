@@ -8,11 +8,11 @@ import (
 
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
-	"github.com/oxygenpay/oxygen/internal/money"
-	"github.com/oxygenpay/oxygen/internal/service/blockchain"
-	"github.com/oxygenpay/oxygen/internal/service/wallet"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -109,7 +109,7 @@ func (c *CreateTransaction) validate() error {
 			return errors.New("invalid entity id")
 		}
 
-		if c.RecipientWallet == nil {
+		if c.RecipientWallet == nil && c.RecipientAddress == "" {
 			return errors.New("empty recipient wallet")
 		}
 
@@ -338,6 +338,7 @@ func (s *Service) EagerLoadByPaymentIDs(ctx context.Context, merchantID int64, p
 // If types/statuses field is empty, then filter this type is omitted.
 type Filter struct {
 	RecipientWalletID int64
+	RecipientAddress  string
 	NetworkID         string
 	Currency          string
 	Types             []Type
@@ -363,6 +364,9 @@ func (f Filter) toRepo(limit int32) repository.GetTransactionsByFilterParams {
 		Statuses:         util.ToStringMap(f.Statuses),
 
 		FilterEmptyHash: f.HashIsEmpty,
+
+		FilterByRecipientAddress: f.RecipientAddress != "",
+		RecipientAddress:         f.RecipientAddress,
 
 		Limit: limit,
 	}

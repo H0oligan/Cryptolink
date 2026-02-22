@@ -15,7 +15,7 @@ import (
 	cr "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 )
 
 // NewCreateMaticTransactionParams creates a new CreateMaticTransactionParams object,
@@ -54,10 +54,12 @@ func NewCreateMaticTransactionParamsWithHTTPClient(client *http.Client) *CreateM
 	}
 }
 
-/* CreateMaticTransactionParams contains all the parameters to send to the API endpoint
-   for the create matic transaction operation.
+/*
+CreateMaticTransactionParams contains all the parameters to send to the API endpoint
 
-   Typically these are written to a http.Request.
+	for the create matic transaction operation.
+
+	Typically these are written to a http.Request.
 */
 type CreateMaticTransactionParams struct {
 

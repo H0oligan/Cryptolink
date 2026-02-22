@@ -28,7 +28,7 @@ type PaymentLink struct {
 
 	// Fiat ticker for payment template.
 	// Required: true
-	// Enum: [USD EUR]
+	// Enum: ["USD","EUR"]
 	Currency string `json:"currency"`
 
 	// Optional payment description visible for a customer in payment screen
@@ -54,19 +54,19 @@ type PaymentLink struct {
 	// Example: https://my-site.com/success?order=abc123
 	RedirectURL *string `json:"redirectUrl"`
 
-	// Action type after OxygenPay receives incoming payment from a customer.
+	// Action type after CryptoLink receives incoming payment from a customer.
 	// - `redirectUrl` displays "Back to site" button with provided .redirectUrl.
 	// - `showMessage` displays "Show message" with content provided in .successMessage.
 	//
 	// Required: true
-	// Enum: [redirect showMessage]
+	// Enum: ["redirect","showMessage"]
 	SuccessAction string `json:"successAction"`
 
 	// message after successful customer's payment
 	SuccessMessage *string `json:"successMessage"`
 
 	// Link's URL
-	// Example: https://pay.o2pay.co/link/ufaiCu6J
+	// Example: https://cryptolink.cc/p/link/ufaiCu6J
 	// Required: true
 	URL string `json:"url"`
 }
@@ -111,7 +111,7 @@ func (m *PaymentLink) Validate(formats strfmt.Registry) error {
 
 func (m *PaymentLink) validateCreatedAt(formats strfmt.Registry) error {
 
-	if err := validate.Required("createdAt", "body", strfmt.DateTime(m.CreatedAt)); err != nil {
+	if err := validate.Required("createdAt", "body", m.CreatedAt); err != nil {
 		return err
 	}
 
@@ -122,7 +122,7 @@ func (m *PaymentLink) validateCreatedAt(formats strfmt.Registry) error {
 	return nil
 }
 
-var paymentLinkTypeCurrencyPropEnum []interface{}
+var paymentLinkTypeCurrencyPropEnum []any
 
 func init() {
 	var res []string
@@ -192,7 +192,7 @@ func (m *PaymentLink) validatePrice(formats strfmt.Registry) error {
 	return nil
 }
 
-var paymentLinkTypeSuccessActionPropEnum []interface{}
+var paymentLinkTypeSuccessActionPropEnum []any
 
 func init() {
 	var res []string

@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
-	"github.com/oxygenpay/oxygen/internal/provider/trongrid"
-	"github.com/oxygenpay/oxygen/internal/util"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
+	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 )
 

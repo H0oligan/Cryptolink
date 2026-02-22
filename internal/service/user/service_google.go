@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"github.com/oxygenpay/oxygen/internal/auth"
-	"github.com/oxygenpay/oxygen/internal/bus"
-	"github.com/oxygenpay/oxygen/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/auth"
+	"github.com/cryptolink/cryptolink/internal/bus"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/pkg/errors"
 )
 
@@ -37,6 +37,7 @@ func (s *Service) registerGoogleUser(ctx context.Context, user *auth.GoogleUser)
 		Uuid:            uuid.New(),
 		GoogleID:        repository.StringToNullable(user.Sub),
 		ProfileImageUrl: repository.StringToNullable(user.Picture),
+		IsSuperAdmin:    sql.NullBool{},
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 		DeletedAt:       sql.NullTime{},

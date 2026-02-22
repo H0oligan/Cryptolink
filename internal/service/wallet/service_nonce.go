@@ -3,7 +3,7 @@ package wallet
 import (
 	"context"
 
-	"github.com/oxygenpay/oxygen/internal/db/repository"
+	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/pkg/errors"
 )
 

@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/oxygenpay/oxygen/internal/log"
-	"github.com/oxygenpay/oxygen/internal/server/http/common"
-	"github.com/oxygenpay/oxygen/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/server/http/common"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
 	"github.com/pkg/errors"
 )
 
@@ -33,9 +33,8 @@ func (h *Handler) ReceiveTatum(c echo.Context) error {
 	if err := h.processing.ValidateWebhookSignature(body, signature); err != nil {
 		h.logger.Error().Err(err).
 			EmbedObject(log.Ctx(ctx)).
-			Str("body", string(body)).
-			Str("signature", signature).
-			Msg("invalid signature")
+			Int("body_bytes", len(body)).
+			Msg("invalid webhook signature")
 
 		return common.ValidationErrorResponse(c, errors.New("invalid signature"))
 	}

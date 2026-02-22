@@ -12,7 +12,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/oxygenpay/oxygen/pkg/api-kms/v1/model"
+	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 )
 
 // CreateTronTransactionReader is a Reader for the CreateTronTransaction structure.
@@ -45,7 +45,8 @@ func NewCreateTronTransactionCreated() *CreateTronTransactionCreated {
 	return &CreateTronTransactionCreated{}
 }
 
-/* CreateTronTransactionCreated describes a response with status code 201, with default header values.
+/*
+	CreateTronTransactionCreated describes a response with status code 201, with default header values.
 
 Transaction Created
 */
@@ -77,7 +78,8 @@ func NewCreateTronTransactionBadRequest() *CreateTronTransactionBadRequest {
 	return &CreateTronTransactionBadRequest{}
 }
 
-/* CreateTronTransactionBadRequest describes a response with status code 400, with default header values.
+/*
+	CreateTronTransactionBadRequest describes a response with status code 400, with default header values.
 
 Validation error / Not found
 */

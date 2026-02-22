@@ -7,6 +7,7 @@ package model
 
 import (
 	"context"
+	stderrors "errors"
 	"strconv"
 
 	"github.com/go-openapi/errors"
@@ -57,9 +58,15 @@ func (m *ErrorResponse) validateErrors(formats strfmt.Registry) error {
 
 		if m.Errors[i] != nil {
 			if err := m.Errors[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("errors" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("errors" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}
@@ -88,10 +95,21 @@ func (m *ErrorResponse) contextValidateErrors(ctx context.Context, formats strfm
 	for i := 0; i < len(m.Errors); i++ {
 
 		if m.Errors[i] != nil {
+
+			if swag.IsZero(m.Errors[i]) { // not required
+				return nil
+			}
+
 			if err := m.Errors[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("errors" + "." + strconv.Itoa(i))
 				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
+					return ce.ValidateName("errors" + "." + strconv.Itoa(i))
+				}
+
 				return err
 			}
 		}

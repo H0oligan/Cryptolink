@@ -8,6 +8,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
@@ -55,7 +56,7 @@ type Payment struct {
 	OrderID *string `json:"orderId"`
 
 	// URL for client payment screen
-	// Example: https://pay.o2pay.co/payment/00000000-0000-0000-0000-000000000000
+	// Example: https://cryptolink.cc/p/payment/00000000-0000-0000-0000-000000000000
 	PaymentURL string `json:"paymentUrl"`
 
 	// Payment price or withdrawal amount
@@ -69,12 +70,12 @@ type Payment struct {
 
 	// Payment status
 	// Required: true
-	// Enum: [pending inProgress success failed]
+	// Enum: ["pending","inProgress","success","failed"]
 	Status string `json:"status"`
 
 	// Payment type
 	// Required: true
-	// Enum: [payment withdrawal]
+	// Enum: ["payment","withdrawal"]
 	Type string `json:"type"`
 }
 
@@ -127,9 +128,15 @@ func (m *Payment) validateAdditionalInfo(formats strfmt.Registry) error {
 
 	if m.AdditionalInfo != nil {
 		if err := m.AdditionalInfo.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("additionalInfo")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("additionalInfo")
+			}
+
 			return err
 		}
 	}
@@ -139,7 +146,7 @@ func (m *Payment) validateAdditionalInfo(formats strfmt.Registry) error {
 
 func (m *Payment) validateCreatedAt(formats strfmt.Registry) error {
 
-	if err := validate.Required("createdAt", "body", strfmt.DateTime(m.CreatedAt)); err != nil {
+	if err := validate.Required("createdAt", "body", m.CreatedAt); err != nil {
 		return err
 	}
 
@@ -170,7 +177,7 @@ func (m *Payment) validateID(formats strfmt.Registry) error {
 
 func (m *Payment) validateIsTest(formats strfmt.Registry) error {
 
-	if err := validate.Required("isTest", "body", bool(m.IsTest)); err != nil {
+	if err := validate.Required("isTest", "body", m.IsTest); err != nil {
 		return err
 	}
 
@@ -186,7 +193,7 @@ func (m *Payment) validatePrice(formats strfmt.Registry) error {
 	return nil
 }
 
-var paymentTypeStatusPropEnum []interface{}
+var paymentTypeStatusPropEnum []any
 
 func init() {
 	var res []string
@@ -235,7 +242,7 @@ func (m *Payment) validateStatus(formats strfmt.Registry) error {
 	return nil
 }
 
-var paymentTypeTypePropEnum []interface{}
+var paymentTypeTypePropEnum []any
 
 func init() {
 	var res []string
@@ -295,10 +302,21 @@ func (m *Payment) ContextValidate(ctx context.Context, formats strfmt.Registry) 
 func (m *Payment) contextValidateAdditionalInfo(ctx context.Context, formats strfmt.Registry) error {
 
 	if m.AdditionalInfo != nil {
+
+		if swag.IsZero(m.AdditionalInfo) { // not required
+			return nil
+		}
+
 		if err := m.AdditionalInfo.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("additionalInfo")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("additionalInfo")
+			}
+
 			return err
 		}
 	}
@@ -361,9 +379,15 @@ func (m *PaymentAdditionalInfo) validatePayment(formats strfmt.Registry) error {
 
 	if m.Payment != nil {
 		if err := m.Payment.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("additionalInfo" + "." + "payment")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("additionalInfo" + "." + "payment")
+			}
+
 			return err
 		}
 	}
@@ -378,9 +402,15 @@ func (m *PaymentAdditionalInfo) validateWithdrawal(formats strfmt.Registry) erro
 
 	if m.Withdrawal != nil {
 		if err := m.Withdrawal.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("additionalInfo" + "." + "withdrawal")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("additionalInfo" + "." + "withdrawal")
+			}
+
 			return err
 		}
 	}
@@ -409,10 +439,21 @@ func (m *PaymentAdditionalInfo) ContextValidate(ctx context.Context, formats str
 func (m *PaymentAdditionalInfo) contextValidatePayment(ctx context.Context, formats strfmt.Registry) error {
 
 	if m.Payment != nil {
+
+		if swag.IsZero(m.Payment) { // not required
+			return nil
+		}
+
 		if err := m.Payment.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("additionalInfo" + "." + "payment")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("additionalInfo" + "." + "payment")
+			}
+
 			return err
 		}
 	}
@@ -423,10 +464,21 @@ func (m *PaymentAdditionalInfo) contextValidatePayment(ctx context.Context, form
 func (m *PaymentAdditionalInfo) contextValidateWithdrawal(ctx context.Context, formats strfmt.Registry) error {
 
 	if m.Withdrawal != nil {
+
+		if swag.IsZero(m.Withdrawal) { // not required
+			return nil
+		}
+
 		if err := m.Withdrawal.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("additionalInfo" + "." + "withdrawal")
 			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("additionalInfo" + "." + "withdrawal")
+			}
+
 			return err
 		}
 	}
