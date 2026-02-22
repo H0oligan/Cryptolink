@@ -9,9 +9,19 @@ web/redoc/**/*.json
 docker.env
 .actrc
 
-# Internal planning docs — not for public repo
+# Internal planning and AI-generated status docs — not for public repo
 PLAN.md
 *.local.md
+CLAUDE.md
+CLAUDE_*.md
+IMPLEMENTATION_*.md
+INTEGRATION_*.md
+POWER_UNLEASHED.md
+PROJECT_STATUS.md
+FRONTEND_AUDIT.md
+WITHDRAWAL_OPTIMIZATION.md
+AVAILABLE_COINS.md
+DEPLOYMENT_QUICKSTART.md
 
 # Never commit actual secrets
 *.pem
