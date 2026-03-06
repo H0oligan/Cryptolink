@@ -15,7 +15,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
 	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
+	"github.com/cryptolink/cryptolink/internal/provider/solana"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/pkg/errors"
@@ -60,6 +62,8 @@ type Config struct {
 type Service struct {
 	config       Config
 	rpc          *rpc.Provider
+	bitcoin      *bitcoin.Provider
+	solana       *solana.Provider
 	transactions *transaction.Service
 	wallets      *wallet.Service
 	logger       *zerolog.Logger
@@ -67,12 +71,22 @@ type Service struct {
 	// lastScannedBlock tracks the last block number scanned per chain+network
 	// to avoid rescanning the same blocks.
 	lastScannedBlock sync.Map // key: "chain:isTest" -> value: int64
+
+	// lastBTCBalance tracks the last known balance (satoshis) per BTC address
+	// to detect incoming payments by balance change.
+	lastBTCBalance sync.Map // key: "address:isTest" -> value: int64
+
+	// lastSOLBalance tracks the last known balance (lamports) per SOL address
+	// to detect incoming payments by balance change.
+	lastSOLBalance sync.Map // key: "address:isTest" -> value: uint64
 }
 
 // New creates a new watcher service.
 func New(
 	config Config,
 	rpcProvider *rpc.Provider,
+	bitcoinProvider *bitcoin.Provider,
+	solanaProvider *solana.Provider,
 	transactions *transaction.Service,
 	wallets *wallet.Service,
 	logger *zerolog.Logger,
@@ -89,6 +103,8 @@ func New(
 	return &Service{
 		config:       config,
 		rpc:          rpcProvider,
+		bitcoin:      bitcoinProvider,
+		solana:       solanaProvider,
 		transactions: transactions,
 		wallets:      wallets,
 		logger:       &log,
@@ -185,8 +201,13 @@ func (s *Service) pollChainTransactions(
 	switch kms.Blockchain(bc) {
 	case kms.ETH, kms.MATIC, kms.BSC, kms.ARBITRUM, kms.AVAX:
 		return s.pollEVMTransactions(ctx, bc, isTest, txs, onDetected)
-	case kms.TRON, kms.SOL, kms.XMR:
-		// These chains have their own providers and will be handled in Phase 4
+	case kms.BTC:
+		return s.pollBTCTransactions(ctx, isTest, txs, onDetected)
+	case kms.SOL:
+		return s.pollSOLTransactions(ctx, isTest, txs, onDetected)
+	case kms.TRON, kms.XMR:
+		// TRON: handled by trongrid provider webhooks
+		// XMR: handled by monero wallet-RPC (get_transfers)
 		return 0, nil
 	default:
 		s.logger.Warn().Str("blockchain", bc.String()).Msg("unsupported blockchain for address watching")
@@ -541,6 +562,200 @@ func (s *Service) getEVMClient(ctx context.Context, bc money.Blockchain, isTest 
 	default:
 		return nil, errors.Errorf("unsupported EVM blockchain: %s", bc)
 	}
+}
+
+// pollBTCTransactions checks BTC addresses for incoming payments
+// by comparing current balance with last known balance via Blockstream/mempool.space API.
+func (s *Service) pollBTCTransactions(
+	ctx context.Context,
+	isTest bool,
+	txs []*transaction.Transaction,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	var detected int64
+	var failedIDs []int64
+
+	for _, tx := range txs {
+		addr := s.getRecipientAddress(ctx, tx)
+		if addr == "" {
+			continue
+		}
+
+		info, err := s.bitcoin.GetAddressInfo(ctx, addr, isTest)
+		if err != nil {
+			s.logger.Error().Err(err).
+				Str("address", addr).
+				Int64("tx_id", tx.ID).
+				Msg("unable to get BTC address info")
+			failedIDs = append(failedIDs, tx.ID)
+			continue
+		}
+
+		currentBalance := info.Balance
+		cacheKey := addr + ":" + boolStr(isTest)
+
+		// Check if balance increased since last poll
+		var lastBalance int64
+		if last, ok := s.lastBTCBalance.Load(cacheKey); ok {
+			lastBalance = last.(int64)
+		}
+
+		// Store current balance for next poll
+		s.lastBTCBalance.Store(cacheKey, currentBalance)
+
+		if currentBalance <= lastBalance {
+			continue
+		}
+
+		// Balance increased — an incoming payment was detected
+		receivedSatoshis := currentBalance - lastBalance
+
+		// Convert satoshis to BTC amount (8 decimals)
+		cryptoAmount, err := money.NewFromBigInt(
+			money.Crypto,
+			tx.Currency.Ticker,
+			big.NewInt(receivedSatoshis),
+			tx.Currency.Decimals,
+		)
+		if err != nil {
+			s.logger.Error().Err(err).
+				Int64("tx_id", tx.ID).
+				Int64("satoshis", receivedSatoshis).
+				Msg("unable to parse BTC amount")
+			failedIDs = append(failedIDs, tx.ID)
+			continue
+		}
+
+		var wt *wallet.Wallet
+		if tx.RecipientWalletID != nil {
+			wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
+		}
+
+		// Try to find the actual transaction hash from recent address activity
+		txHash := ""
+		// We don't have the hash directly from balance check; the processing service
+		// will pick it up via receipt polling once it knows there's an incoming payment.
+
+		d := DetectedTransfer{
+			PendingTx:     tx,
+			Wallet:        wt,
+			TxHash:        txHash,
+			SenderAddress: "", // BTC doesn't easily reveal sender from balance check
+			Amount:        cryptoAmount,
+			Currency:      tx.Currency,
+			NetworkID:     tx.Currency.ChooseNetwork(isTest),
+		}
+
+		if err := onDetected(ctx, d); err != nil {
+			s.logger.Error().Err(err).
+				Int64("tx_id", tx.ID).
+				Str("address", addr).
+				Msg("failed to process detected BTC payment")
+			failedIDs = append(failedIDs, tx.ID)
+		} else {
+			detected++
+			s.logger.Info().
+				Int64("tx_id", tx.ID).
+				Str("address", addr).
+				Int64("satoshis", receivedSatoshis).
+				Msg("BTC incoming payment detected")
+		}
+	}
+
+	return detected, failedIDs
+}
+
+// pollSOLTransactions checks SOL addresses for incoming payments
+// by comparing current balance with last known balance via Solana RPC.
+func (s *Service) pollSOLTransactions(
+	ctx context.Context,
+	isTest bool,
+	txs []*transaction.Transaction,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	var detected int64
+	var failedIDs []int64
+
+	for _, tx := range txs {
+		addr := s.getRecipientAddress(ctx, tx)
+		if addr == "" {
+			continue
+		}
+
+		balance, err := s.solana.GetBalance(ctx, addr, isTest)
+		if err != nil {
+			s.logger.Error().Err(err).
+				Str("address", addr).
+				Int64("tx_id", tx.ID).
+				Msg("unable to get SOL balance")
+			failedIDs = append(failedIDs, tx.ID)
+			continue
+		}
+
+		cacheKey := addr + ":" + boolStr(isTest)
+
+		var lastBalance uint64
+		if last, ok := s.lastSOLBalance.Load(cacheKey); ok {
+			lastBalance = last.(uint64)
+		}
+
+		// Store current balance for next poll
+		s.lastSOLBalance.Store(cacheKey, balance)
+
+		if balance <= lastBalance {
+			continue
+		}
+
+		receivedLamports := balance - lastBalance
+
+		// Convert lamports to SOL amount (9 decimals)
+		cryptoAmount, err := money.NewFromBigInt(
+			money.Crypto,
+			tx.Currency.Ticker,
+			new(big.Int).SetUint64(receivedLamports),
+			tx.Currency.Decimals,
+		)
+		if err != nil {
+			s.logger.Error().Err(err).
+				Int64("tx_id", tx.ID).
+				Uint64("lamports", receivedLamports).
+				Msg("unable to parse SOL amount")
+			failedIDs = append(failedIDs, tx.ID)
+			continue
+		}
+
+		var wt *wallet.Wallet
+		if tx.RecipientWalletID != nil {
+			wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
+		}
+
+		d := DetectedTransfer{
+			PendingTx:     tx,
+			Wallet:        wt,
+			TxHash:        "",
+			SenderAddress: "",
+			Amount:        cryptoAmount,
+			Currency:      tx.Currency,
+			NetworkID:     tx.Currency.ChooseNetwork(isTest),
+		}
+
+		if err := onDetected(ctx, d); err != nil {
+			s.logger.Error().Err(err).
+				Int64("tx_id", tx.ID).
+				Str("address", addr).
+				Msg("failed to process detected SOL payment")
+			failedIDs = append(failedIDs, tx.ID)
+		} else {
+			detected++
+			s.logger.Info().
+				Int64("tx_id", tx.ID).
+				Str("address", addr).
+				Uint64("lamports", receivedLamports).
+				Msg("SOL incoming payment detected")
+		}
+	}
+
+	return detected, failedIDs
 }
 
 func boolStr(b bool) string {

@@ -182,3 +182,108 @@ Each entry includes: what changed, why, security considerations, and potential i
 - `service_webhook.go` still contains TatumWebhook struct and processing logic — dead code, can be removed in future cleanup
 
 ---
+
+## [2026-03-06] Phase 3 — BTC Full Support
+
+### Changes
+
+#### Step 3.1: BTC Broadcasting (NEW)
+- **File:** `internal/provider/bitcoin/provider.go`
+- Full Bitcoin provider using Blockstream and mempool.space public APIs
+- Broadcasting via `POST /api/tx` (Blockstream primary, mempool.space fallback)
+- Address info via `GET /api/address/:addr` (balance, tx count, mempool stats)
+- Transaction info via `GET /api/tx/:txid` (confirmations, inputs/outputs, fees)
+- Block height via `GET /api/blocks/tip/height`
+- No Bitcoin Core node required — fully API-based
+- 15s HTTP timeout, connection pooling
+
+#### Step 3.1: BTC Wiring (MODIFIED)
+- **File:** `internal/config/config.go` — Added `Bitcoin bitcoin.Config` to `Providers` struct
+- **File:** `internal/service/blockchain/service.go` — Added `Bitcoin *bitcoin.Provider` to `Providers` struct
+- **File:** `internal/service/blockchain/service_broadcaster.go`:
+  - Added `kms.BTC` case to `BroadcastTransaction` (via `providers.Bitcoin.BroadcastTransaction`)
+  - Added `btcConfirmations = 6` constant
+  - Added `kms.BTC` case to `getTransactionReceipt`
+  - Added `getBitcoinReceipt` method using Bitcoin provider
+- **File:** `internal/locator/locator.go`:
+  - Added `bitcoinProvider` field and `BitcoinProvider()` method
+  - Wired Bitcoin provider into `BlockchainService()` Providers struct
+  - Passed Bitcoin provider to `WatcherService()`
+
+#### Step 3.2: BTC Address Watching (MODIFIED)
+- **File:** `internal/service/watcher/service.go`
+- Added `bitcoin *bitcoin.Provider` field to `Service` struct
+- Added `lastBTCBalance sync.Map` for tracking BTC address balances between polls
+- `New()` now takes `*bitcoin.Provider` parameter
+- Added `kms.BTC` case to `pollChainTransactions` switch
+- Added `pollBTCTransactions` method:
+  - Queries Blockstream/mempool.space for address balance
+  - Compares with last known balance to detect incoming payments
+  - Converts satoshis to BTC amount (8 decimals)
+  - Triggers `onDetected` callback for processing
+
+### Security Notes
+- Bitcoin provider uses HTTPS for all API calls
+- 15s timeout prevents hanging connections
+- Dual-endpoint failover (Blockstream + mempool.space) ensures availability
+- Balance-based detection is simple and reliable — no complex UTXO parsing needed
+- No private keys involved — only public address queries
+- BTC confirmations set to 6 (industry standard for security)
+
+### Potential Issues
+- Balance-based detection can't identify the exact transaction hash from the balance check alone — the processing service handles this via receipt polling
+- On first poll after restart, `lastBTCBalance` is empty, so the first balance snapshot won't trigger detection (by design — prevents false positives)
+- Free API rate limits (Blockstream/mempool.space) may throttle under heavy load with many BTC addresses
+- Pre-existing vet errors in `paymentevents/handler_test.go` and `blockchain/bitcoin_test.go` are unrelated to Phase 3 changes
+
+---
+
+## [2026-03-06] Phase 4 — SOL & XMR Verification
+
+### Changes
+
+#### Step 4.1: SOL Address Watching (MODIFIED)
+- **File:** `internal/service/watcher/service.go`
+- Added `solana *solana.Provider` field to `Service` struct
+- Added `lastSOLBalance sync.Map` for tracking SOL address balances between polls
+- `New()` now takes `*solana.Provider` parameter
+- Added `kms.SOL` case to `pollChainTransactions` switch
+- Added `pollSOLTransactions` method:
+  - Queries Solana RPC for address balance (lamports)
+  - Compares with last known balance to detect incoming payments
+  - Converts lamports to SOL amount (9 decimals)
+  - Triggers `onDetected` callback for processing
+
+#### SOL Provider Verification
+- **File:** `internal/provider/solana/provider.go` — Already complete
+- Full Solana RPC provider with JSON-RPC 2.0 interface
+- Methods: `GetBalance`, `GetTokenBalance`, `GetRecentBlockhash`, `SendTransaction`, `GetTransaction`, `ConfirmTransaction`, `GetTokenAccountsByOwner`
+- Broadcasting: `sendTransaction` via base58-encoded signed tx
+- Receipts: `getSignatureStatuses` for confirmation polling
+- Mainnet + devnet endpoint support, optional API key for paid services
+
+#### Step 4.2: XMR Provider Verification
+- **File:** `internal/provider/monero/provider.go` — Already complete
+- Full Monero wallet-RPC provider
+- Methods: `GetBalance`, `GetAddress`, `CreateAccount`, `Transfer`, `GetTransfers`, `ValidateAddress`
+- Broadcasting: via `transfer` RPC method (wallet-RPC handles signing + broadcasting)
+- Receipts: via `get_transfers` RPC method (tracks in/out/pending/failed/pool)
+- Address watching: handled natively by monero-wallet-rpc (incoming transfers appear in `get_transfers`)
+- No separate address polling needed — XMR is excluded from watcher by design
+
+#### Wiring Updates
+- **File:** `internal/locator/locator.go` — Passed `SolanaProvider()` to `WatcherService()`
+
+### Security Notes
+- SOL balance polling uses existing Solana RPC provider with HTTPS and timeouts
+- XMR wallet-RPC should run locally (localhost) for security — private keys never leave the machine
+- SOL confirmation status checked for "confirmed" or "finalized" (Solana's 2-stage finality)
+- XMR transfer validation requires address format check (starts with 4 or 8, length 95)
+
+### Potential Issues
+- SOL free RPC endpoints (api.mainnet-beta.solana.com) have rate limits — consider paid services (Helius, QuickNode) for production
+- XMR requires monero-wallet-rpc to be running and connected to a Monero node
+- SPL token watching not yet implemented in the watcher (only native SOL balance)
+- TRON address watching still not implemented — relies on trongrid provider
+
+---

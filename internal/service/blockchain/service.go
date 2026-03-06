@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/provider/monero"
 	"github.com/cryptolink/cryptolink/internal/provider/pricefeed"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
@@ -25,6 +26,7 @@ type Providers struct {
 	Trongrid  *trongrid.Provider
 	Solana    *solana.Provider
 	Monero    *monero.Provider
+	Bitcoin   *bitcoin.Provider
 }
 
 type Service struct {

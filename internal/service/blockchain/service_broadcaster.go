@@ -65,6 +65,13 @@ func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blo
 		defer rpcClient.Close()
 		return s.broadcastRawTransaction(ctx, rpcClient, rawTX)
 
+	case kms.BTC:
+		txID, err := s.providers.Bitcoin.BroadcastTransaction(ctx, rawTX, isTest)
+		if err != nil {
+			return "", errors.Wrap(err, "unable to broadcast BTC transaction")
+		}
+		return txID, nil
+
 	case kms.SOL:
 		hashID, err := s.providers.Solana.SendTransaction(ctx, []byte(rawTX), isTest)
 		if err != nil {
@@ -114,6 +121,7 @@ func (s *Service) getTransactionReceipt(
 	isTest bool,
 ) (*TransactionReceipt, error) {
 	const (
+		btcConfirmations      = 6
 		ethConfirmations      = 12
 		maticConfirmations    = 30
 		bscConfirmations      = 15
@@ -191,6 +199,8 @@ func (s *Service) getTransactionReceipt(
 			Confirmations: receipt.Confirmations,
 			IsConfirmed:   receipt.IsConfirmed,
 		}, nil
+	case kms.BTC:
+		return s.getBitcoinReceipt(ctx, nativeCoin, transactionID, btcConfirmations, isTest)
 	case kms.SOL:
 		return s.getSolanaReceipt(ctx, nativeCoin, transactionID, solanaConfirmations, isTest)
 	case kms.XMR:
@@ -289,6 +299,49 @@ func (s *Service) getEthReceipt(
 		Success:       receipt.Status == 1,
 		Confirmations: confirmations,
 		IsConfirmed:   confirmations >= requiredConfirmations,
+	}, nil
+}
+
+// getBitcoinReceipt retrieves transaction receipt from the Bitcoin blockchain via Blockstream/mempool.space
+func (s *Service) getBitcoinReceipt(
+	ctx context.Context,
+	nativeCoin money.CryptoCurrency,
+	txID string,
+	requiredConfirmations int64,
+	isTest bool,
+) (*TransactionReceipt, error) {
+	txInfo, err := s.providers.Bitcoin.GetTransaction(ctx, txID, isTest)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to get BTC transaction")
+	}
+
+	networkFee, err := nativeCoin.MakeAmount(strconv.FormatInt(txInfo.Fee, 10))
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to calculate network fee")
+	}
+
+	// First input address is the sender
+	sender := ""
+	if len(txInfo.Inputs) > 0 {
+		sender = txInfo.Inputs[0].Address
+	}
+
+	// First output address is typically the recipient
+	recipient := ""
+	if len(txInfo.Outputs) > 0 {
+		recipient = txInfo.Outputs[0].Address
+	}
+
+	return &TransactionReceipt{
+		Blockchain:    nativeCoin.Blockchain,
+		IsTest:        isTest,
+		Sender:        sender,
+		Recipient:     recipient,
+		Hash:          txID,
+		NetworkFee:    networkFee,
+		Success:       txInfo.Confirmed,
+		Confirmations: txInfo.Confirmations,
+		IsConfirmed:   txInfo.Confirmations >= requiredConfirmations,
 	}, nil
 }
 
