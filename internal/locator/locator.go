@@ -14,6 +14,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/lock"
 	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/provider/monero"
 	"github.com/cryptolink/cryptolink/internal/provider/pricefeed"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
@@ -58,6 +59,7 @@ type Locator struct {
 	trongridProvider  *trongrid.Provider
 	solanaProvider    *solana.Provider
 	moneroProvider    *monero.Provider
+	bitcoinProvider   *bitcoin.Provider
 
 	// Clients
 	kmsClient *client.KMSInternalAPI
@@ -197,6 +199,14 @@ func (loc *Locator) MoneroProvider() *monero.Provider {
 	return loc.moneroProvider
 }
 
+func (loc *Locator) BitcoinProvider() *bitcoin.Provider {
+	loc.init("provider.bitcoin", func() {
+		loc.bitcoinProvider = bitcoin.New(loc.config.Providers.Bitcoin, loc.logger)
+	})
+
+	return loc.bitcoinProvider
+}
+
 func (loc *Locator) KMSClient() *client.KMSInternalAPI {
 	loc.init("client.kms", func() {
 		kms := client.NewHTTPClientWithConfig(strfmt.Default, &client.TransportConfig{
@@ -237,6 +247,7 @@ func (loc *Locator) BlockchainService() *blockchain.Service {
 				Trongrid:  loc.TrongridProvider(),
 				Solana:    loc.SolanaProvider(),
 				Monero:    loc.MoneroProvider(),
+				Bitcoin:   loc.BitcoinProvider(),
 			},
 			loc.logger,
 		)
@@ -352,6 +363,8 @@ func (loc *Locator) WatcherService() *watcher.Service {
 		loc.watcherService = watcher.New(
 			loc.config.Oxygen.Watcher,
 			loc.RPCProvider(),
+			loc.BitcoinProvider(),
+			loc.SolanaProvider(),
 			loc.TransactionService(),
 			loc.WalletService(),
 			loc.logger,

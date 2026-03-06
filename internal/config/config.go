@@ -12,6 +12,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/db/connection/bolt"
 	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
 	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/provider/pricefeed"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
 	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
@@ -74,6 +75,7 @@ type Providers struct {
 	KmsClient client.Config    `yaml:"kms"`
 	Solana    SolanaConfig     `yaml:"solana"`
 	Monero    MoneroConfig     `yaml:"monero"`
+	Bitcoin   bitcoin.Config   `yaml:"bitcoin"`
 }
 
 type SolanaConfig struct {
