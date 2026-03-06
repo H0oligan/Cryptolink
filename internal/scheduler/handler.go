@@ -1,0 +1,116 @@
+package scheduler
+
+import (
+	"context"
+
+	"github.com/cryptolink/cryptolink/internal/log"
+	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/cryptolink/cryptolink/internal/service/watcher"
+	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/pkg/errors"
+)
+
+// Handler scheduler handler. Be aware that each ctx has zerolog.Logger instance!
+type Handler struct {
+	payments     *payment.Service
+	processing   ProcessingService
+	transactions *transaction.Service
+	watcher      *watcher.Service
+	tableLogger  *log.JobLogger
+}
+
+type ContextJobID struct{}
+type ContextJobEnableTableLogger struct{}
+
+type ProcessingService interface {
+	BatchCheckIncomingTransactions(ctx context.Context, transactionIDs []int64) error
+	BatchExpirePayments(ctx context.Context, paymentsIDs []int64) error
+	ProcessInboundTransaction(
+		ctx context.Context,
+		tx *transaction.Transaction,
+		wt *wallet.Wallet,
+		input processing.Input,
+	) error
+}
+
+func New(
+	payments *payment.Service,
+	processingService ProcessingService,
+	transactions *transaction.Service,
+	watcherService *watcher.Service,
+	jobLogger *log.JobLogger,
+) *Handler {
+	return &Handler{
+		payments:     payments,
+		processing:   processingService,
+		transactions: transactions,
+		watcher:      watcherService,
+		tableLogger:  jobLogger,
+	}
+}
+
+func (h *Handler) JobLogger() *log.JobLogger {
+	return h.tableLogger
+}
+
+func (h *Handler) CheckIncomingTransactionsProgress(ctx context.Context) error {
+	const limit = 200
+
+	filter := transaction.Filter{
+		Types:    []transaction.Type{transaction.TypeIncoming},
+		Statuses: []transaction.Status{transaction.StatusInProgress, transaction.StatusInProgressInvalid},
+	}
+
+	txs, err := h.transactions.ListByFilter(ctx, filter, limit)
+	if err != nil {
+		return errors.Wrap(err, "unable to list incoming transactions")
+	}
+
+	ids := util.MapSlice(txs, func(t *transaction.Transaction) int64 { return t.ID })
+
+	if err := h.processing.BatchCheckIncomingTransactions(ctx, ids); err != nil {
+		return errors.Wrap(err, "unable to batch check incoming transactions")
+	}
+
+	return nil
+}
+
+func (h *Handler) CancelExpiredPayments(ctx context.Context) error {
+	const limit = 200
+
+	payments, err := h.payments.GetBatchExpired(ctx, limit)
+	if err != nil {
+		return errors.Wrap(err, "unable to get batch expired payments")
+	}
+
+	ids := util.MapSlice(payments, func(pt *payment.Payment) int64 { return pt.ID })
+
+	if err := h.processing.BatchExpirePayments(ctx, ids); err != nil {
+		return errors.Wrap(err, "unable to batch expire payments")
+	}
+
+	return nil
+}
+
+// WatchPendingAddresses polls blockchain addresses for incoming payments.
+// This replaces Tatum webhook subscriptions with direct RPC polling.
+func (h *Handler) WatchPendingAddresses(ctx context.Context) error {
+	if h.watcher == nil {
+		return nil
+	}
+
+	return h.watcher.PollPendingTransactions(ctx, func(ctx context.Context, d watcher.DetectedTransfer) error {
+		input := processing.Input{
+			Currency:      d.Currency,
+			Amount:        d.Amount,
+			SenderAddress: d.SenderAddress,
+			TransactionID: d.TxHash,
+			NetworkID:     d.NetworkID,
+		}
+
+		return h.processing.ProcessInboundTransaction(ctx, d.PendingTx, d.Wallet, input)
+	})
+}

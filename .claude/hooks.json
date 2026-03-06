@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": "cd /home/cryptolink/app/src/Cryptolink && if echo \"$TOOL_INPUT\" | grep -q '\\.go\"'; then file=$(echo \"$TOOL_INPUT\" | grep -oP '\"file_path\"\\s*:\\s*\"\\K[^\"]+'); if [ -n \"$file\" ] && [ -f \"$file\" ]; then export PATH=$HOME/local/go/go/bin:$HOME/go/bin:$PATH; gofmt -l \"$file\" 2>/dev/null | head -1; fi; fi",
+        "description": "Check Go file formatting after edits"
+      }
+    ]
+  }
+}

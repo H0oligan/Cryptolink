@@ -1,0 +1,49 @@
+import apiRequest from "src/utils/api-request";
+import {User, UserCreateForm, AuthProvider} from "src/types";
+import withApiPath from "src/utils/with-api-path";
+
+const authProvider = {
+    async getCookie(): Promise<string> {
+        const response = await apiRequest.get(withApiPath(`/auth/csrf-cookie`));
+        const csrf = response.headers["x-csrf-token"];
+
+        apiRequest.defaults.headers.common["x-csrf-token"] = csrf;
+        return csrf ?? "";
+    },
+
+    async login(user: UserCreateForm): Promise<void> {
+        await apiRequest.post(withApiPath(`/auth/login`), user);
+        return;
+    },
+
+    async register(user: UserCreateForm): Promise<void> {
+        await apiRequest.post(withApiPath(`/auth/register`), user);
+        return;
+    },
+
+    async getProviders(): Promise<AuthProvider[]> {
+        const response = await apiRequest.get(withApiPath(`/auth/provider`));
+        return response.data?.providers;
+    },
+
+    async getMe(): Promise<User> {
+        const response = await apiRequest.get(withApiPath(`/auth/me`));
+        return response.data;
+    },
+
+    async logout(): Promise<void> {
+        const response = await apiRequest.post(withApiPath(`/auth/logout`));
+        return response.data;
+    },
+
+    async updateProfile(data: {name?: string; email?: string}): Promise<User> {
+        const response = await apiRequest.put(withApiPath(`/auth/profile`), data);
+        return response.data;
+    },
+
+    async updatePassword(data: {currentPassword: string; newPassword: string}): Promise<void> {
+        await apiRequest.put(withApiPath(`/auth/password`), data);
+    }
+};
+
+export default authProvider;

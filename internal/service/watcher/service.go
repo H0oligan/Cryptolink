@@ -1,0 +1,551 @@
+// Package watcher implements blockchain address monitoring, replacing Tatum webhook subscriptions
+// with direct RPC polling. It detects incoming payments by scanning for transactions
+// to watched addresses and triggers the existing payment processing flow.
+package watcher
+
+import (
+	"context"
+	"math/big"
+	"sync"
+	"sync/atomic"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
+	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/provider/rpc"
+	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/cryptolink/cryptolink/internal/service/wallet"
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
+)
+
+// DetectedTransfer represents a blockchain transaction detected by the watcher.
+type DetectedTransfer struct {
+	// PendingTx is the internal transaction record awaiting payment.
+	PendingTx *transaction.Transaction
+
+	// Wallet is the recipient wallet (nil for xpub/collector flows).
+	Wallet *wallet.Wallet
+
+	// On-chain data
+	TxHash        string
+	SenderAddress string
+	Amount        money.Money
+	Currency      money.CryptoCurrency
+	NetworkID     string
+}
+
+// OnTransferDetected is a callback invoked when the watcher detects an incoming payment.
+// The caller (scheduler) bridges this to processing.ProcessInboundTransaction.
+type OnTransferDetected func(ctx context.Context, d DetectedTransfer) error
+
+// Config controls watcher behavior.
+type Config struct {
+	// BlockScanDepth is how many recent blocks to scan for incoming transactions.
+	// Default: 50 (~10 minutes on ETH, ~2 minutes on MATIC/BSC)
+	BlockScanDepth int64 `yaml:"block_scan_depth" env:"WATCHER_BLOCK_SCAN_DEPTH" env-default:"50"`
+
+	// MaxConcurrency limits parallel RPC calls per poll cycle.
+	MaxConcurrency int `yaml:"max_concurrency" env:"WATCHER_MAX_CONCURRENCY" env-default:"4"`
+
+	// Enabled controls whether the watcher runs.
+	Enabled bool `yaml:"enabled" env:"WATCHER_ENABLED" env-default:"true"`
+}
+
+// Service watches blockchain addresses for incoming payments.
+type Service struct {
+	config       Config
+	rpc          *rpc.Provider
+	transactions *transaction.Service
+	wallets      *wallet.Service
+	logger       *zerolog.Logger
+
+	// lastScannedBlock tracks the last block number scanned per chain+network
+	// to avoid rescanning the same blocks.
+	lastScannedBlock sync.Map // key: "chain:isTest" -> value: int64
+}
+
+// New creates a new watcher service.
+func New(
+	config Config,
+	rpcProvider *rpc.Provider,
+	transactions *transaction.Service,
+	wallets *wallet.Service,
+	logger *zerolog.Logger,
+) *Service {
+	log := logger.With().Str("channel", "address_watcher").Logger()
+
+	if config.BlockScanDepth <= 0 {
+		config.BlockScanDepth = 50
+	}
+	if config.MaxConcurrency <= 0 {
+		config.MaxConcurrency = 4
+	}
+
+	return &Service{
+		config:       config,
+		rpc:          rpcProvider,
+		transactions: transactions,
+		wallets:      wallets,
+		logger:       &log,
+	}
+}
+
+// ERC-20 Transfer event topic: Transfer(address,address,uint256)
+var erc20TransferTopic = common.HexToHash("0xddf252ad1be2c4e6b9b4170f7cfc9ef7a5c891b13519e1cf2e4a0329118b624e")
+
+// PollPendingTransactions is the main entry point called by the scheduler.
+// It finds all pending incoming transactions (no tx hash yet) and checks
+// their recipient addresses for incoming blockchain transactions.
+// The onDetected callback is called for each detected payment.
+func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTransferDetected) error {
+	if !s.config.Enabled {
+		return nil
+	}
+
+	// Find all pending incoming transactions that haven't been detected yet
+	filter := transaction.Filter{
+		Types:       []transaction.Type{transaction.TypeIncoming},
+		Statuses:    []transaction.Status{transaction.StatusPending},
+		HashIsEmpty: true,
+	}
+
+	txs, err := s.transactions.ListByFilter(ctx, filter, 200)
+	if err != nil {
+		return errors.Wrap(err, "unable to list pending transactions")
+	}
+
+	if len(txs) == 0 {
+		return nil
+	}
+
+	s.logger.Info().Int("pending_count", len(txs)).Msg("polling pending transactions for incoming payments")
+
+	// Group transactions by blockchain+isTest for efficient batch RPC calls
+	type chainKey struct {
+		blockchain money.Blockchain
+		isTest     bool
+	}
+
+	grouped := make(map[chainKey][]*transaction.Transaction)
+	for _, tx := range txs {
+		key := chainKey{blockchain: tx.Currency.Blockchain, isTest: tx.IsTest}
+		grouped[key] = append(grouped[key], tx)
+	}
+
+	var (
+		group     errgroup.Group
+		detected  int64
+		failedTXs []int64
+		mu        sync.Mutex
+	)
+
+	group.SetLimit(s.config.MaxConcurrency)
+
+	for key, chainTxs := range grouped {
+		key := key
+		chainTxs := chainTxs
+
+		group.Go(func() error {
+			count, failed := s.pollChainTransactions(ctx, key.blockchain, key.isTest, chainTxs, onDetected)
+			atomic.AddInt64(&detected, count)
+			if len(failed) > 0 {
+				mu.Lock()
+				failedTXs = append(failedTXs, failed...)
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+
+	_ = group.Wait()
+
+	if detected > 0 || len(failedTXs) > 0 {
+		s.logger.Info().
+			Int64("detected_count", detected).
+			Ints64("failed_tx_ids", failedTXs).
+			Msg("address watcher poll completed")
+	}
+
+	return nil
+}
+
+// pollChainTransactions checks all pending transactions for a specific blockchain.
+func (s *Service) pollChainTransactions(
+	ctx context.Context,
+	bc money.Blockchain,
+	isTest bool,
+	txs []*transaction.Transaction,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	switch kms.Blockchain(bc) {
+	case kms.ETH, kms.MATIC, kms.BSC, kms.ARBITRUM, kms.AVAX:
+		return s.pollEVMTransactions(ctx, bc, isTest, txs, onDetected)
+	case kms.TRON, kms.SOL, kms.XMR:
+		// These chains have their own providers and will be handled in Phase 4
+		return 0, nil
+	default:
+		s.logger.Warn().Str("blockchain", bc.String()).Msg("unsupported blockchain for address watching")
+		return 0, nil
+	}
+}
+
+// pendingInfo holds data for a watched address.
+type pendingInfo struct {
+	tx       *transaction.Transaction
+	walletID *int64
+}
+
+// pollEVMTransactions scans recent blocks on an EVM chain for transactions
+// to the watched addresses.
+func (s *Service) pollEVMTransactions(
+	ctx context.Context,
+	bc money.Blockchain,
+	isTest bool,
+	txs []*transaction.Transaction,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	client, err := s.getEVMClient(ctx, bc, isTest)
+	if err != nil {
+		s.logger.Error().Err(err).
+			Str("blockchain", bc.String()).
+			Bool("is_test", isTest).
+			Msg("unable to connect to RPC for address watching")
+
+		ids := make([]int64, len(txs))
+		for i, tx := range txs {
+			ids[i] = tx.ID
+		}
+		return 0, ids
+	}
+	defer client.Close()
+
+	// Get current block number
+	currentBlock, err := client.BlockNumber(ctx)
+	if err != nil {
+		s.logger.Error().Err(err).Str("blockchain", bc.String()).Msg("unable to get current block number")
+		return 0, nil
+	}
+
+	// Determine scan range
+	fromBlock := int64(currentBlock) - s.config.BlockScanDepth
+	if fromBlock < 0 {
+		fromBlock = 0
+	}
+
+	// Check if we've scanned further — use last scanned block if available
+	cacheKey := bc.String() + ":" + boolStr(isTest)
+	if last, ok := s.lastScannedBlock.Load(cacheKey); ok {
+		if lastBlock, ok := last.(int64); ok && lastBlock > fromBlock {
+			fromBlock = lastBlock + 1
+		}
+	}
+
+	if fromBlock > int64(currentBlock) {
+		return 0, nil
+	}
+
+	// Build address lookup maps
+	nativeAddresses := make(map[common.Address]pendingInfo)
+	tokenAddresses := make(map[common.Address]map[common.Address]pendingInfo) // contract -> recipient -> info
+
+	for _, tx := range txs {
+		addr := s.getRecipientAddress(ctx, tx)
+		if addr == "" {
+			continue
+		}
+
+		ethAddr := common.HexToAddress(addr)
+
+		if tx.Currency.Type == money.Coin {
+			nativeAddresses[ethAddr] = pendingInfo{tx: tx, walletID: tx.RecipientWalletID}
+		} else if tx.Currency.TokenContractAddress != "" {
+			contractAddr := common.HexToAddress(tx.Currency.ChooseContractAddress(tx.IsTest))
+			if tokenAddresses[contractAddr] == nil {
+				tokenAddresses[contractAddr] = make(map[common.Address]pendingInfo)
+			}
+			tokenAddresses[contractAddr][ethAddr] = pendingInfo{tx: tx, walletID: tx.RecipientWalletID}
+		}
+	}
+
+	var detected int64
+	var failedIDs []int64
+
+	// 1. Scan for native coin transfers by checking block transactions
+	if len(nativeAddresses) > 0 {
+		d, f := s.scanNativeTransfers(ctx, client, bc, isTest, nativeAddresses, fromBlock, int64(currentBlock), onDetected)
+		detected += d
+		failedIDs = append(failedIDs, f...)
+	}
+
+	// 2. Scan for ERC-20 token transfers using Transfer event logs
+	if len(tokenAddresses) > 0 {
+		d, f := s.scanTokenTransfers(ctx, client, isTest, tokenAddresses, fromBlock, int64(currentBlock), onDetected)
+		detected += d
+		failedIDs = append(failedIDs, f...)
+	}
+
+	// Update last scanned block
+	s.lastScannedBlock.Store(cacheKey, int64(currentBlock))
+
+	return detected, failedIDs
+}
+
+// scanNativeTransfers scans blocks for native coin (ETH/MATIC/BNB/etc.) transfers.
+func (s *Service) scanNativeTransfers(
+	ctx context.Context,
+	client *ethclient.Client,
+	bc money.Blockchain,
+	isTest bool,
+	addresses map[common.Address]pendingInfo,
+	fromBlock, toBlock int64,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	var detected int64
+	var failedIDs []int64
+
+	for bn := fromBlock; bn <= toBlock; bn++ {
+		block, err := client.BlockByNumber(ctx, big.NewInt(bn))
+		if err != nil {
+			s.logger.Debug().Err(err).Int64("block", bn).Msg("unable to get block, skipping")
+			continue
+		}
+
+		for _, blockTx := range block.Transactions() {
+			if blockTx.To() == nil {
+				continue // contract creation
+			}
+
+			recipient := *blockTx.To()
+			info, ok := addresses[recipient]
+			if !ok {
+				continue
+			}
+
+			// Skip zero-value transactions
+			if blockTx.Value().Sign() == 0 {
+				continue
+			}
+
+			d, err := s.buildNativeDetection(ctx, client, bc, isTest, blockTx, info)
+			if err != nil {
+				s.logger.Error().Err(err).
+					Int64("tx_id", info.tx.ID).
+					Str("hash", blockTx.Hash().Hex()).
+					Msg("failed to build native transfer detection")
+				failedIDs = append(failedIDs, info.tx.ID)
+				continue
+			}
+
+			if err := onDetected(ctx, d); err != nil {
+				s.logger.Error().Err(err).
+					Int64("tx_id", info.tx.ID).
+					Str("hash", blockTx.Hash().Hex()).
+					Msg("failed to process detected native transfer")
+				failedIDs = append(failedIDs, info.tx.ID)
+			} else {
+				detected++
+				delete(addresses, recipient)
+			}
+		}
+
+		if len(addresses) == 0 {
+			break
+		}
+	}
+
+	return detected, failedIDs
+}
+
+// scanTokenTransfers uses eth_getLogs to find ERC-20 Transfer events to watched addresses.
+func (s *Service) scanTokenTransfers(
+	ctx context.Context,
+	client *ethclient.Client,
+	isTest bool,
+	tokenAddresses map[common.Address]map[common.Address]pendingInfo,
+	fromBlock, toBlock int64,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	var detected int64
+	var failedIDs []int64
+
+	for contractAddr, recipients := range tokenAddresses {
+		recipientTopics := make([]common.Hash, 0, len(recipients))
+		for addr := range recipients {
+			recipientTopics = append(recipientTopics, addr.Hash())
+		}
+
+		query := ethereum.FilterQuery{
+			FromBlock: big.NewInt(fromBlock),
+			ToBlock:   big.NewInt(toBlock),
+			Addresses: []common.Address{contractAddr},
+			Topics: [][]common.Hash{
+				{erc20TransferTopic}, // event signature
+				{},                   // from: any
+				recipientTopics,      // to: one of our watched addresses
+			},
+		}
+
+		logs, err := client.FilterLogs(ctx, query)
+		if err != nil {
+			s.logger.Error().Err(err).
+				Str("contract", contractAddr.Hex()).
+				Msg("unable to filter ERC-20 Transfer logs")
+			for _, info := range recipients {
+				failedIDs = append(failedIDs, info.tx.ID)
+			}
+			continue
+		}
+
+		for _, logEntry := range logs {
+			if len(logEntry.Topics) < 3 {
+				continue
+			}
+
+			recipientAddr := common.HexToAddress(logEntry.Topics[2].Hex())
+			info, ok := recipients[recipientAddr]
+			if !ok {
+				continue
+			}
+
+			amount := new(big.Int).SetBytes(logEntry.Data)
+			senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
+
+			cryptoAmount, err := money.NewFromBigInt(
+				money.Crypto,
+				info.tx.Currency.Ticker,
+				amount,
+				info.tx.Currency.Decimals,
+			)
+			if err != nil {
+				s.logger.Error().Err(err).
+					Str("ticker", info.tx.Currency.Ticker).
+					Msg("unable to parse token amount")
+				failedIDs = append(failedIDs, info.tx.ID)
+				continue
+			}
+
+			var wt *wallet.Wallet
+			if info.walletID != nil {
+				wt, _ = s.wallets.GetByID(ctx, *info.walletID)
+			}
+
+			d := DetectedTransfer{
+				PendingTx:     info.tx,
+				Wallet:        wt,
+				TxHash:        logEntry.TxHash.Hex(),
+				SenderAddress: senderAddr.Hex(),
+				Amount:        cryptoAmount,
+				Currency:      info.tx.Currency,
+				NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+			}
+
+			if err := onDetected(ctx, d); err != nil {
+				s.logger.Error().Err(err).
+					Int64("tx_id", info.tx.ID).
+					Str("hash", logEntry.TxHash.Hex()).
+					Msg("failed to process detected token transfer")
+				failedIDs = append(failedIDs, info.tx.ID)
+			} else {
+				detected++
+				delete(recipients, recipientAddr)
+			}
+		}
+	}
+
+	return detected, failedIDs
+}
+
+// buildNativeDetection constructs a DetectedTransfer for a native coin block transaction.
+func (s *Service) buildNativeDetection(
+	ctx context.Context,
+	client *ethclient.Client,
+	bc money.Blockchain,
+	isTest bool,
+	blockTx *types.Transaction,
+	info pendingInfo,
+) (DetectedTransfer, error) {
+	chainID, err := client.ChainID(ctx)
+	if err != nil {
+		return DetectedTransfer{}, errors.Wrap(err, "unable to get chain ID")
+	}
+
+	sender, err := types.Sender(types.LatestSignerForChainID(chainID), blockTx)
+	if err != nil {
+		return DetectedTransfer{}, errors.Wrap(err, "unable to recover sender")
+	}
+
+	cryptoAmount, err := money.NewFromBigInt(
+		money.Crypto,
+		info.tx.Currency.Ticker,
+		blockTx.Value(),
+		info.tx.Currency.Decimals,
+	)
+	if err != nil {
+		return DetectedTransfer{}, errors.Wrap(err, "unable to parse transaction value")
+	}
+
+	var wt *wallet.Wallet
+	if info.walletID != nil {
+		wt, _ = s.wallets.GetByID(ctx, *info.walletID)
+	}
+
+	return DetectedTransfer{
+		PendingTx:     info.tx,
+		Wallet:        wt,
+		TxHash:        blockTx.Hash().Hex(),
+		SenderAddress: sender.Hex(),
+		Amount:        cryptoAmount,
+		Currency:      info.tx.Currency,
+		NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+	}, nil
+}
+
+// getRecipientAddress resolves the recipient address for a pending transaction.
+func (s *Service) getRecipientAddress(ctx context.Context, tx *transaction.Transaction) string {
+	if tx.RecipientAddress != "" {
+		return tx.RecipientAddress
+	}
+
+	if tx.RecipientWalletID != nil {
+		wt, err := s.wallets.GetByID(ctx, *tx.RecipientWalletID)
+		if err != nil {
+			s.logger.Error().Err(err).
+				Int64("wallet_id", *tx.RecipientWalletID).
+				Msg("unable to resolve wallet address for watching")
+			return ""
+		}
+		return wt.Address
+	}
+
+	return ""
+}
+
+// getEVMClient returns the appropriate ethclient for the given blockchain.
+func (s *Service) getEVMClient(ctx context.Context, bc money.Blockchain, isTest bool) (*ethclient.Client, error) {
+	switch kms.Blockchain(bc) {
+	case kms.ETH:
+		return s.rpc.EthereumRPC(ctx, isTest)
+	case kms.MATIC:
+		return s.rpc.MaticRPC(ctx, isTest)
+	case kms.BSC:
+		return s.rpc.BinanceSmartChainRPC(ctx, isTest)
+	case kms.ARBITRUM:
+		return s.rpc.ArbitrumRPC(ctx, isTest)
+	case kms.AVAX:
+		return s.rpc.AvalancheRPC(ctx, isTest)
+	default:
+		return nil, errors.Errorf("unsupported EVM blockchain: %s", bc)
+	}
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "test"
+	}
+	return "main"
+}
