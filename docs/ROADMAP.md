@@ -77,23 +77,23 @@ Remove all dependency on Tatum (a paid third-party blockchain infrastructure pro
 ## Phase 2 — Hardening & Reliability
 
 ### Step 2.1: Multi-RPC Failover
-- **Status:** PENDING
+- **Status:** DONE
 - **What:** If primary RPC endpoint fails, automatically try backup endpoints
-- **Config:** List of RPC URLs per chain, round-robin with health checks
+- **Config:** 4+ endpoints per chain (primary, fallback, 2 extras), health tracking with 2min recovery
 
 ### Step 2.2: Multi-Source Price Validation
-- **Status:** PENDING
+- **Status:** DONE
 - **What:** Cross-check prices between Binance and CoinGecko, reject if >5% divergence
 - **Security:** Prevents price manipulation attacks
 
 ### Step 2.3: Database Cleanup
-- **Status:** PENDING
-- **What:** Remove `tatum_subscription_id` columns from wallets, derived_addresses, evm_collector_wallets tables
-- **Migration:** Add SQL migration files
+- **Status:** DONE
+- **What:** Remove `tatum_subscription_id` columns from wallets, xpub_wallets, derived_addresses, evm_collector_wallets tables
+- **Migration:** `scripts/migrations/20260306120000-remove_tatum_columns.sql`
 
 ### Step 2.4: Test Updates
-- **Status:** PENDING
-- **What:** Remove `mocks_tatum.go`, update all tests to use new providers
+- **Status:** DONE
+- **What:** Removed `mocks_tatum.go.bak`, cleaned up all tatum references in tests and domain models
 
 ---
 

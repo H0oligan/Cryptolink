@@ -134,3 +134,51 @@ Each entry includes: what changed, why, security considerations, and potential i
 - `lastScannedBlock` is in-memory — resets on server restart (first scan after restart may be slow)
 
 ---
+
+## [2026-03-06] Phase 2 — Hardening & Reliability
+
+### Changes
+
+#### Step 2.1: Multi-RPC Failover (ENHANCED)
+- **File:** `internal/provider/rpc/provider.go`
+- Each chain now has 4+ endpoints: primary, fallback, and 2 extras
+- Added `Extra []string` field to `ChainRPC` for additional failover URLs
+- `dialWithFailover()` tries all endpoints in order, skipping unhealthy ones
+- Health tracking with `endpointHealth` struct (healthy, failedAt, failCount)
+- Unhealthy endpoints auto-recover after 2 minutes (`healthRecoveryInterval`)
+- Extra free endpoints: publicnode.com, 1rpc.io, defibit.io for all chains
+
+#### Step 2.2: Multi-Source Price Validation (NEW)
+- **File:** `internal/provider/pricefeed/provider.go`
+- Both Binance and CoinGecko are now queried (not just fallback)
+- `rateDivergence()` computes relative difference between two rates
+- Rejects both rates if divergence exceeds 5% threshold
+- Logs divergence details for monitoring
+- Prevents price manipulation attacks via a single compromised source
+
+#### Step 2.3: Database Cleanup (NEW)
+- **Migration:** `scripts/migrations/20260306120000-remove_tatum_columns.sql`
+- Drops `tatum_subscription_id` from: wallets, xpub_wallets, derived_addresses, evm_collector_wallets
+- Updated SQL queries: removed `UpdateWalletTatumFields`, `UpdateXpubWalletTatumSubscription`, `UpdateDerivedAddressTatumSubscription`
+- Updated Go models: removed tatum fields from `repository.Wallet`, `repository.XpubWallet`, `repository.DerivedAddress`
+- Updated domain models: removed `TatumSubscription` from `wallet.Wallet`, tatum fields from `xpub.DerivedAddress`, `evmcollector.Collector`
+- Removed `WebhookSubscriber` interface and `UpdateSubscriptionID`, `WebhookURL` from evmcollector
+- Updated querier interface: removed 3 tatum-related methods
+
+#### Step 2.4: Test & Code Cleanup
+- Deleted `.bak` files: `mocks_tatum.go.bak`, `payments_webhook.go.bak`, `handler_payments.go.bak`
+- Updated `service_test.go`: removed TatumSubscription assertions and subscription ID constants
+- All generated `*.sql.go` files rewritten to exclude tatum columns from SELECT/RETURNING/Scan
+
+### Security Notes
+- Multi-RPC failover prevents single-endpoint failure from blocking operations
+- Price divergence check prevents price manipulation via compromised single source
+- Database cleanup removes dead columns that could confuse future development
+- No functional behavior changes — same payment flows, just cleaner infrastructure
+
+### Potential Issues
+- Migration must be run on the production database (`20260306120000-remove_tatum_columns.sql`)
+- Legacy Tatum webhook endpoint still exists in router (`/api/webhook/v1/tatum/:networkId/:walletId`) — can be removed after confirming no residual Tatum subscriptions
+- `service_webhook.go` still contains TatumWebhook struct and processing logic — dead code, can be removed in future cleanup
+
+---
