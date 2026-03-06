@@ -1,0 +1,17 @@
+.payment-desc-card {
+    &__item-title {
+        color: var(--cl-text-tertiary);
+    }
+
+    &__link {
+        cursor: pointer;
+
+        &__text {
+            margin-right: 10px;
+        }
+    }
+
+    &__test-label {
+        margin-right: 10px;
+    }
+}

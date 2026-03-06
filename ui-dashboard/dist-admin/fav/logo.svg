@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="link1" x1="76" y1="140" x2="308" y2="372" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="link2" x1="204" y1="140" x2="436" y2="372" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <clipPath id="top">
+      <rect width="512" height="256"/>
+    </clipPath>
+    <clipPath id="bottom">
+      <rect y="256" width="512" height="256"/>
+    </clipPath>
+  </defs>
+  <!-- Link 1 back half (behind link 2 at bottom) -->
+  <circle cx="192" cy="256" r="116" stroke="url(#link1)" stroke-width="48" clip-path="url(#bottom)"/>
+  <!-- Link 2: Open ring — the freedom gap -->
+  <path d="M 413 330 A 116 116 0 1 0 413 182" stroke="url(#link2)" stroke-width="48" stroke-linecap="round"/>
+  <!-- Link 1 front half (in front of link 2 at top) -->
+  <circle cx="192" cy="256" r="116" stroke="url(#link1)" stroke-width="48" clip-path="url(#top)"/>
+</svg>

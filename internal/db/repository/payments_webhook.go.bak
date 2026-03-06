@@ -1,0 +1,74 @@
+package repository
+
+import (
+	"context"
+	"time"
+)
+
+const getPaymentsNeedingWebhookRetry = `
+SELECT id, public_id, created_at, updated_at, type, status, merchant_id, merchant_order_uuid,
+       merchant_order_id, expires_at, price, decimals, currency, description, redirect_url,
+       customer_id, is_test, webhook_sent_at, webhook_attempts, metadata
+FROM payments
+WHERE webhook_sent_at IS NULL
+  AND webhook_attempts < $1
+  AND status NOT IN ('pending', 'locked', 'failed')
+ORDER BY updated_at ASC
+LIMIT 100
+`
+
+func (q *Queries) GetPaymentsNeedingWebhookRetry(ctx context.Context, maxAttempts int32) ([]Payment, error) {
+	rows, err := q.db.Query(ctx, getPaymentsNeedingWebhookRetry, maxAttempts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []Payment
+	for rows.Next() {
+		var i Payment
+		if err := rows.Scan(
+			&i.ID,
+			&i.PublicID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Type,
+			&i.Status,
+			&i.MerchantID,
+			&i.MerchantOrderUuid,
+			&i.MerchantOrderID,
+			&i.ExpiresAt,
+			&i.Price,
+			&i.Decimals,
+			&i.Currency,
+			&i.Description,
+			&i.RedirectUrl,
+			&i.CustomerID,
+			&i.IsTest,
+			&i.WebhookSentAt,
+			&i.WebhookAttempts,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+
+	return items, rows.Err()
+}
+
+func (q *Queries) IncrementWebhookAttempts(ctx context.Context, id, merchantID int64) error {
+	_, err := q.db.Exec(ctx,
+		`UPDATE payments SET webhook_attempts = webhook_attempts + 1, updated_at = $1 WHERE id = $2 AND merchant_id = $3`,
+		time.Now(), id, merchantID,
+	)
+	return err
+}
+
+func (q *Queries) ResetWebhookAttempts(ctx context.Context, id, merchantID int64) error {
+	_, err := q.db.Exec(ctx,
+		`UPDATE payments SET webhook_attempts = 0, updated_at = $1 WHERE id = $2 AND merchant_id = $3`,
+		time.Now(), id, merchantID,
+	)
+	return err
+}
