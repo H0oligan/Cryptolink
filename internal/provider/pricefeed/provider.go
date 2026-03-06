@@ -163,25 +163,45 @@ func (p *Provider) GetExchangeRate(ctx context.Context, desired, selected string
 	}
 
 	// Try Binance first
-	rate, err := p.getBinanceRate(ctx, selected, desired)
-	if err == nil {
-		if validateRate(rate) {
-			p.cache.set(cacheKey, rate)
-			return rate, nil
-		}
-		p.logger.Warn().Str("selected", selected).Str("rate", rate.Value).Msg("Binance rate failed validation")
-	} else {
-		p.logger.Warn().Err(err).Str("selected", selected).Msg("Binance rate fetch failed, trying CoinGecko")
+	binanceRate, binanceErr := p.getBinanceRate(ctx, selected, desired)
+	binanceOK := binanceErr == nil && validateRate(binanceRate)
+	if binanceErr != nil {
+		p.logger.Warn().Err(binanceErr).Str("selected", selected).Msg("Binance rate fetch failed")
+	} else if !binanceOK {
+		p.logger.Warn().Str("selected", selected).Str("rate", binanceRate.Value).Msg("Binance rate failed validation")
 	}
 
-	// Fallback to CoinGecko
-	rate, err = p.getCoinGeckoRate(ctx, selected, desired)
-	if err == nil {
-		if validateRate(rate) {
-			p.cache.set(cacheKey, rate)
-			return rate, nil
+	// Try CoinGecko (for cross-validation or as fallback)
+	geckoRate, geckoErr := p.getCoinGeckoRate(ctx, selected, desired)
+	geckoOK := geckoErr == nil && validateRate(geckoRate)
+	if geckoErr != nil {
+		p.logger.Debug().Err(geckoErr).Str("selected", selected).Msg("CoinGecko rate fetch failed")
+	}
+
+	// Cross-validate if both sources returned valid rates
+	if binanceOK && geckoOK {
+		if divergence := rateDivergence(binanceRate, geckoRate); divergence > 0.05 {
+			p.logger.Error().
+				Str("selected", selected).
+				Str("binance", binanceRate.Value).
+				Str("coingecko", geckoRate.Value).
+				Float64("divergence_pct", divergence*100).
+				Msg("price sources diverge >5%, rejecting both")
+			return ExchangeRate{}, errors.Errorf(
+				"price divergence %.1f%% for %s/%s exceeds 5%% threshold (binance=%s, coingecko=%s)",
+				divergence*100, selected, desired, binanceRate.Value, geckoRate.Value,
+			)
 		}
-		p.logger.Warn().Str("selected", selected).Str("rate", rate.Value).Msg("CoinGecko rate failed validation")
+	}
+
+	// Return the best available rate (prefer Binance)
+	if binanceOK {
+		p.cache.set(cacheKey, binanceRate)
+		return binanceRate, nil
+	}
+	if geckoOK {
+		p.cache.set(cacheKey, geckoRate)
+		return geckoRate, nil
 	}
 
 	return ExchangeRate{}, errors.Errorf("unable to get exchange rate for %s/%s from any source", selected, desired)
@@ -311,8 +331,22 @@ func validateRate(rate ExchangeRate) bool {
 	if err != nil {
 		return false
 	}
-	// Rate must be positive and not absurdly large
 	return val > 0 && val < 1e12
+}
+
+// rateDivergence returns the relative difference between two rates as a fraction (0.05 = 5%).
+func rateDivergence(a, b ExchangeRate) float64 {
+	va, errA := strconv.ParseFloat(a.Value, 64)
+	vb, errB := strconv.ParseFloat(b.Value, 64)
+	if errA != nil || errB != nil || va == 0 || vb == 0 {
+		return 1.0 // treat parse errors as maximum divergence
+	}
+	avg := (va + vb) / 2
+	diff := va - vb
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff / avg
 }
 
 func isStablecoin(ticker string) bool {

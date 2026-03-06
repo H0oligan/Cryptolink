@@ -32,7 +32,7 @@ INSERT INTO derived_addresses (
     is_used, created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-) RETURNING id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at
+) RETURNING id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at
 `
 
 type CreateDerivedAddressParams struct {
@@ -76,8 +76,6 @@ func (q *Queries) CreateDerivedAddress(ctx context.Context, arg CreateDerivedAdd
 		&i.PublicKey,
 		&i.IsUsed,
 		&i.PaymentID,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -85,7 +83,7 @@ func (q *Queries) CreateDerivedAddress(ctx context.Context, arg CreateDerivedAdd
 }
 
 const getDerivedAddressByAddress = `-- name: GetDerivedAddressByAddress :one
-SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at FROM derived_addresses
+SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at FROM derived_addresses
 WHERE blockchain = $1 AND address = $2
 LIMIT 1
 `
@@ -110,8 +108,6 @@ func (q *Queries) GetDerivedAddressByAddress(ctx context.Context, arg GetDerived
 		&i.PublicKey,
 		&i.IsUsed,
 		&i.PaymentID,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -119,7 +115,7 @@ func (q *Queries) GetDerivedAddressByAddress(ctx context.Context, arg GetDerived
 }
 
 const getDerivedAddressByID = `-- name: GetDerivedAddressByID :one
-SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at FROM derived_addresses WHERE id = $1 LIMIT 1
+SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at FROM derived_addresses WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDerivedAddressByID(ctx context.Context, id int64) (DerivedAddress, error) {
@@ -137,8 +133,6 @@ func (q *Queries) GetDerivedAddressByID(ctx context.Context, id int64) (DerivedA
 		&i.PublicKey,
 		&i.IsUsed,
 		&i.PaymentID,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -146,7 +140,7 @@ func (q *Queries) GetDerivedAddressByID(ctx context.Context, id int64) (DerivedA
 }
 
 const getDerivedAddressByUUID = `-- name: GetDerivedAddressByUUID :one
-SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at FROM derived_addresses WHERE uuid = $1 LIMIT 1
+SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at FROM derived_addresses WHERE uuid = $1 LIMIT 1
 `
 
 func (q *Queries) GetDerivedAddressByUUID(ctx context.Context, argUuid uuid.UUID) (DerivedAddress, error) {
@@ -164,8 +158,6 @@ func (q *Queries) GetDerivedAddressByUUID(ctx context.Context, argUuid uuid.UUID
 		&i.PublicKey,
 		&i.IsUsed,
 		&i.PaymentID,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -186,7 +178,7 @@ func (q *Queries) GetLastDerivedIndex(ctx context.Context, xpubWalletID int64) (
 }
 
 const getNextUnusedAddress = `-- name: GetNextUnusedAddress :one
-SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at FROM derived_addresses
+SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at FROM derived_addresses
 WHERE xpub_wallet_id = $1 AND is_used = false
 ORDER BY derivation_index ASC
 LIMIT 1
@@ -207,8 +199,6 @@ func (q *Queries) GetNextUnusedAddress(ctx context.Context, xpubWalletID int64) 
 		&i.PublicKey,
 		&i.IsUsed,
 		&i.PaymentID,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -216,7 +206,7 @@ func (q *Queries) GetNextUnusedAddress(ctx context.Context, xpubWalletID int64) 
 }
 
 const listDerivedAddressesByMerchantID = `-- name: ListDerivedAddressesByMerchantID :many
-SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at FROM derived_addresses
+SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at FROM derived_addresses
 WHERE merchant_id = $1
 ORDER BY created_at DESC
 `
@@ -242,8 +232,6 @@ func (q *Queries) ListDerivedAddressesByMerchantID(ctx context.Context, merchant
 			&i.PublicKey,
 			&i.IsUsed,
 			&i.PaymentID,
-			&i.TatumMainnetSubscriptionID,
-			&i.TatumTestnetSubscriptionID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -258,7 +246,7 @@ func (q *Queries) ListDerivedAddressesByMerchantID(ctx context.Context, merchant
 }
 
 const listDerivedAddressesByWalletID = `-- name: ListDerivedAddressesByWalletID :many
-SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at FROM derived_addresses
+SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at FROM derived_addresses
 WHERE xpub_wallet_id = $1
 ORDER BY derivation_index ASC
 `
@@ -284,8 +272,6 @@ func (q *Queries) ListDerivedAddressesByWalletID(ctx context.Context, xpubWallet
 			&i.PublicKey,
 			&i.IsUsed,
 			&i.PaymentID,
-			&i.TatumMainnetSubscriptionID,
-			&i.TatumTestnetSubscriptionID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -303,7 +289,7 @@ const markAddressAsUsed = `-- name: MarkAddressAsUsed :one
 UPDATE derived_addresses
 SET is_used = true, payment_id = $2, updated_at = $3
 WHERE id = $1
-RETURNING id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at
+RETURNING id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at
 `
 
 type MarkAddressAsUsedParams struct {
@@ -327,50 +313,6 @@ func (q *Queries) MarkAddressAsUsed(ctx context.Context, arg MarkAddressAsUsedPa
 		&i.PublicKey,
 		&i.IsUsed,
 		&i.PaymentID,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateDerivedAddressTatumSubscription = `-- name: UpdateDerivedAddressTatumSubscription :one
-UPDATE derived_addresses
-SET tatum_mainnet_subscription_id = $2, tatum_testnet_subscription_id = $3, updated_at = $4
-WHERE id = $1
-RETURNING id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, created_at, updated_at
-`
-
-type UpdateDerivedAddressTatumSubscriptionParams struct {
-	ID                         int64
-	TatumMainnetSubscriptionID sql.NullString
-	TatumTestnetSubscriptionID sql.NullString
-	UpdatedAt                  time.Time
-}
-
-func (q *Queries) UpdateDerivedAddressTatumSubscription(ctx context.Context, arg UpdateDerivedAddressTatumSubscriptionParams) (DerivedAddress, error) {
-	row := q.db.QueryRow(ctx, updateDerivedAddressTatumSubscription,
-		arg.ID,
-		arg.TatumMainnetSubscriptionID,
-		arg.TatumTestnetSubscriptionID,
-		arg.UpdatedAt,
-	)
-	var i DerivedAddress
-	err := row.Scan(
-		&i.ID,
-		&i.Uuid,
-		&i.XpubWalletID,
-		&i.MerchantID,
-		&i.Blockchain,
-		&i.Address,
-		&i.DerivationPath,
-		&i.DerivationIndex,
-		&i.PublicKey,
-		&i.IsUsed,
-		&i.PaymentID,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

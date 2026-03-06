@@ -1,5 +1,5 @@
-// Package rpc provides direct EVM blockchain RPC connections,
-// replacing the Tatum RPC proxy with configurable free endpoints.
+// Package rpc provides direct EVM blockchain RPC connections
+// with multi-endpoint failover and health tracking.
 package rpc
 
 import (
@@ -13,58 +13,73 @@ import (
 )
 
 // Config holds RPC endpoint URLs for each supported EVM chain.
-// Each chain has a mainnet and testnet endpoint, with sensible free defaults.
+// Each chain supports multiple endpoints for failover.
 type Config struct {
-	ETH           ChainRPC `yaml:"eth"`
-	MATIC         ChainRPC `yaml:"matic"`
-	BSC           ChainRPC `yaml:"bsc"`
-	ARBITRUM      ChainRPC `yaml:"arbitrum"`
-	AVAX          ChainRPC `yaml:"avax"`
-	ConnTimeout   int      `yaml:"conn_timeout" env:"RPC_CONN_TIMEOUT" env-default:"15" env-description:"RPC connection timeout in seconds"`
+	ETH         ChainRPC `yaml:"eth"`
+	MATIC       ChainRPC `yaml:"matic"`
+	BSC         ChainRPC `yaml:"bsc"`
+	ARBITRUM    ChainRPC `yaml:"arbitrum"`
+	AVAX        ChainRPC `yaml:"avax"`
+	ConnTimeout int      `yaml:"conn_timeout" env:"RPC_CONN_TIMEOUT" env-default:"15" env-description:"RPC connection timeout in seconds"`
 }
 
 // ChainRPC holds mainnet/testnet RPC URLs for a single chain.
+// Mainnet and Fallback are tried in order; Extra provides additional failover URLs.
 type ChainRPC struct {
-	Mainnet  string `yaml:"mainnet"`
-	Testnet  string `yaml:"testnet"`
-	Fallback string `yaml:"fallback"`
+	Mainnet  string   `yaml:"mainnet"`
+	Testnet  string   `yaml:"testnet"`
+	Fallback string   `yaml:"fallback"`
+	Extra    []string `yaml:"extra"`
 }
 
-// Provider manages EVM RPC connections with health checking and fallback.
+// Provider manages EVM RPC connections with health checking and multi-endpoint failover.
 type Provider struct {
-	config Config
-	logger *zerolog.Logger
-	mu     sync.RWMutex
-	health map[string]bool // tracks endpoint health
+	config  Config
+	logger  *zerolog.Logger
+	mu      sync.RWMutex
+	health  map[string]endpointHealth
 }
 
-// DefaultConfig returns config with free public RPC endpoints.
+type endpointHealth struct {
+	healthy   bool
+	failedAt  time.Time
+	failCount int
+}
+
+const healthRecoveryInterval = 2 * time.Minute
+
+// DefaultConfig returns config with free public RPC endpoints and failover alternatives.
 func DefaultConfig() Config {
 	return Config{
 		ETH: ChainRPC{
 			Mainnet:  "https://eth.llamarpc.com",
 			Testnet:  "https://rpc.sepolia.org",
 			Fallback: "https://rpc.ankr.com/eth",
+			Extra:    []string{"https://ethereum-rpc.publicnode.com", "https://1rpc.io/eth"},
 		},
 		MATIC: ChainRPC{
 			Mainnet:  "https://polygon-rpc.com",
 			Testnet:  "https://rpc-mumbai.maticvigil.com",
 			Fallback: "https://rpc.ankr.com/polygon",
+			Extra:    []string{"https://polygon-bor-rpc.publicnode.com", "https://1rpc.io/matic"},
 		},
 		BSC: ChainRPC{
 			Mainnet:  "https://bsc-dataseed.binance.org",
 			Testnet:  "https://data-seed-prebsc-1-s1.binance.org:8545",
 			Fallback: "https://rpc.ankr.com/bsc",
+			Extra:    []string{"https://bsc-dataseed1.defibit.io", "https://bsc-dataseed2.binance.org"},
 		},
 		ARBITRUM: ChainRPC{
 			Mainnet:  "https://arb1.arbitrum.io/rpc",
 			Testnet:  "https://sepolia-rollup.arbitrum.io/rpc",
 			Fallback: "https://rpc.ankr.com/arbitrum",
+			Extra:    []string{"https://arbitrum-one-rpc.publicnode.com", "https://1rpc.io/arb"},
 		},
 		AVAX: ChainRPC{
 			Mainnet:  "https://api.avax.network/ext/bc/C/rpc",
 			Testnet:  "https://api.avax-test.network/ext/bc/C/rpc",
 			Fallback: "https://rpc.ankr.com/avalanche",
+			Extra:    []string{"https://avalanche-c-chain-rpc.publicnode.com", "https://1rpc.io/avax/c"},
 		},
 		ConnTimeout: 15,
 	}
@@ -73,14 +88,13 @@ func DefaultConfig() Config {
 func New(config Config, logger *zerolog.Logger) *Provider {
 	log := logger.With().Str("channel", "rpc_provider").Logger()
 
-	// Apply defaults for any empty endpoints
 	defaults := DefaultConfig()
 	applyDefaults(&config, &defaults)
 
 	return &Provider{
 		config: config,
 		logger: &log,
-		health: make(map[string]bool),
+		health: make(map[string]endpointHealth),
 	}
 }
 
@@ -105,71 +119,116 @@ func applyChainDefaults(cfg, defaults *ChainRPC) {
 	if cfg.Fallback == "" {
 		cfg.Fallback = defaults.Fallback
 	}
+	if len(cfg.Extra) == 0 {
+		cfg.Extra = defaults.Extra
+	}
 }
 
 // EthereumRPC returns an Ethereum JSON-RPC client.
 func (p *Provider) EthereumRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
-	return p.dial(ctx, p.config.ETH, isTest)
+	return p.dialWithFailover(ctx, p.config.ETH, isTest)
 }
 
 // MaticRPC returns a Polygon JSON-RPC client.
 func (p *Provider) MaticRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
-	return p.dial(ctx, p.config.MATIC, isTest)
+	return p.dialWithFailover(ctx, p.config.MATIC, isTest)
 }
 
 // BinanceSmartChainRPC returns a BSC JSON-RPC client.
 func (p *Provider) BinanceSmartChainRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
-	return p.dial(ctx, p.config.BSC, isTest)
+	return p.dialWithFailover(ctx, p.config.BSC, isTest)
 }
 
 // ArbitrumRPC returns an Arbitrum JSON-RPC client.
 func (p *Provider) ArbitrumRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
-	return p.dial(ctx, p.config.ARBITRUM, isTest)
+	return p.dialWithFailover(ctx, p.config.ARBITRUM, isTest)
 }
 
 // AvalancheRPC returns an Avalanche C-Chain JSON-RPC client.
 func (p *Provider) AvalancheRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
-	return p.dial(ctx, p.config.AVAX, isTest)
+	return p.dialWithFailover(ctx, p.config.AVAX, isTest)
 }
 
-// dial connects to the primary endpoint, falling back if the primary fails.
-func (p *Provider) dial(ctx context.Context, chain ChainRPC, isTest bool) (*ethclient.Client, error) {
+// dialWithFailover tries all endpoints in order: primary, fallback, then extras.
+// Endpoints marked unhealthy are skipped unless enough time has passed for recovery.
+func (p *Provider) dialWithFailover(ctx context.Context, chain ChainRPC, isTest bool) (*ethclient.Client, error) {
 	timeout := time.Duration(p.config.ConnTimeout) * time.Second
-	dialCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
-	primary := chain.Mainnet
+	// Build ordered endpoint list
+	var endpoints []string
 	if isTest {
-		primary = chain.Testnet
+		endpoints = []string{chain.Testnet}
+	} else {
+		endpoints = []string{chain.Mainnet}
+		if chain.Fallback != "" {
+			endpoints = append(endpoints, chain.Fallback)
+		}
+		endpoints = append(endpoints, chain.Extra...)
 	}
 
-	client, err := ethclient.DialContext(dialCtx, primary)
-	if err == nil {
-		return client, nil
-	}
+	var lastErr error
+	for _, url := range endpoints {
+		if url == "" {
+			continue
+		}
 
-	p.logger.Warn().Err(err).Str("url", primary).Msg("primary RPC failed, trying fallback")
+		if !p.isHealthy(url) {
+			continue
+		}
 
-	// Only try fallback for mainnet (testnet has no fallback)
-	if !isTest && chain.Fallback != "" {
-		fallbackCtx, fallbackCancel := context.WithTimeout(ctx, timeout)
-		defer fallbackCancel()
+		dialCtx, cancel := context.WithTimeout(ctx, timeout)
+		client, err := ethclient.DialContext(dialCtx, url)
+		cancel()
 
-		client, err = ethclient.DialContext(fallbackCtx, chain.Fallback)
 		if err == nil {
-			p.markUnhealthy(primary)
+			p.markHealthy(url)
 			return client, nil
 		}
 
-		p.logger.Error().Err(err).Str("url", chain.Fallback).Msg("fallback RPC also failed")
+		lastErr = err
+		p.markUnhealthy(url)
+		p.logger.Warn().Err(err).Str("url", url).Msg("RPC endpoint failed, trying next")
 	}
 
-	return nil, fmt.Errorf("all RPC endpoints failed for chain (primary=%s): %w", primary, err)
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no endpoints available")
+	}
+
+	return nil, fmt.Errorf("all RPC endpoints exhausted for chain: %w", lastErr)
+}
+
+// isHealthy returns true if the endpoint can be tried.
+// Unhealthy endpoints recover after healthRecoveryInterval.
+func (p *Provider) isHealthy(url string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	h, exists := p.health[url]
+	if !exists {
+		return true
+	}
+	if h.healthy {
+		return true
+	}
+
+	return time.Since(h.failedAt) >= healthRecoveryInterval
+}
+
+func (p *Provider) markHealthy(url string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.health[url] = endpointHealth{healthy: true}
 }
 
 func (p *Provider) markUnhealthy(url string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.health[url] = false
-	p.logger.Warn().Str("url", url).Msg("RPC endpoint marked unhealthy")
+
+	h := p.health[url]
+	h.healthy = false
+	h.failedAt = time.Now()
+	h.failCount++
+	p.health[url] = h
+
+	p.logger.Warn().Str("url", url).Int("fail_count", h.failCount).Msg("RPC endpoint marked unhealthy")
 }

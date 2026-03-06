@@ -40,12 +40,6 @@ SET is_used = true, payment_id = $2, updated_at = $3
 WHERE id = $1
 RETURNING *;
 
--- name: UpdateDerivedAddressTatumSubscription :one
-UPDATE derived_addresses
-SET tatum_mainnet_subscription_id = $2, tatum_testnet_subscription_id = $3, updated_at = $4
-WHERE id = $1
-RETURNING *;
-
 -- name: CountUnusedAddresses :one
 SELECT COUNT(*) FROM derived_addresses
 WHERE xpub_wallet_id = $1 AND is_used = false;

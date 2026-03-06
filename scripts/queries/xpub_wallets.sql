@@ -33,8 +33,3 @@ UPDATE xpub_wallets
 SET is_active = false, updated_at = $2
 WHERE id = $1;
 
--- name: UpdateXpubWalletTatumSubscription :one
-UPDATE xpub_wallets
-SET tatum_subscription_id = $2, updated_at = $3
-WHERE id = $1
-RETURNING *;

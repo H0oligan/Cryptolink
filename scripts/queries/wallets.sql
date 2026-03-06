@@ -44,13 +44,6 @@ INSERT INTO wallets (
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
--- name: UpdateWalletTatumFields :one
-UPDATE wallets
-SET tatum_mainnet_subscription_id = $1,
-    tatum_testnet_subscription_id = $2
-WHERE id = $3
-RETURNING *;
-
 -- name: GetWalletForUpdateByID :one
 SELECT * FROM wallets WHERE id = $1 LIMIT 1 FOR NO KEY UPDATE;
 

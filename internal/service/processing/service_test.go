@@ -46,15 +46,10 @@ func TestSetPaymentMethod(t *testing.T) {
 		// ARRANGE
 		// Given a payments
 		const (
-			ethAddress      = "0x123"
-			ethPubKey       = "eth-pub-key-goes-here"
-			ethMainnetSubID = "eth_mainnet_sub_1"
-			ethTestnetSubID = "eth_testnet_sub_1"
-
-			maticAddress      = "0x999"
-			maticPubKey       = "matic-pub-key-goes-here"
-			maticMainnetSubID = "matic_mainnet_sub_1"
-			maticTestnetSubID = "matic_testnet_sub_1"
+			ethAddress   = "0x123"
+			ethPubKey    = "eth-pub-key-goes-here"
+			maticAddress = "0x999"
+			maticPubKey  = "matic-pub-key-goes-here"
 		)
 
 		mt, _ := tc.Must.CreateMerchant(t, 1)
@@ -205,14 +200,10 @@ func TestSetPaymentMethod(t *testing.T) {
 					ethWallet, err := tc.Services.Wallet.GetByID(tc.Context, ids[0])
 					require.NoError(t, err)
 					assert.Equal(t, kms.ETH, ethWallet.Blockchain)
-					assert.Equal(t, ethMainnetSubID, ethWallet.TatumSubscription.MainnetSubscriptionID)
-					assert.Equal(t, ethTestnetSubID, ethWallet.TatumSubscription.TestnetSubscriptionID)
 
 					maticWallet, err := tc.Services.Wallet.GetByID(tc.Context, ids[2])
 					require.NoError(t, err)
 					assert.Equal(t, kms.MATIC, maticWallet.Blockchain)
-					assert.Equal(t, maticMainnetSubID, maticWallet.TatumSubscription.MainnetSubscriptionID)
-					assert.Equal(t, maticTestnetSubID, maticWallet.TatumSubscription.TestnetSubscriptionID)
 				},
 			},
 		} {

@@ -47,7 +47,6 @@ type Wallet struct {
 	Address                      string
 	Blockchain                   kmswallet.Blockchain
 	Type                         Type
-	TatumSubscription            TatumSubscription
 	ConfirmedMainnetTransactions int64
 	PendingMainnetTransactions   int64
 	ConfirmedTestnetTransactions int64
@@ -61,11 +60,6 @@ type Pagination struct {
 	Limit              int32
 	FilterByBlockchain kmswallet.Blockchain
 	FilterByType       Type
-}
-
-type TatumSubscription struct {
-	MainnetSubscriptionID string
-	TestnetSubscriptionID string
 }
 
 func New(
@@ -245,35 +239,14 @@ func (s *Service) List(ctx context.Context, pagination Pagination) ([]*Wallet, *
 	return wallets, &nextPageFirstResultsID, nil
 }
 
-// UpdateTatumSubscription updates tatum_* fields and reflects changes in *Wallet argument.
-func (s *Service) UpdateTatumSubscription(ctx context.Context, wallet *Wallet, subscription TatumSubscription) error {
-	entry, err := s.store.UpdateWalletTatumFields(ctx, repository.UpdateWalletTatumFieldsParams{
-		TatumMainnetSubscriptionID: repository.StringToNullable(subscription.MainnetSubscriptionID),
-		TatumTestnetSubscriptionID: repository.StringToNullable(subscription.TestnetSubscriptionID),
-		ID:                         wallet.ID,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	*wallet = *entryToWallet(entry)
-
-	return nil
-}
-
 func entryToWallet(entry repository.Wallet) *Wallet {
 	return &Wallet{
-		ID:         entry.ID,
-		CreatedAt:  entry.CreatedAt,
-		Type:       Type(entry.Type.String),
-		UUID:       entry.Uuid,
-		Address:    entry.Address,
-		Blockchain: kmswallet.Blockchain(entry.Blockchain),
-		TatumSubscription: TatumSubscription{
-			MainnetSubscriptionID: entry.TatumMainnetSubscriptionID.String,
-			TestnetSubscriptionID: entry.TatumTestnetSubscriptionID.String,
-		},
+		ID:                           entry.ID,
+		CreatedAt:                    entry.CreatedAt,
+		Type:                         Type(entry.Type.String),
+		UUID:                         entry.Uuid,
+		Address:                      entry.Address,
+		Blockchain:                   kmswallet.Blockchain(entry.Blockchain),
 		ConfirmedMainnetTransactions: entry.ConfirmedMainnetTransactions,
 		PendingMainnetTransactions:   entry.PendingMainnetTransactions,
 		ConfirmedTestnetTransactions: entry.ConfirmedTestnetTransactions,

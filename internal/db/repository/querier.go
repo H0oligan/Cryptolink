@@ -131,7 +131,6 @@ type Querier interface {
 	SetTransactionHash(ctx context.Context, arg SetTransactionHashParams) error
 	SoftDeleteMerchantByUUID(ctx context.Context, argUuid uuid.UUID) error
 	UpdateBalanceByID(ctx context.Context, arg UpdateBalanceByIDParams) (Balance, error)
-	UpdateDerivedAddressTatumSubscription(ctx context.Context, arg UpdateDerivedAddressTatumSubscriptionParams) (DerivedAddress, error)
 	UpdateMerchant(ctx context.Context, arg UpdateMerchantParams) (Merchant, error)
 	UpdateMerchantAddress(ctx context.Context, arg UpdateMerchantAddressParams) (MerchantAddress, error)
 	UpdateMerchantSettings(ctx context.Context, arg UpdateMerchantSettingsParams) error
@@ -146,10 +145,8 @@ type Querier interface {
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error)
 	UpdateWalletMainnetTransactionCounters(ctx context.Context, arg UpdateWalletMainnetTransactionCountersParams) error
-	UpdateWalletTatumFields(ctx context.Context, arg UpdateWalletTatumFieldsParams) (Wallet, error)
 	UpdateWalletTestnetTransactionCounters(ctx context.Context, arg UpdateWalletTestnetTransactionCountersParams) error
 	UpdateXpubWalletLastIndex(ctx context.Context, arg UpdateXpubWalletLastIndexParams) (XpubWallet, error)
-	UpdateXpubWalletTatumSubscription(ctx context.Context, arg UpdateXpubWalletTatumSubscriptionParams) (XpubWallet, error)
 	GetXpubWalletByMerchantAndBlockchainAny(ctx context.Context, arg GetXpubWalletByMerchantAndBlockchainParams) (XpubWallet, error)
 	ReactivateXpubWallet(ctx context.Context, arg ReactivateXpubWalletParams) (XpubWallet, error)
 }
