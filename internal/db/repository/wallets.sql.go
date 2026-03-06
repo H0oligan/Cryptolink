@@ -14,7 +14,7 @@ import (
 )
 
 const checkSystemWalletExistsByAddress = `-- name: CheckSystemWalletExistsByAddress :one
-SELECT id, created_at, uuid, address, blockchain, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions from wallets where address = $1 limit 1
+SELECT id, created_at, uuid, address, blockchain, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions from wallets where address = $1 limit 1
 `
 
 func (q *Queries) CheckSystemWalletExistsByAddress(ctx context.Context, address string) (Wallet, error) {
@@ -26,8 +26,6 @@ func (q *Queries) CheckSystemWalletExistsByAddress(ctx context.Context, address 
 		&i.Uuid,
 		&i.Address,
 		&i.Blockchain,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.Type,
 		&i.ConfirmedMainnetTransactions,
 		&i.PendingMainnetTransactions,
@@ -46,7 +44,7 @@ INSERT INTO wallets (
     type
 )
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, created_at, uuid, address, blockchain, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
+RETURNING id, created_at, uuid, address, blockchain, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
 `
 
 type CreateWalletParams struct {
@@ -72,8 +70,6 @@ func (q *Queries) CreateWallet(ctx context.Context, arg CreateWalletParams) (Wal
 		&i.Uuid,
 		&i.Address,
 		&i.Blockchain,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.Type,
 		&i.ConfirmedMainnetTransactions,
 		&i.PendingMainnetTransactions,
@@ -127,7 +123,7 @@ func (q *Queries) CreateWalletLock(ctx context.Context, arg CreateWalletLockPara
 }
 
 const getAvailableWallet = `-- name: GetAvailableWallet :one
-SELECT wallets.id, wallets.created_at, wallets.uuid, wallets.address, wallets.blockchain, wallets.tatum_mainnet_subscription_id, wallets.tatum_testnet_subscription_id, wallets.type, wallets.confirmed_mainnet_transactions, wallets.pending_mainnet_transactions, wallets.pending_testnet_transactions, wallets.confirmed_testnet_transactions
+SELECT wallets.id, wallets.created_at, wallets.uuid, wallets.address, wallets.blockchain, wallets.type, wallets.confirmed_mainnet_transactions, wallets.pending_mainnet_transactions, wallets.pending_testnet_transactions, wallets.confirmed_testnet_transactions
 FROM wallets
 WHERE blockchain = $1 and type = $2
 AND NOT EXISTS(
@@ -159,8 +155,6 @@ func (q *Queries) GetAvailableWallet(ctx context.Context, arg GetAvailableWallet
 		&i.Uuid,
 		&i.Address,
 		&i.Blockchain,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.Type,
 		&i.ConfirmedMainnetTransactions,
 		&i.PendingMainnetTransactions,
@@ -171,7 +165,7 @@ func (q *Queries) GetAvailableWallet(ctx context.Context, arg GetAvailableWallet
 }
 
 const getWalletByID = `-- name: GetWalletByID :one
-SELECT id, created_at, uuid, address, blockchain, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
+SELECT id, created_at, uuid, address, blockchain, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
 FROM wallets
 WHERE id = $1
 LIMIT 1
@@ -186,8 +180,6 @@ func (q *Queries) GetWalletByID(ctx context.Context, id int64) (Wallet, error) {
 		&i.Uuid,
 		&i.Address,
 		&i.Blockchain,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.Type,
 		&i.ConfirmedMainnetTransactions,
 		&i.PendingMainnetTransactions,
@@ -198,7 +190,7 @@ func (q *Queries) GetWalletByID(ctx context.Context, id int64) (Wallet, error) {
 }
 
 const getWalletByUUID = `-- name: GetWalletByUUID :one
-SELECT id, created_at, uuid, address, blockchain, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
+SELECT id, created_at, uuid, address, blockchain, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
 FROM wallets
 WHERE uuid = $1
 LIMIT 1
@@ -213,8 +205,6 @@ func (q *Queries) GetWalletByUUID(ctx context.Context, argUuid uuid.UUID) (Walle
 		&i.Uuid,
 		&i.Address,
 		&i.Blockchain,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.Type,
 		&i.ConfirmedMainnetTransactions,
 		&i.PendingMainnetTransactions,
@@ -225,7 +215,7 @@ func (q *Queries) GetWalletByUUID(ctx context.Context, argUuid uuid.UUID) (Walle
 }
 
 const getWalletForUpdateByID = `-- name: GetWalletForUpdateByID :one
-SELECT id, created_at, uuid, address, blockchain, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions FROM wallets WHERE id = $1 LIMIT 1 FOR NO KEY UPDATE
+SELECT id, created_at, uuid, address, blockchain, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions FROM wallets WHERE id = $1 LIMIT 1 FOR NO KEY UPDATE
 `
 
 func (q *Queries) GetWalletForUpdateByID(ctx context.Context, id int64) (Wallet, error) {
@@ -237,8 +227,6 @@ func (q *Queries) GetWalletForUpdateByID(ctx context.Context, id int64) (Wallet,
 		&i.Uuid,
 		&i.Address,
 		&i.Blockchain,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
 		&i.Type,
 		&i.ConfirmedMainnetTransactions,
 		&i.PendingMainnetTransactions,
@@ -274,7 +262,7 @@ func (q *Queries) GetWalletLock(ctx context.Context, arg GetWalletLockParams) (W
 }
 
 const paginateWalletsByID = `-- name: PaginateWalletsByID :many
-SELECT id, created_at, uuid, address, blockchain, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
+SELECT id, created_at, uuid, address, blockchain, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
 FROM wallets
 WHERE id >= $1
 AND (CASE WHEN $5::bool THEN type = $4 ELSE true END)
@@ -314,8 +302,6 @@ func (q *Queries) PaginateWalletsByID(ctx context.Context, arg PaginateWalletsBy
 			&i.Uuid,
 			&i.Address,
 			&i.Blockchain,
-			&i.TatumMainnetSubscriptionID,
-			&i.TatumTestnetSubscriptionID,
 			&i.Type,
 			&i.ConfirmedMainnetTransactions,
 			&i.PendingMainnetTransactions,
@@ -354,40 +340,6 @@ type UpdateWalletMainnetTransactionCountersParams struct {
 func (q *Queries) UpdateWalletMainnetTransactionCounters(ctx context.Context, arg UpdateWalletMainnetTransactionCountersParams) error {
 	_, err := q.db.Exec(ctx, updateWalletMainnetTransactionCounters, arg.ID, arg.ConfirmedMainnetTransactions, arg.PendingMainnetTransactions)
 	return err
-}
-
-const updateWalletTatumFields = `-- name: UpdateWalletTatumFields :one
-UPDATE wallets
-SET tatum_mainnet_subscription_id = $1,
-    tatum_testnet_subscription_id = $2
-WHERE id = $3
-RETURNING id, created_at, uuid, address, blockchain, tatum_mainnet_subscription_id, tatum_testnet_subscription_id, type, confirmed_mainnet_transactions, pending_mainnet_transactions, pending_testnet_transactions, confirmed_testnet_transactions
-`
-
-type UpdateWalletTatumFieldsParams struct {
-	TatumMainnetSubscriptionID sql.NullString
-	TatumTestnetSubscriptionID sql.NullString
-	ID                         int64
-}
-
-func (q *Queries) UpdateWalletTatumFields(ctx context.Context, arg UpdateWalletTatumFieldsParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, updateWalletTatumFields, arg.TatumMainnetSubscriptionID, arg.TatumTestnetSubscriptionID, arg.ID)
-	var i Wallet
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.Uuid,
-		&i.Address,
-		&i.Blockchain,
-		&i.TatumMainnetSubscriptionID,
-		&i.TatumTestnetSubscriptionID,
-		&i.Type,
-		&i.ConfirmedMainnetTransactions,
-		&i.PendingMainnetTransactions,
-		&i.PendingTestnetTransactions,
-		&i.ConfirmedTestnetTransactions,
-	)
-	return i, err
 }
 
 const updateWalletTestnetTransactionCounters = `-- name: UpdateWalletTestnetTransactionCounters :exec

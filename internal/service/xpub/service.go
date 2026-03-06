@@ -48,8 +48,6 @@ type DerivedAddress struct {
 	PublicKey       *string
 	IsUsed          bool
 	PaymentID       *int64
-	TatumMainnetSubscriptionID string
-	TatumTestnetSubscriptionID string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -336,21 +334,6 @@ func (s *Service) GetDerivedAddressByUUID(ctx context.Context, addrUUID uuid.UUI
 	return entryToDerivedAddress(entry), nil
 }
 
-// UpdateDerivedAddressTatumSubscription updates the Tatum subscription IDs for a derived address
-func (s *Service) UpdateDerivedAddressTatumSubscription(ctx context.Context, addressID int64, mainnetSubID, testnetSubID string) (*DerivedAddress, error) {
-	entry, err := s.store.UpdateDerivedAddressTatumSubscription(ctx, repository.UpdateDerivedAddressTatumSubscriptionParams{
-		ID:                         addressID,
-		TatumMainnetSubscriptionID: repository.StringToNullable(mainnetSubID),
-		TatumTestnetSubscriptionID: repository.StringToNullable(testnetSubID),
-		UpdatedAt:                  time.Now(),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return entryToDerivedAddress(entry), nil
-}
-
 // GetAddressByAddress finds a derived address by its blockchain address
 func (s *Service) GetAddressByAddress(ctx context.Context, blockchain, address string) (*DerivedAddress, error) {
 	entry, err := s.store.GetDerivedAddressByAddress(ctx, repository.GetDerivedAddressByAddressParams{
@@ -459,15 +442,6 @@ func entryToDerivedAddress(entry repository.DerivedAddress) *DerivedAddress {
 		isUsed = entry.IsUsed.Bool
 	}
 
-	mainnetSubID := ""
-	if entry.TatumMainnetSubscriptionID.Valid {
-		mainnetSubID = entry.TatumMainnetSubscriptionID.String
-	}
-	testnetSubID := ""
-	if entry.TatumTestnetSubscriptionID.Valid {
-		testnetSubID = entry.TatumTestnetSubscriptionID.String
-	}
-
 	return &DerivedAddress{
 		ID:              entry.ID,
 		UUID:            entry.Uuid,
@@ -480,8 +454,6 @@ func entryToDerivedAddress(entry repository.DerivedAddress) *DerivedAddress {
 		PublicKey:       repository.NullableStringToPointer(entry.PublicKey),
 		IsUsed:          isUsed,
 		PaymentID:       repository.NullableInt64ToPointer(entry.PaymentID),
-		TatumMainnetSubscriptionID: mainnetSubID,
-		TatumTestnetSubscriptionID: testnetSubID,
 		CreatedAt:       entry.CreatedAt,
 		UpdatedAt:       entry.UpdatedAt,
 	}

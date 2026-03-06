@@ -19,7 +19,7 @@ INSERT INTO xpub_wallets (
     created_at, updated_at, last_derived_index, is_active
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
-) RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active
+) RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active
 `
 
 type CreateXpubWalletParams struct {
@@ -56,7 +56,6 @@ func (q *Queries) CreateXpubWallet(ctx context.Context, arg CreateXpubWalletPara
 		&i.DerivationPath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
 		&i.LastDerivedIndex,
 		&i.IsActive,
 	)
@@ -80,7 +79,7 @@ func (q *Queries) DeactivateXpubWallet(ctx context.Context, arg DeactivateXpubWa
 }
 
 const getXpubWalletByID = `-- name: GetXpubWalletByID :one
-SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active FROM xpub_wallets WHERE id = $1 LIMIT 1
+SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active FROM xpub_wallets WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetXpubWalletByID(ctx context.Context, id int64) (XpubWallet, error) {
@@ -95,7 +94,6 @@ func (q *Queries) GetXpubWalletByID(ctx context.Context, id int64) (XpubWallet, 
 		&i.DerivationPath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
 		&i.LastDerivedIndex,
 		&i.IsActive,
 	)
@@ -103,7 +101,7 @@ func (q *Queries) GetXpubWalletByID(ctx context.Context, id int64) (XpubWallet, 
 }
 
 const getXpubWalletByMerchantAndBlockchain = `-- name: GetXpubWalletByMerchantAndBlockchain :one
-SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active FROM xpub_wallets
+SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active FROM xpub_wallets
 WHERE merchant_id = $1 AND blockchain = $2 AND is_active = true
 LIMIT 1
 `
@@ -125,7 +123,6 @@ func (q *Queries) GetXpubWalletByMerchantAndBlockchain(ctx context.Context, arg 
 		&i.DerivationPath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
 		&i.LastDerivedIndex,
 		&i.IsActive,
 	)
@@ -133,7 +130,7 @@ func (q *Queries) GetXpubWalletByMerchantAndBlockchain(ctx context.Context, arg 
 }
 
 const getXpubWalletByUUID = `-- name: GetXpubWalletByUUID :one
-SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active FROM xpub_wallets WHERE uuid = $1 LIMIT 1
+SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active FROM xpub_wallets WHERE uuid = $1 LIMIT 1
 `
 
 func (q *Queries) GetXpubWalletByUUID(ctx context.Context, argUuid uuid.UUID) (XpubWallet, error) {
@@ -148,7 +145,6 @@ func (q *Queries) GetXpubWalletByUUID(ctx context.Context, argUuid uuid.UUID) (X
 		&i.DerivationPath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
 		&i.LastDerivedIndex,
 		&i.IsActive,
 	)
@@ -156,7 +152,7 @@ func (q *Queries) GetXpubWalletByUUID(ctx context.Context, argUuid uuid.UUID) (X
 }
 
 const listXpubWalletsByMerchantID = `-- name: ListXpubWalletsByMerchantID :many
-SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active FROM xpub_wallets
+SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active FROM xpub_wallets
 WHERE merchant_id = $1 AND is_active = true
 ORDER BY created_at DESC
 `
@@ -179,7 +175,6 @@ func (q *Queries) ListXpubWalletsByMerchantID(ctx context.Context, merchantID in
 			&i.DerivationPath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TatumSubscriptionID,
 			&i.LastDerivedIndex,
 			&i.IsActive,
 		); err != nil {
@@ -197,7 +192,7 @@ const updateXpubWalletLastIndex = `-- name: UpdateXpubWalletLastIndex :one
 UPDATE xpub_wallets
 SET last_derived_index = $2, updated_at = $3
 WHERE id = $1
-RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active
+RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active
 `
 
 type UpdateXpubWalletLastIndexParams struct {
@@ -218,39 +213,6 @@ func (q *Queries) UpdateXpubWalletLastIndex(ctx context.Context, arg UpdateXpubW
 		&i.DerivationPath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
-		&i.LastDerivedIndex,
-		&i.IsActive,
-	)
-	return i, err
-}
-
-const updateXpubWalletTatumSubscription = `-- name: UpdateXpubWalletTatumSubscription :one
-UPDATE xpub_wallets
-SET tatum_subscription_id = $2, updated_at = $3
-WHERE id = $1
-RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active
-`
-
-type UpdateXpubWalletTatumSubscriptionParams struct {
-	ID                  int64
-	TatumSubscriptionID sql.NullString
-	UpdatedAt           time.Time
-}
-
-func (q *Queries) UpdateXpubWalletTatumSubscription(ctx context.Context, arg UpdateXpubWalletTatumSubscriptionParams) (XpubWallet, error) {
-	row := q.db.QueryRow(ctx, updateXpubWalletTatumSubscription, arg.ID, arg.TatumSubscriptionID, arg.UpdatedAt)
-	var i XpubWallet
-	err := row.Scan(
-		&i.ID,
-		&i.Uuid,
-		&i.MerchantID,
-		&i.Blockchain,
-		&i.Xpub,
-		&i.DerivationPath,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
 		&i.LastDerivedIndex,
 		&i.IsActive,
 	)
@@ -260,7 +222,7 @@ func (q *Queries) UpdateXpubWalletTatumSubscription(ctx context.Context, arg Upd
 // -- Manually added queries for reactivation support --
 
 const getXpubWalletByMerchantAndBlockchainAny = `
-SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active FROM xpub_wallets
+SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active FROM xpub_wallets
 WHERE merchant_id = $1 AND blockchain = $2
 LIMIT 1
 `
@@ -278,7 +240,6 @@ func (q *Queries) GetXpubWalletByMerchantAndBlockchainAny(ctx context.Context, a
 		&i.DerivationPath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
 		&i.LastDerivedIndex,
 		&i.IsActive,
 	)
@@ -289,7 +250,7 @@ const reactivateXpubWallet = `
 UPDATE xpub_wallets
 SET xpub = $2, derivation_path = $3, is_active = true, last_derived_index = 0, updated_at = $4
 WHERE id = $1
-RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, tatum_subscription_id, last_derived_index, is_active
+RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active
 `
 
 type ReactivateXpubWalletParams struct {
@@ -311,7 +272,6 @@ func (q *Queries) ReactivateXpubWallet(ctx context.Context, arg ReactivateXpubWa
 		&i.DerivationPath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TatumSubscriptionID,
 		&i.LastDerivedIndex,
 		&i.IsActive,
 	)

@@ -56,21 +56,19 @@ type Customer struct {
 }
 
 type DerivedAddress struct {
-	ID                         int64
-	Uuid                       uuid.UUID
-	XpubWalletID               int64
-	MerchantID                 int64
-	Blockchain                 string
-	Address                    string
-	DerivationPath             string
-	DerivationIndex            int32
-	PublicKey                  sql.NullString
-	IsUsed                     sql.NullBool
-	PaymentID                  sql.NullInt64
-	TatumMainnetSubscriptionID sql.NullString
-	TatumTestnetSubscriptionID sql.NullString
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
+	ID              int64
+	Uuid            uuid.UUID
+	XpubWalletID    int64
+	MerchantID      int64
+	Blockchain      string
+	Address         string
+	DerivationPath  string
+	DerivationIndex int32
+	PublicKey       sql.NullString
+	IsUsed          sql.NullBool
+	PaymentID       sql.NullInt64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type JobLog struct {
@@ -247,8 +245,6 @@ type Wallet struct {
 	Uuid                         uuid.UUID
 	Address                      string
 	Blockchain                   string
-	TatumMainnetSubscriptionID   sql.NullString
-	TatumTestnetSubscriptionID   sql.NullString
 	Type                         sql.NullString
 	ConfirmedMainnetTransactions int64
 	PendingMainnetTransactions   int64
@@ -267,15 +263,14 @@ type WalletLock struct {
 }
 
 type XpubWallet struct {
-	ID                  int64
-	Uuid                uuid.UUID
-	MerchantID          int64
-	Blockchain          string
-	Xpub                string
-	DerivationPath      string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	TatumSubscriptionID sql.NullString
-	LastDerivedIndex    sql.NullInt32
-	IsActive            sql.NullBool
+	ID               int64
+	Uuid             uuid.UUID
+	MerchantID       int64
+	Blockchain       string
+	Xpub             string
+	DerivationPath   string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	LastDerivedIndex sql.NullInt32
+	IsActive         sql.NullBool
 }

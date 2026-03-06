@@ -1,13 +1,11 @@
 // Package evmcollector manages per-merchant smart contract collector wallets for EVM chains.
 // Each merchant gets one MerchantCollector contract address per EVM chain.
 // Payments accumulate in the contract; the merchant signs withdrawals via MetaMask.
-// CryptoLink never holds funds — it only monitors addresses via Tatum webhooks.
+// CryptoLink never holds funds — it monitors addresses via the internal address watcher.
 package evmcollector
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -32,18 +30,17 @@ type Config struct {
 
 // Collector represents a merchant's EVM smart contract collector wallet.
 type Collector struct {
-	ID                   int64
-	UUID                 uuid.UUID
-	MerchantID           int64
-	Blockchain           string
-	ChainID              int
-	ContractAddress      string
-	OwnerAddress         string
-	FactoryAddress       string
-	TatumSubscriptionID  string
-	IsActive             bool
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID              int64
+	UUID            uuid.UUID
+	MerchantID      int64
+	Blockchain      string
+	ChainID         int
+	ContractAddress string
+	OwnerAddress    string
+	FactoryAddress  string
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // TokenBalance holds an on-chain token balance.
@@ -59,11 +56,6 @@ type OnChainBalance struct {
 	NativeAmount string // human-readable native balance (ETH/MATIC/BNB/etc)
 	NativeTicker string
 	Tokens       []TokenBalance
-}
-
-// WebhookSubscriber is implemented by the tatum provider.
-type WebhookSubscriber interface {
-	SubscribeCollector(ctx context.Context, contractAddress, blockchain, webhookURL string) (string, error)
 }
 
 // Service manages EVM collector wallets.
@@ -119,20 +111,11 @@ func (s *Service) RegisterCollector(
 	return s.GetByMerchantAndBlockchain(ctx, merchantID, blockchain)
 }
 
-// UpdateSubscriptionID updates the Tatum subscription ID for a collector.
-func (s *Service) UpdateSubscriptionID(ctx context.Context, collectorID int64, subscriptionID string) error {
-	_, err := s.db.Exec(ctx,
-		`UPDATE evm_collector_wallets SET tatum_subscription_id = $1, updated_at = $2 WHERE id = $3`,
-		subscriptionID, time.Now().UTC().Truncate(time.Second), collectorID,
-	)
-	return errors.Wrap(err, "unable to update subscription id")
-}
-
-// GetByUUID retrieves a collector by its UUID (used in webhook processing).
+// GetByUUID retrieves a collector by its UUID.
 func (s *Service) GetByUUID(ctx context.Context, id uuid.UUID) (*Collector, error) {
 	return s.scanCollector(s.db.QueryRow(ctx, `
 		SELECT id, uuid, merchant_id, blockchain, chain_id, contract_address, owner_address,
-		       factory_address, COALESCE(tatum_subscription_id,''), is_active, created_at, updated_at
+		       factory_address, is_active, created_at, updated_at
 		FROM evm_collector_wallets
 		WHERE uuid = $1 AND is_active = true
 	`, id))
@@ -142,7 +125,7 @@ func (s *Service) GetByUUID(ctx context.Context, id uuid.UUID) (*Collector, erro
 func (s *Service) GetByMerchantAndBlockchain(ctx context.Context, merchantID int64, blockchain string) (*Collector, error) {
 	return s.scanCollector(s.db.QueryRow(ctx, `
 		SELECT id, uuid, merchant_id, blockchain, chain_id, contract_address, owner_address,
-		       factory_address, COALESCE(tatum_subscription_id,''), is_active, created_at, updated_at
+		       factory_address, is_active, created_at, updated_at
 		FROM evm_collector_wallets
 		WHERE merchant_id = $1 AND blockchain = $2 AND is_active = true
 	`, merchantID, strings.ToUpper(blockchain)))
@@ -152,7 +135,7 @@ func (s *Service) GetByMerchantAndBlockchain(ctx context.Context, merchantID int
 func (s *Service) GetByContractAddress(ctx context.Context, contractAddress string) (*Collector, error) {
 	return s.scanCollector(s.db.QueryRow(ctx, `
 		SELECT id, uuid, merchant_id, blockchain, chain_id, contract_address, owner_address,
-		       factory_address, COALESCE(tatum_subscription_id,''), is_active, created_at, updated_at
+		       factory_address, is_active, created_at, updated_at
 		FROM evm_collector_wallets
 		WHERE contract_address = $1 AND is_active = true
 	`, strings.ToLower(contractAddress)))
@@ -162,7 +145,7 @@ func (s *Service) GetByContractAddress(ctx context.Context, contractAddress stri
 func (s *Service) ListByMerchantID(ctx context.Context, merchantID int64) ([]*Collector, error) {
 	rows, err := s.db.Query(ctx, `
 		SELECT id, uuid, merchant_id, blockchain, chain_id, contract_address, owner_address,
-		       factory_address, COALESCE(tatum_subscription_id,''), is_active, created_at, updated_at
+		       factory_address, is_active, created_at, updated_at
 		FROM evm_collector_wallets
 		WHERE merchant_id = $1 AND is_active = true
 		ORDER BY blockchain
@@ -178,7 +161,7 @@ func (s *Service) ListByMerchantID(ctx context.Context, merchantID int64) ([]*Co
 		if err := rows.Scan(
 			&c.ID, &c.UUID, &c.MerchantID, &c.Blockchain, &c.ChainID,
 			&c.ContractAddress, &c.OwnerAddress, &c.FactoryAddress,
-			&c.TatumSubscriptionID, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+			&c.IsActive, &c.CreatedAt, &c.UpdatedAt,
 		); err != nil {
 			return nil, errors.Wrap(err, "unable to scan evm collector")
 		}
@@ -207,20 +190,6 @@ func (s *Service) Delete(ctx context.Context, merchantID int64, blockchain strin
 func (s *Service) GetChainConfig(blockchain string) (EvmChainConfig, bool) {
 	cfg, ok := s.config.Chains[strings.ToUpper(blockchain)]
 	return cfg, ok
-}
-
-// WebhookURL returns the Tatum webhook URL for a collector.
-// Uses the numeric chain ID as the network segment so it matches the stored transaction network_id.
-func (s *Service) WebhookURL(webhookBasePath string, blockchain string, chainID int, collectorUUID uuid.UUID) string {
-	networkSegment := strings.ToUpper(blockchain)
-	if chainID != 0 {
-		networkSegment = strconv.Itoa(chainID)
-	}
-	return fmt.Sprintf("%s/api/webhook/v1/tatum/%s/%s",
-		strings.TrimSuffix(webhookBasePath, "/"),
-		networkSegment,
-		collectorUUID.String(),
-	)
 }
 
 // GetMerchantEmail returns the email of the user who created the given merchant.
@@ -252,7 +221,7 @@ func (s *Service) scanCollector(row scanner) (*Collector, error) {
 	err := row.Scan(
 		&c.ID, &c.UUID, &c.MerchantID, &c.Blockchain, &c.ChainID,
 		&c.ContractAddress, &c.OwnerAddress, &c.FactoryAddress,
-		&c.TatumSubscriptionID, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+		&c.IsActive, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
