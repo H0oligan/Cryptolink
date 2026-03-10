@@ -1,6 +1,7 @@
 import * as React from "react";
 import {PageContainer} from "@ant-design/pro-components";
-import {Table, Typography, Tag} from "antd";
+import {Table, Typography, Tag, Button, Popconfirm, message} from "antd";
+import {DeleteOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import adminProvider, {AdminUser} from "src/providers/admin-provider";
 
@@ -27,6 +28,16 @@ const AdminUsersPage: React.FC = () => {
     React.useEffect(() => {
         loadUsers(page);
     }, [page]);
+
+    const handleDeleteUser = async (user: AdminUser) => {
+        try {
+            await adminProvider.deleteUser(user.id);
+            message.success(`User "${user.email}" deleted`);
+            loadUsers(page);
+        } catch (e: any) {
+            message.error("Failed to delete user: " + (e?.response?.data?.message || e.message));
+        }
+    };
 
     const columns: ColumnsType<AdminUser> = [
         {
@@ -60,6 +71,29 @@ const AdminUsersPage: React.FC = () => {
             dataIndex: "created_at",
             key: "created_at",
             render: (date: string) => new Date(date).toLocaleDateString()
+        },
+        {
+            title: "Actions",
+            key: "actions",
+            render: (_: any, record: AdminUser) => {
+                if (record.is_super_admin) {
+                    return <Typography.Text type="secondary">Protected</Typography.Text>;
+                }
+                return (
+                    <Popconfirm
+                        title="Delete User"
+                        description={`Are you sure you want to delete "${record.email}"? This will also delete all their merchants and cancel subscriptions.`}
+                        onConfirm={() => handleDeleteUser(record)}
+                        okText="Delete"
+                        okType="danger"
+                        cancelText="Cancel"
+                    >
+                        <Button type="link" danger size="small" icon={<DeleteOutlined />}>
+                            Delete
+                        </Button>
+                    </Popconfirm>
+                );
+            }
         }
     ];
 

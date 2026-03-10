@@ -116,6 +116,9 @@ func WithDashboardAPI(
 		merchantGroup.DELETE("/evm-collector/:blockchain", handler.DeleteEvmCollector)
 		merchantGroup.GET("/evm-collector/:blockchain/balance", handler.GetEvmCollectorBalance)
 
+		// Collector factory (for frontend to discover factory address before deploying)
+		merchantGroup.GET("/collector-factory/:blockchain", handler.GetMerchantCollectorFactory)
+
 		// Form
 		merchantGroup.POST("/form", handler.CreateFormSubmission)
 
@@ -144,7 +147,9 @@ func WithDashboardAPI(
 		// Admin merchant & user management
 		adminGroup.GET("/merchants", subscriptionHandler.ListAllMerchants)
 		adminGroup.PUT("/merchants/:merchantId/plan", subscriptionHandler.AssignMerchantPlan)
+		adminGroup.DELETE("/merchants/:merchantId", subscriptionHandler.AdminDeleteMerchant)
 		adminGroup.GET("/users", subscriptionHandler.ListAllUsers)
+		adminGroup.DELETE("/users/:userId", subscriptionHandler.AdminDeleteUser)
 
 		// Admin email routes
 		adminGroup.GET("/email/settings", emailHandler.GetSettings)
@@ -152,6 +157,11 @@ func WithDashboardAPI(
 		adminGroup.POST("/email/send", emailHandler.SendEmail)
 		adminGroup.POST("/email/test", emailHandler.TestEmail)
 		adminGroup.GET("/email/log", emailHandler.GetLogs)
+
+		// Admin collector factory routes
+		adminGroup.GET("/collector-factories", handler.ListCollectorFactories)
+		adminGroup.GET("/collector-factories/:blockchain", handler.GetCollectorFactory)
+		adminGroup.POST("/collector-factories", handler.UpsertCollectorFactory)
 
 		setupCommonMerchantRoutes(merchantGroup, handler)
 	}

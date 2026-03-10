@@ -7,7 +7,7 @@ import {useMount} from "react-use";
 import {ProLayout, RouteContext, RouteContextType} from "@ant-design/pro-components";
 import {
     LogoutOutlined, DashboardOutlined, ArrowLeftOutlined, UserOutlined,
-    ShopOutlined, CrownOutlined, MailOutlined, AlertOutlined
+    ShopOutlined, CrownOutlined, MailOutlined, AlertOutlined, ThunderboltOutlined
 } from "@ant-design/icons";
 import {Avatar, Space, Dropdown, MenuProps} from "antd";
 import bevis from "src/utils/bevis";
@@ -21,6 +21,7 @@ import AdminMerchantsPage from "src/pages/admin/merchants-page/merchants-page";
 import AdminUsersPage from "src/pages/admin/users-page/users-page";
 import AdminEmailPage from "src/pages/admin/email-page/email-page";
 import AdminPaymentsPage from "src/pages/admin/payments-page/payments-page";
+import AdminContractsPage from "src/pages/admin/contracts-page/contracts-page";
 import ThemeToggle from "src/theme/theme-toggle";
 import {useTheme} from "src/theme/theme-context";
 
@@ -38,6 +39,7 @@ const adminMenus: MenuItem[] = [
     {path: "/plans", name: "Plans", icon: <CrownOutlined />},
     {path: "/email", name: "Email", icon: <MailOutlined />},
     {path: "/payments", name: "Payments Support", icon: <AlertOutlined />},
+    {path: "/contracts", name: "Contracts", icon: <ThunderboltOutlined />},
 ];
 
 const b = bevis("app");
@@ -210,6 +212,7 @@ const AdminApp: React.FC = () => {
                                         <Route path="plans" element={<AdminPlansPage />} />
                                         <Route path="email" element={<AdminEmailPage />} />
                                         <Route path="payments" element={<AdminPaymentsPage />} />
+                                        <Route path="contracts" element={<AdminContractsPage />} />
                                         <Route path="*" element="not found" />
                                     </>
                                 )}

@@ -667,3 +667,182 @@ func (s *Service) CheckMerchantLimit(ctx context.Context, userID int64, currentC
 
 	return nil
 }
+
+// adminCleanMerchantData removes all operational data for a merchant while preserving
+// financial records (payments, transactions, balances) needed for accounting/audit.
+//
+// KEPT (accounting/audit):
+//   - payments: revenue records, subscription payment history
+//   - transactions: blockchain tx audit trail
+//   - balances + balance_audit_log: financial snapshots
+//   - customers: linked to payments
+//   - merchant_subscriptions: subscription history (status set to cancelled)
+//
+// DELETED (operational data, keys, contracts):
+//   - api_tokens: auth credentials
+//   - merchant_addresses: configured withdrawal addresses
+//   - payment_links: reusable payment templates
+//   - registries: merchant config key-value pairs
+//   - wallet_locks: wallet reservations
+//   - derived_addresses: xpub-derived addresses (keys)
+//   - xpub_wallets: HD wallet extended public keys
+//   - evm_collector_wallets: smart contract addresses
+//   - usage_tracking: cascades automatically via FK
+func (s *Service) adminCleanMerchantData(ctx context.Context, merchantID int64) error {
+	// Order matters: child tables before parent tables to respect FK constraints
+
+	// 1. Delete API tokens for this merchant
+	_, err := s.db.Exec(ctx,
+		`DELETE FROM api_tokens WHERE entity_type = 'merchant' AND entity_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete api tokens")
+	}
+
+	// 2. Delete wallet locks (frees up wallets for other merchants)
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM wallet_locks WHERE merchant_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete wallet locks")
+	}
+
+	// 3. Delete derived addresses (xpub child keys) — before xpub_wallets
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM derived_addresses WHERE merchant_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete derived addresses")
+	}
+
+	// 4. Delete xpub wallets (HD wallet extended public keys)
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM xpub_wallets WHERE merchant_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete xpub wallets")
+	}
+
+	// 5. Delete EVM collector smart contract wallet configs
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM evm_collector_wallets WHERE merchant_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete evm collector wallets")
+	}
+
+	// 6. Delete merchant addresses (configured withdrawal addresses)
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM merchant_addresses WHERE merchant_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete merchant addresses")
+	}
+
+	// 7. Delete payment links
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM payment_links WHERE merchant_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete payment links")
+	}
+
+	// 8. Delete merchant registry (config key-value pairs)
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM registries WHERE merchant_id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete registries")
+	}
+
+	// 9. Cancel active subscriptions (keep records for accounting)
+	_, err = s.db.Exec(ctx,
+		`UPDATE merchant_subscriptions SET status = 'cancelled', updated_at = NOW()
+		 WHERE merchant_id = $1 AND status IN ('active', 'pending_payment')`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to cancel subscriptions")
+	}
+
+	return nil
+}
+
+// AdminDeleteMerchant fully cleans a merchant's operational data and soft-deletes the merchant.
+// Financial records (payments, transactions, balances) are preserved for accounting.
+func (s *Service) AdminDeleteMerchant(ctx context.Context, merchantID int64) error {
+	// Verify merchant exists
+	var exists bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM merchants WHERE id = $1 AND deleted_at IS NULL)`, merchantID).Scan(&exists)
+	if err != nil {
+		return errors.Wrap(err, "failed to check merchant")
+	}
+	if !exists {
+		return errors.New("merchant not found")
+	}
+
+	// Clean all operational data (keys, contracts, tokens, configs)
+	if err := s.adminCleanMerchantData(ctx, merchantID); err != nil {
+		return err
+	}
+
+	// Soft delete the merchant (keeps the row for payment/transaction FK integrity)
+	_, err = s.db.Exec(ctx,
+		`UPDATE merchants SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1`, merchantID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete merchant")
+	}
+
+	s.logger.Info().Int64("merchant_id", merchantID).Msg("admin deleted merchant — operational data cleaned, financial records preserved")
+	return nil
+}
+
+// AdminDeleteUser deletes a user and all their merchants' operational data.
+// Financial records are preserved. Cannot delete super admin users.
+func (s *Service) AdminDeleteUser(ctx context.Context, userID int64) error {
+	// Verify user exists and is not a super admin
+	var isSuperAdmin bool
+	err := s.db.QueryRow(ctx, `SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1`, userID).Scan(&isSuperAdmin)
+	if err != nil {
+		return errors.New("user not found")
+	}
+	if isSuperAdmin {
+		return errors.New("cannot delete a super admin user")
+	}
+
+	// Get all merchant IDs owned by this user
+	rows, err := s.db.Query(ctx, `SELECT id FROM merchants WHERE creator_id = $1`, userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to list user merchants")
+	}
+	defer rows.Close()
+
+	var merchantIDs []int64
+	for rows.Next() {
+		var mid int64
+		if err := rows.Scan(&mid); err != nil {
+			return errors.Wrap(err, "failed to scan merchant id")
+		}
+		merchantIDs = append(merchantIDs, mid)
+	}
+
+	// Clean each merchant's operational data
+	for _, mid := range merchantIDs {
+		if err := s.adminCleanMerchantData(ctx, mid); err != nil {
+			return errors.Wrapf(err, "failed to clean merchant %d", mid)
+		}
+	}
+
+	// Delete API tokens for the user directly
+	_, err = s.db.Exec(ctx,
+		`DELETE FROM api_tokens WHERE entity_type = 'user' AND entity_id = $1`, userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete user api tokens")
+	}
+
+	// Soft delete all user's merchants (keeps rows for payment/transaction FK integrity)
+	_, err = s.db.Exec(ctx,
+		`UPDATE merchants SET deleted_at = NOW(), updated_at = NOW() WHERE creator_id = $1 AND deleted_at IS NULL`, userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to soft-delete user merchants")
+	}
+
+	// Delete the user record
+	_, err = s.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete user")
+	}
+
+	s.logger.Info().Int64("user_id", userID).Int("merchants_cleaned", len(merchantIDs)).Msg("admin deleted user — all operational data cleaned, financial records preserved")
+	return nil
+}

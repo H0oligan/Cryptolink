@@ -2,11 +2,16 @@ package xpub
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/btcsuite/btcutil"
+	"github.com/btcsuite/btcutil/base58"
+	"github.com/btcsuite/btcutil/bech32"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
@@ -206,7 +211,7 @@ func (s *Service) DeriveAddress(ctx context.Context, walletID int64) (*DerivedAd
 	nextIndex := int(lastIndex) + 1
 
 	// Derive address from xpub
-	address, pubKey, err := s.deriveAddressFromXpub(w.Xpub, w.Blockchain, nextIndex)
+	address, pubKey, err := s.deriveAddressFromXpub(w.Xpub, w.Blockchain, w.DerivationPath, nextIndex)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to derive address")
 	}
@@ -363,8 +368,9 @@ func (s *Service) validateXpub(xpub string) bool {
 	return err == nil
 }
 
-// deriveAddressFromXpub derives an address from xpub at given index
-func (s *Service) deriveAddressFromXpub(xpub, blockchain string, index int) (string, string, error) {
+// deriveAddressFromXpub derives an address from xpub at given index.
+// derivationPath is used to determine the address format for Bitcoin (P2PKH, P2SH-SegWit, or bech32).
+func (s *Service) deriveAddressFromXpub(xpub, blockchain, derivationPath string, index int) (string, string, error) {
 	// Parse xpub
 	key, err := hdwallet.StringWallet(xpub)
 	if err != nil {
@@ -383,8 +389,7 @@ func (s *Service) deriveAddressFromXpub(xpub, blockchain string, index int) (str
 
 	switch wallet.Blockchain(blockchain) {
 	case wallet.BTC:
-		// Bitcoin P2PKH address (go-hdwallet handles this correctly)
-		return childKey.Address(), pubKeyHex, nil
+		return s.deriveBTCAddress(compressedPubKey, pubKeyHex, derivationPath)
 
 	case wallet.ETH, wallet.MATIC, wallet.BSC, wallet.ARBITRUM, wallet.AVAX:
 		// Decompress the public key and compute keccak256-based ETH address
@@ -409,6 +414,60 @@ func (s *Service) deriveAddressFromXpub(xpub, blockchain string, index int) (str
 	default:
 		return childKey.Address(), pubKeyHex, nil
 	}
+}
+
+// deriveBTCAddress derives a Bitcoin address in the correct format based on derivation path.
+// BIP44 (m/44'/0'/...) → P2PKH (1-prefix)
+// BIP49 (m/49'/0'/...) → P2SH-SegWit (3-prefix)
+// BIP84 (m/84'/0'/...) → Native SegWit bech32 (bc1q-prefix)
+func (s *Service) deriveBTCAddress(compressedPubKey []byte, pubKeyHex, derivationPath string) (string, string, error) {
+	hash160 := btcutil.Hash160(compressedPubKey)
+
+	if strings.Contains(derivationPath, "49'") {
+		// BIP49: P2SH-SegWit
+		// witness script = OP_0 PUSH20 <hash160>
+		witnessScript := make([]byte, 22)
+		witnessScript[0] = 0x00 // OP_0
+		witnessScript[1] = 0x14 // PUSH20
+		copy(witnessScript[2:], hash160)
+		// P2SH: version 0x05 + HASH160(witnessScript)
+		scriptHash := btcutil.Hash160(witnessScript)
+		payload := make([]byte, 21)
+		payload[0] = 0x05
+		copy(payload[1:], scriptHash)
+		checksum := doubleSha256(payload)[:4]
+		address := base58.Encode(append(payload, checksum...))
+		return address, pubKeyHex, nil
+	}
+
+	if strings.Contains(derivationPath, "84'") {
+		// BIP84: Native SegWit (bech32)
+		data, err := bech32.ConvertBits(hash160, 8, 5, true)
+		if err != nil {
+			return "", "", errors.Wrap(err, "failed to convert bits for bech32")
+		}
+		// witness version 0 prepended
+		data = append([]byte{0x00}, data...)
+		address, err := bech32.Encode("bc", data)
+		if err != nil {
+			return "", "", errors.Wrap(err, "failed to encode bech32 address")
+		}
+		return address, pubKeyHex, nil
+	}
+
+	// Default: BIP44 P2PKH (1-prefix)
+	payload := make([]byte, 21)
+	payload[0] = 0x00
+	copy(payload[1:], hash160)
+	checksum := doubleSha256(payload)[:4]
+	address := base58.Encode(append(payload, checksum...))
+	return address, pubKeyHex, nil
+}
+
+func doubleSha256(data []byte) []byte {
+	h := sha256.Sum256(data)
+	h2 := sha256.Sum256(h[:])
+	return h2[:]
 }
 
 // Helper functions to convert database entries to domain models

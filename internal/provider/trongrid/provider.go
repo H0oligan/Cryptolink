@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -497,6 +498,164 @@ func (p *Provider) getTransactionByID(ctx context.Context, txID string, isTest b
 		Msg("GetTransactionById response")
 
 	return body, nil
+}
+
+// AccountTransaction represents a transaction from TronGrid /v1/accounts/:addr/transactions
+type AccountTransaction struct {
+	TxID      string
+	From      string
+	To        string
+	Amount    int64  // in sun (1 TRX = 1,000,000 sun)
+	Success   bool
+	Timestamp int64
+	Type      string // "TransferContract" or "TriggerSmartContract"
+	// For TRC20 transfers
+	TokenAddress string
+	TokenAmount  string
+}
+
+// GetAccountTransactions returns recent transactions for a TRON address.
+// Uses TronGrid v1 API: /v1/accounts/:addr/transactions
+func (p *Provider) GetAccountTransactions(ctx context.Context, address string, isTest bool, limit int) ([]AccountTransaction, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	path := fmt.Sprintf("/v1/accounts/%s/transactions?limit=%d&order_by=block_timestamp,desc&only_to=true", address, limit)
+	req, err := p.newRequest(ctx, http.MethodGet, path, nil, isTest)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create request")
+	}
+
+	res, err := p.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "response error")
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to read response")
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("TronGrid returned %d: %s", res.StatusCode, string(body))
+	}
+
+	dataArray := gjson.GetBytes(body, "data")
+	if !dataArray.Exists() {
+		return nil, nil
+	}
+
+	var txs []AccountTransaction
+	for _, item := range dataArray.Array() {
+		txID := item.Get("txID").String()
+		contractType := item.Get("raw_data.contract.0.type").String()
+		success := item.Get("ret.0.contractRet").String() == "SUCCESS"
+		timestamp := item.Get("raw_data.timestamp").Int()
+
+		ownerHex := item.Get("raw_data.contract.0.parameter.value.owner_address").String()
+		toHex := item.Get("raw_data.contract.0.parameter.value.to_address").String()
+		amount := item.Get("raw_data.contract.0.parameter.value.amount").Int()
+
+		from := ownerHex
+		to := toHex
+		if from != "" {
+			from = util.TronHexToBase58(from)
+		}
+		if to != "" {
+			to = util.TronHexToBase58(to)
+		}
+
+		txs = append(txs, AccountTransaction{
+			TxID:      txID,
+			From:      from,
+			To:        to,
+			Amount:    amount,
+			Success:   success,
+			Timestamp: timestamp,
+			Type:      contractType,
+		})
+	}
+
+	return txs, nil
+}
+
+// GetTRC20Transactions returns TRC20 token transfers for a TRON address.
+// Uses TronGrid v1 API: /v1/accounts/:addr/transactions/trc20
+func (p *Provider) GetTRC20Transactions(ctx context.Context, address string, isTest bool, limit int) ([]AccountTransaction, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	path := fmt.Sprintf("/v1/accounts/%s/transactions/trc20?limit=%d&order_by=block_timestamp,desc&only_to=true", address, limit)
+	req, err := p.newRequest(ctx, http.MethodGet, path, nil, isTest)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create request")
+	}
+
+	res, err := p.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "response error")
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to read response")
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("TronGrid returned %d: %s", res.StatusCode, string(body))
+	}
+
+	dataArray := gjson.GetBytes(body, "data")
+	if !dataArray.Exists() {
+		return nil, nil
+	}
+
+	var txs []AccountTransaction
+	for _, item := range dataArray.Array() {
+		txs = append(txs, AccountTransaction{
+			TxID:         item.Get("transaction_id").String(),
+			From:         item.Get("from").String(),
+			To:           item.Get("to").String(),
+			TokenAddress: item.Get("token_info.address").String(),
+			TokenAmount:  item.Get("value").String(),
+			Success:      true, // TRC20 events only fire on success
+			Timestamp:    item.Get("block_timestamp").Int(),
+			Type:         "TRC20Transfer",
+		})
+	}
+
+	return txs, nil
+}
+
+// GetAccountBalance returns the TRX balance (in sun) for a TRON address.
+func (p *Provider) GetAccountBalance(ctx context.Context, address string, isTest bool) (int64, error) {
+	payload := map[string]interface{}{
+		"address": address,
+		"visible": true,
+	}
+
+	req, err := p.newRequest(ctx, http.MethodPost, "/wallet/getaccount", payload, isTest)
+	if err != nil {
+		return 0, errors.Wrap(err, "unable to create request")
+	}
+
+	res, err := p.client.Do(req)
+	if err != nil {
+		return 0, errors.Wrap(err, "response error")
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return 0, errors.Wrap(err, "unable to read response")
+	}
+
+	balance := gjson.GetBytes(body, "balance").Int()
+	return balance, nil
 }
 
 //nolint:unparam
