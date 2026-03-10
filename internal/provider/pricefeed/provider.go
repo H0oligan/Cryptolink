@@ -291,7 +291,19 @@ func (p *Provider) getCoinGeckoRate(ctx context.Context, selected, desired strin
 }
 
 func resolveBinanceSymbol(selected, desired string) string {
-	// Direct lookup
+	// Resolve the base crypto ticker (e.g. "ETH_USDT" -> "USDT", "ETH" -> "ETH")
+	baseTicker := selected
+	if parts := strings.Split(selected, "_"); len(parts) == 2 {
+		baseTicker = parts[1] // e.g. "USDT" from "ETH_USDT"
+	}
+
+	// For non-USD fiat currencies (EUR, GBP, etc.), construct the pair directly.
+	// Binance supports pairs like ETHEUR, BTCEUR, USDTEUR, etc.
+	if desired != "" && desired != "USD" && desired != "USDT" && desired != "USDC" && isFiat(desired) {
+		return baseTicker + desired
+	}
+
+	// Direct lookup for USD/USDT pairs
 	if sym, ok := binanceSymbols[selected]; ok {
 		return sym
 	}
