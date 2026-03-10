@@ -400,7 +400,7 @@ func (s *Service) scanTokenTransfers(
 	for contractAddr, recipients := range tokenAddresses {
 		recipientTopics := make([]common.Hash, 0, len(recipients))
 		for addr := range recipients {
-			recipientTopics = append(recipientTopics, addr.Hash())
+			recipientTopics = append(recipientTopics, common.BytesToHash(addr.Bytes()))
 		}
 
 		query := ethereum.FilterQuery{
