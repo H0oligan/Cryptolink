@@ -30,10 +30,15 @@ var chainNativeTickers = map[string]string{
 	"BASE":     "ETH",
 }
 
-// FetchBalance queries the on-chain native ETH/native balance for a collector contract.
+// FetchBalance queries the on-chain native balance for a collector contract.
 // Token balances are not fetched server-side (done client-side via wallet provider).
 func (s *Service) FetchBalance(ctx context.Context, blockchain, contractAddress string) (*OnChainBalance, error) {
 	chain := strings.ToUpper(blockchain)
+
+	// TRON uses REST API (TronGrid), not EVM JSON-RPC
+	if chain == "TRON" {
+		return tronGetBalance(ctx, contractAddress)
+	}
 
 	rpcURL := ""
 	if cfg, ok := s.config.Chains[chain]; ok && cfg.RPCEndpoint != "" {
@@ -112,6 +117,96 @@ func ethGetBalance(ctx context.Context, rpcURL, address string) (string, error) 
 	}
 
 	return result.Result, nil
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// TRON balance via TronGrid REST API
+// ────────────────────────────────────────────────────────────────────────────
+
+// Known TRC-20 tokens to check balance for
+var tronKnownTokens = map[string]string{
+	"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t": "USDT",
+	"TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8": "USDC",
+}
+
+type tronGridResponse struct {
+	Data []struct {
+		Balance int64 `json:"balance"` // TRX in SUN (1 TRX = 1,000,000 SUN)
+		TRC20   []map[string]string `json:"trc20"`
+	} `json:"data"`
+}
+
+func tronGetBalance(ctx context.Context, base58Address string) (*OnChainBalance, error) {
+	url := fmt.Sprintf("https://api.trongrid.io/v1/accounts/%s", base58Address)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("trongrid request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("trongrid fetch: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result tronGridResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("trongrid decode: %w", err)
+	}
+
+	bal := &OnChainBalance{
+		NativeAmount: "0",
+		NativeTicker: "TRX",
+	}
+
+	if len(result.Data) == 0 {
+		return bal, nil
+	}
+
+	account := result.Data[0]
+
+	// TRX balance: SUN to TRX (6 decimals)
+	bal.NativeAmount = sunToDecimal(account.Balance, 6)
+
+	// TRC-20 token balances
+	for _, tokenMap := range account.TRC20 {
+		for contractAddr, rawAmount := range tokenMap {
+			ticker, known := tronKnownTokens[contractAddr]
+			if !known {
+				continue
+			}
+			bal.Tokens = append(bal.Tokens, TokenBalance{
+				ContractAddress: contractAddr,
+				Ticker:          ticker,
+				Amount:          sunToDecimal(0, 6), // parsed below
+			})
+			// Parse the string amount
+			n := new(big.Int)
+			if _, ok := n.SetString(rawAmount, 10); ok {
+				bal.Tokens[len(bal.Tokens)-1].Amount = bigIntToDecimal(n, 6)
+			}
+		}
+	}
+
+	return bal, nil
+}
+
+// sunToDecimal converts a SUN int64 value to a decimal string (1 TRX = 10^6 SUN).
+func sunToDecimal(sun int64, decimals int) string {
+	return bigIntToDecimal(big.NewInt(sun), decimals)
+}
+
+// bigIntToDecimal converts a big.Int to a decimal string given the number of decimals.
+func bigIntToDecimal(n *big.Int, decimals int) string {
+	if n.Sign() == 0 {
+		return "0"
+	}
+	divisor := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
+	val := new(big.Float).Quo(new(big.Float).SetPrec(128).SetInt(n), divisor)
+	return val.Text('f', 6)
 }
 
 // weiToDecimal converts a hex wei value (e.g. "0x38d7ea4c68000") to a decimal

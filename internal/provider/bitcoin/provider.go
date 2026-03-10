@@ -334,6 +334,54 @@ func (p *Provider) parseTransactionResponse(ctx context.Context, url, txID strin
 	return info, nil
 }
 
+// GetRecentTransactions returns recent transactions for a BTC address (most recent first).
+// Uses Blockstream/mempool.space /api/address/:addr/txs endpoint.
+func (p *Provider) GetRecentTransactions(ctx context.Context, address string, isTest bool) ([]*TransactionInfo, error) {
+	baseURL := p.blockstreamBase(isTest)
+	url := fmt.Sprintf("%s/api/address/%s/txs", baseURL, address)
+
+	body, err := p.doGet(ctx, url)
+	if err != nil {
+		// Fallback to mempool
+		baseURL = p.mempoolBase(isTest)
+		url = fmt.Sprintf("%s/api/address/%s/txs", baseURL, address)
+		body, err = p.doGet(ctx, url)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to get recent transactions")
+		}
+	}
+
+	var txResponses []blockstreamTxResponse
+	if err := json.Unmarshal(body, &txResponses); err != nil {
+		return nil, errors.Wrap(err, "unable to parse transactions response")
+	}
+
+	var result []*TransactionInfo
+	for _, resp := range txResponses {
+		info := &TransactionInfo{
+			TxID:        resp.TxID,
+			Confirmed:   resp.Status.Confirmed,
+			BlockHeight: resp.Status.BlockHeight,
+			Fee:         resp.Fee,
+		}
+		for _, vin := range resp.Vin {
+			info.Inputs = append(info.Inputs, TxIO{
+				Address: vin.Prevout.ScriptPubKeyAddress,
+				Value:   vin.Prevout.Value,
+			})
+		}
+		for _, vout := range resp.Vout {
+			info.Outputs = append(info.Outputs, TxIO{
+				Address: vout.ScriptPubKeyAddress,
+				Value:   vout.Value,
+			})
+		}
+		result = append(result, info)
+	}
+
+	return result, nil
+}
+
 func (p *Provider) doGet(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

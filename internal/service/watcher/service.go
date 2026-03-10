@@ -5,9 +5,12 @@ package watcher
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -18,6 +21,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
 	"github.com/cryptolink/cryptolink/internal/provider/solana"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/pkg/errors"
@@ -64,6 +68,7 @@ type Service struct {
 	rpc          *rpc.Provider
 	bitcoin      *bitcoin.Provider
 	solana       *solana.Provider
+	tron         *trongrid.Provider
 	transactions *transaction.Service
 	wallets      *wallet.Service
 	logger       *zerolog.Logger
@@ -87,6 +92,7 @@ func New(
 	rpcProvider *rpc.Provider,
 	bitcoinProvider *bitcoin.Provider,
 	solanaProvider *solana.Provider,
+	tronProvider *trongrid.Provider,
 	transactions *transaction.Service,
 	wallets *wallet.Service,
 	logger *zerolog.Logger,
@@ -105,6 +111,7 @@ func New(
 		rpc:          rpcProvider,
 		bitcoin:      bitcoinProvider,
 		solana:       solanaProvider,
+		tron:         tronProvider,
 		transactions: transactions,
 		wallets:      wallets,
 		logger:       &log,
@@ -203,12 +210,8 @@ func (s *Service) pollChainTransactions(
 		return s.pollEVMTransactions(ctx, bc, isTest, txs, onDetected)
 	case kms.BTC:
 		return s.pollBTCTransactions(ctx, isTest, txs, onDetected)
-	case kms.SOL:
-		return s.pollSOLTransactions(ctx, isTest, txs, onDetected)
-	case kms.TRON, kms.XMR:
-		// TRON: handled by trongrid provider webhooks
-		// XMR: handled by monero wallet-RPC (get_transfers)
-		return 0, nil
+	case kms.TRON:
+		return s.pollTRONTransactions(ctx, isTest, txs, onDetected)
 	default:
 		s.logger.Warn().Str("blockchain", bc.String()).Msg("unsupported blockchain for address watching")
 		return 0, nil
@@ -631,16 +634,39 @@ func (s *Service) pollBTCTransactions(
 			wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
 		}
 
-		// Try to find the actual transaction hash from recent address activity
+		// Query recent transactions to find the actual tx hash and sender
 		txHash := ""
-		// We don't have the hash directly from balance check; the processing service
-		// will pick it up via receipt polling once it knows there's an incoming payment.
+		senderAddress := ""
+		recentTxs, txErr := s.bitcoin.GetRecentTransactions(ctx, addr, isTest)
+		if txErr == nil && len(recentTxs) > 0 {
+			// Find the most recent transaction that sends TO our address
+			for _, rtx := range recentTxs {
+				for _, out := range rtx.Outputs {
+					if out.Address == addr && out.Value > 0 {
+						txHash = rtx.TxID
+						if len(rtx.Inputs) > 0 && rtx.Inputs[0].Address != "" {
+							senderAddress = rtx.Inputs[0].Address
+						}
+						break
+					}
+				}
+				if txHash != "" {
+					break
+				}
+			}
+		}
+		if senderAddress == "" {
+			senderAddress = "unknown" // Fallback — some BTC inputs may not have parseable addresses
+		}
+		if txHash == "" {
+			txHash = fmt.Sprintf("balance-detect-%s-%d", addr[:8], time.Now().Unix())
+		}
 
 		d := DetectedTransfer{
 			PendingTx:     tx,
 			Wallet:        wt,
 			TxHash:        txHash,
-			SenderAddress: "", // BTC doesn't easily reveal sender from balance check
+			SenderAddress: senderAddress,
 			Amount:        cryptoAmount,
 			Currency:      tx.Currency,
 			NetworkID:     tx.Currency.ChooseNetwork(isTest),
@@ -659,6 +685,147 @@ func (s *Service) pollBTCTransactions(
 				Str("address", addr).
 				Int64("satoshis", receivedSatoshis).
 				Msg("BTC incoming payment detected")
+		}
+	}
+
+	return detected, failedIDs
+}
+
+// pollTRONTransactions checks TRON addresses for incoming payments
+// using the TronGrid API to query recent transactions sent to each address.
+func (s *Service) pollTRONTransactions(
+	ctx context.Context,
+	isTest bool,
+	txs []*transaction.Transaction,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	if s.tron == nil {
+		s.logger.Warn().Msg("TRON provider not configured, skipping TRON polling")
+		return 0, nil
+	}
+
+	var detected int64
+	var failedIDs []int64
+
+	for _, tx := range txs {
+		addr := s.getRecipientAddress(ctx, tx)
+		if addr == "" {
+			continue
+		}
+
+		if tx.Currency.Type == money.Coin {
+			// TRX native transfer — query recent native transactions
+			recentTxs, err := s.tron.GetAccountTransactions(ctx, addr, isTest, 10)
+			if err != nil {
+				s.logger.Error().Err(err).Str("address", addr).Int64("tx_id", tx.ID).
+					Msg("unable to get TRON transactions")
+				failedIDs = append(failedIDs, tx.ID)
+				continue
+			}
+
+			for _, rtx := range recentTxs {
+				if !rtx.Success || rtx.To != addr || rtx.Amount <= 0 {
+					continue
+				}
+				if rtx.Type != "TransferContract" {
+					continue
+				}
+
+				cryptoAmount, err := money.NewFromBigInt(
+					money.Crypto, tx.Currency.Ticker,
+					big.NewInt(rtx.Amount), tx.Currency.Decimals,
+				)
+				if err != nil {
+					continue
+				}
+
+				var wt *wallet.Wallet
+				if tx.RecipientWalletID != nil {
+					wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
+				}
+
+				d := DetectedTransfer{
+					PendingTx:     tx,
+					Wallet:        wt,
+					TxHash:        rtx.TxID,
+					SenderAddress: rtx.From,
+					Amount:        cryptoAmount,
+					Currency:      tx.Currency,
+					NetworkID:     tx.Currency.ChooseNetwork(isTest),
+				}
+
+				if err := onDetected(ctx, d); err != nil {
+					s.logger.Error().Err(err).Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
+						Msg("failed to process detected TRON payment")
+					failedIDs = append(failedIDs, tx.ID)
+				} else {
+					detected++
+					s.logger.Info().Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
+						Str("address", addr).Int64("sun", rtx.Amount).
+						Msg("TRON incoming payment detected")
+				}
+				break // One match per pending tx
+			}
+		} else {
+			// TRC20 token transfer — query TRC20 transaction history
+			recentTxs, err := s.tron.GetTRC20Transactions(ctx, addr, isTest, 10)
+			if err != nil {
+				s.logger.Error().Err(err).Str("address", addr).Int64("tx_id", tx.ID).
+					Msg("unable to get TRC20 transactions")
+				failedIDs = append(failedIDs, tx.ID)
+				continue
+			}
+
+			tokenContract := tx.Currency.ChooseContractAddress(isTest)
+			for _, rtx := range recentTxs {
+				if rtx.To != addr {
+					continue
+				}
+				if !strings.EqualFold(rtx.TokenAddress, tokenContract) {
+					continue
+				}
+
+				amount := new(big.Int)
+				amount.SetString(rtx.TokenAmount, 10)
+				if amount.Sign() <= 0 {
+					continue
+				}
+
+				cryptoAmount, err := money.NewFromBigInt(
+					money.Crypto, tx.Currency.Ticker,
+					amount, tx.Currency.Decimals,
+				)
+				if err != nil {
+					continue
+				}
+
+				var wt *wallet.Wallet
+				if tx.RecipientWalletID != nil {
+					wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
+				}
+
+				d := DetectedTransfer{
+					PendingTx:     tx,
+					Wallet:        wt,
+					TxHash:        rtx.TxID,
+					SenderAddress: rtx.From,
+					Amount:        cryptoAmount,
+					Currency:      tx.Currency,
+					NetworkID:     tx.Currency.ChooseNetwork(isTest),
+				}
+
+				if err := onDetected(ctx, d); err != nil {
+					s.logger.Error().Err(err).Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
+						Msg("failed to process detected TRC20 payment")
+					failedIDs = append(failedIDs, tx.ID)
+				} else {
+					detected++
+					s.logger.Info().Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
+						Str("address", addr).Str("amount", rtx.TokenAmount).
+						Msg("TRC20 incoming payment detected")
+				}
+				break
+			}
 		}
 	}
 

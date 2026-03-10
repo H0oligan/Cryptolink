@@ -86,6 +86,14 @@ export interface SystemStats {
     monthly_revenue: string;
 }
 
+export interface CollectorFactoryConfig {
+    blockchain: string;
+    implementationAddress: string;
+    factoryAddress: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
 const adminProvider = {
     // Plans
     async listPlans(): Promise<AdminPlan[]> {
@@ -120,12 +128,20 @@ const adminProvider = {
         await apiRequest.put(withApiPath(`/admin/merchants/${merchantId}/plan`), {plan_id: planId});
     },
 
+    async deleteMerchant(merchantId: number): Promise<void> {
+        await apiRequest.delete(withApiPath(`/admin/merchants/${merchantId}`));
+    },
+
     // Users
     async listUsers(limit?: number, offset?: number): Promise<PaginatedResponse<AdminUser>> {
         const response = await apiRequest.get(withApiPath("/admin/users"), {
             params: {limit: limit || 50, offset: offset || 0}
         });
         return response.data;
+    },
+
+    async deleteUser(userId: number): Promise<void> {
+        await apiRequest.delete(withApiPath(`/admin/users/${userId}`));
     },
 
     // Stats
@@ -164,6 +180,26 @@ const adminProvider = {
         const response = await apiRequest.get(withApiPath("/admin/email/log"), {
             params: {limit: limit || 50, offset: offset || 0}
         });
+        return response.data;
+    },
+
+    // Collector Factories
+    async listCollectorFactories(): Promise<CollectorFactoryConfig[]> {
+        const response = await apiRequest.get(withApiPath("/admin/collector-factories"));
+        return response.data;
+    },
+
+    async getCollectorFactory(blockchain: string): Promise<CollectorFactoryConfig> {
+        const response = await apiRequest.get(withApiPath(`/admin/collector-factories/${blockchain}`));
+        return response.data;
+    },
+
+    async upsertCollectorFactory(data: {
+        blockchain: string;
+        implementationAddress: string;
+        factoryAddress: string;
+    }): Promise<CollectorFactoryConfig> {
+        const response = await apiRequest.post(withApiPath("/admin/collector-factories"), data);
         return response.data;
     }
 };

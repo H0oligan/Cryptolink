@@ -32,23 +32,31 @@ import {
     ExclamationCircleOutlined,
     ThunderboltOutlined,
     LoadingOutlined,
-    LinkOutlined
+    LinkOutlined,
+    WarningOutlined
 } from "@ant-design/icons";
 import bevis from "src/utils/bevis";
 import xpubProvider, {XpubWallet} from "src/providers/xpub-provider";
 import evmCollectorProvider, {EvmCollector} from "src/providers/evm-collector-provider";
 import useSharedMerchantId from "src/hooks/use-merchant-id";
-import {EVM_CHAINS, type EvmChainConfig} from "src/constants/merchant-collector";
+import {EVM_CHAINS, TRON_CHAIN, type EvmChainConfig} from "src/constants/merchant-collector";
 import {isMetaMaskAvailable, connectWallet, switchChain, deployCollector} from "src/utils/evm-wallet";
+import {isTronLinkAvailable, connectTronWallet, deployTronCloneViaFactory} from "src/utils/tron-wallet";
 
 const b = bevis("wallet-setup-page");
 
 const {Title, Text, Paragraph} = Typography;
 
-// xpub-only blockchains — BTC and TRON only
+// xpub-only blockchains — BTC only (TRON uses collector address approach)
 const XPUB_BLOCKCHAINS = [
-    {value: "BTC",  label: "Bitcoin", path: "m/44'/0'/0'/0",   color: "#F7931A"},
-    {value: "TRON", label: "TRON",    path: "m/44'/195'/0'/0", color: "#FF0013"},
+    {value: "BTC",  label: "Bitcoin", path: "m/84'/0'/0'/0",   color: "#F7931A"},
+];
+
+// BTC address format options
+const BTC_ADDRESS_FORMATS = [
+    {value: "m/84'/0'/0'/0", label: "Native SegWit (Bech32) — bc1q addresses (recommended)"},
+    {value: "m/49'/0'/0'/0", label: "SegWit (P2SH-SegWit) — 3-prefix addresses"},
+    {value: "m/44'/0'/0'/0", label: "Legacy (P2PKH) — 1-prefix addresses"},
 ];
 
 // ============================================================
@@ -365,6 +373,289 @@ const EvmCollectorPanel: React.FC<{
 };
 
 // ============================================================
+// TRON Collector Panel — deploy MerchantCollector via TronLink
+// ============================================================
+
+type TronDeployStep = "idle" | "connecting" | "deploying" | "registering" | "done" | "error";
+
+const TRON_STEP_LABELS: Record<TronDeployStep, string> = {
+    idle: "",
+    connecting: "Connecting to TronLink...",
+    deploying: "Deploying contract on TRON...",
+    registering: "Registering with CryptoLink...",
+    done: "Done!",
+    error: "Failed",
+};
+
+const TronCollectorPanel: React.FC<{
+    merchantId: string;
+    collectors: EvmCollector[];
+    onRefresh: () => void;
+}> = ({merchantId, collectors, onRefresh}) => {
+    const [api, contextHolder] = notification.useNotification();
+    const [isDeleting, setIsDeleting] = React.useState(false);
+    const [deploying, setDeploying] = React.useState(false);
+    const [deployState, setDeployState] = React.useState<{step: TronDeployStep; error?: string; contractAddress?: string}>({step: "idle"});
+
+    const tronCollector = collectors.find((c) => c.blockchain === "TRON");
+
+    const handleDeploy = async () => {
+        setDeploying(true);
+        setDeployState({step: "connecting"});
+        try {
+            // 1. Connect TronLink
+            const ownerAddress = await connectTronWallet();
+
+            // 2. Fetch factory address from backend
+            const factoryConfig = await evmCollectorProvider.getCollectorFactory(merchantId, "TRON");
+
+            // 3. Deploy clone via factory (cheap!)
+            setDeployState({step: "deploying"});
+            const contractAddress = await deployTronCloneViaFactory(factoryConfig.factoryAddress, ownerAddress);
+
+            // 4. Register with backend
+            setDeployState({step: "registering"});
+            await evmCollectorProvider.setupCollector(merchantId, {
+                blockchain: "TRON",
+                ownerAddress: ownerAddress,
+                contractAddress: contractAddress,
+                chainId: 728126428,
+                factoryAddress: factoryConfig.factoryAddress,
+            });
+
+            setDeployState({step: "done", contractAddress});
+            onRefresh();
+
+            setTimeout(() => {
+                setDeploying(false);
+                setDeployState({step: "idle"});
+            }, 2000);
+        } catch (err: any) {
+            const msg = err?.message || "Deployment failed. Please try again.";
+            if (msg.includes("not found") || msg.includes("404")) {
+                setDeployState({step: "error", error: "TRON factory not deployed yet. Please contact the administrator."});
+            } else {
+                setDeployState({step: "error", error: msg});
+            }
+        }
+    };
+
+    const handleDelete = () => {
+        Modal.confirm({
+            title: "Remove TRON Collector Contract",
+            icon: <ExclamationCircleOutlined />,
+            content: (
+                <div>
+                    <p>Remove the TRON MerchantCollector registration?</p>
+                    <p style={{color: "#ff4d4f", marginTop: 8}}>
+                        This only removes the registration from CryptoLink. The contract on-chain is not
+                        affected — your funds remain accessible via TronLink at any time.
+                    </p>
+                </div>
+            ),
+            okText: "Remove",
+            okType: "danger",
+            cancelText: "Cancel",
+            onOk: async () => {
+                setIsDeleting(true);
+                try {
+                    await evmCollectorProvider.deleteCollector(merchantId, "TRON");
+                    api.success({message: "TRON collector removed", placement: "bottomRight"});
+                    onRefresh();
+                } catch (err: any) {
+                    api.error({message: "Failed to remove", description: err.response?.data?.message || "Please try again", placement: "bottomRight"});
+                } finally {
+                    setIsDeleting(false);
+                }
+            },
+        });
+    };
+
+    const deployStepItems = [
+        {title: "Connect TronLink"},
+        {title: "Deploy Contract"},
+        {title: "Register"},
+    ];
+
+    const deployStepIndex: Record<TronDeployStep, number> = {
+        idle: -1, connecting: 0, deploying: 1, registering: 2, done: 2, error: -1,
+    };
+
+    return (
+        <>
+            {contextHolder}
+            <Divider />
+            <Title level={4} style={{marginBottom: 16}}>
+                <span style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 28, height: 28, borderRadius: "50%", background: TRON_CHAIN.color,
+                    marginRight: 8, verticalAlign: "middle",
+                }}>
+                    <ThunderboltOutlined style={{color: "#fff", fontSize: 12}} />
+                </span>
+                TRON (TRX & TRC-20 Tokens)
+            </Title>
+
+            <Alert
+                message="Non-custodial TRON Smart Contract"
+                description={
+                    <ul style={{margin: "8px 0 0 0", paddingLeft: 20}}>
+                        <li>Deploys the same <strong>MerchantCollector</strong> contract on TRON via TronLink — customers pay to the contract address.</li>
+                        <li>You call <strong>withdrawAll()</strong> from the Balances page to sweep all TRX & TRC-20 tokens to your wallet.</li>
+                        <li>CryptoLink has <strong>zero admin access</strong> — only your TronLink wallet (the owner) can withdraw.</li>
+                        <li>Click <strong>"Deploy with TronLink"</strong> and confirm the transaction in the TronLink popup.</li>
+                    </ul>
+                }
+                type="info"
+                showIcon
+                icon={<SafetyCertificateOutlined />}
+                style={{marginBottom: 16}}
+            />
+
+            {!isTronLinkAvailable() && (
+                <Alert
+                    message="TronLink not detected"
+                    description="Install the TronLink browser extension to deploy a TRON smart contract wallet."
+                    type="warning"
+                    showIcon
+                    style={{marginBottom: 16}}
+                    action={
+                        <Button size="small" href="https://www.tronlink.org/" target="_blank" icon={<LinkOutlined />}>
+                            Install TronLink
+                        </Button>
+                    }
+                />
+            )}
+
+            <Alert
+                message="Disable other TRON wallets"
+                description="If you have Atomic Wallet or other TRON browser extensions, disable them in chrome://extensions before deploying. Only TronLink should be active."
+                type="warning"
+                showIcon
+                icon={<WarningOutlined />}
+                style={{marginBottom: 16}}
+            />
+
+            {tronCollector ? (
+                <Card
+                    size="small"
+                    style={{borderColor: "#10b981", background: "rgba(16,185,129,0.08)", maxWidth: 500}}
+                >
+                    <Space direction="vertical" size={8} style={{width: "100%"}}>
+                        <Space>
+                            <Tag color="green"><CheckCircleOutlined /> Active</Tag>
+                            <Text strong>TRON</Text>
+                        </Space>
+                        <div>
+                            <Text type="secondary" style={{fontSize: 11}}>Contract</Text>
+                            <div>
+                                <Tooltip title={tronCollector.contractAddress}>
+                                    <Text
+                                        code
+                                        copyable={{text: tronCollector.contractAddress}}
+                                        style={{fontSize: 11}}
+                                    >
+                                        {tronCollector.contractAddress.slice(0, 10)}...{tronCollector.contractAddress.slice(-8)}
+                                    </Text>
+                                </Tooltip>
+                            </div>
+                        </div>
+                        <div>
+                            <Text type="secondary" style={{fontSize: 11}}>Owner</Text>
+                            <div>
+                                <Tooltip title={tronCollector.ownerAddress}>
+                                    <Text code style={{fontSize: 11}}>
+                                        {tronCollector.ownerAddress.slice(0, 10)}...{tronCollector.ownerAddress.slice(-8)}
+                                    </Text>
+                                </Tooltip>
+                            </div>
+                        </div>
+                        <Button
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            loading={isDeleting}
+                            onClick={handleDelete}
+                            style={{marginTop: 4}}
+                        >
+                            Remove
+                        </Button>
+                    </Space>
+                </Card>
+            ) : (
+                <Button
+                    type="primary"
+                    icon={<ThunderboltOutlined />}
+                    disabled={!isTronLinkAvailable()}
+                    onClick={handleDeploy}
+                    size="large"
+                >
+                    Deploy with TronLink
+                </Button>
+            )}
+
+            {/* Deployment progress modal */}
+            <Modal
+                title="Deploying TRON Collector Contract"
+                open={deploying}
+                footer={
+                    deployState.step === "error" || deployState.step === "done" ? (
+                        <Button onClick={() => {setDeploying(false); setDeployState({step: "idle"});}}>
+                            Close
+                        </Button>
+                    ) : null
+                }
+                closable={deployState.step === "error"}
+                onCancel={() => {setDeploying(false); setDeployState({step: "idle"});}}
+                width={480}
+                maskClosable={false}
+            >
+                {deployState.step !== "error" && deployState.step !== "idle" && (
+                    <Steps
+                        size="small"
+                        current={deployStepIndex[deployState.step]}
+                        status={deployState.step === "done" ? "finish" : "process"}
+                        items={deployStepItems}
+                        style={{marginBottom: 24}}
+                    />
+                )}
+
+                <div style={{textAlign: "center", padding: "16px 0"}}>
+                    {deployState.step === "done" ? (
+                        <Space direction="vertical" size={8}>
+                            <CheckCircleOutlined style={{fontSize: 40, color: "#52c41a"}} />
+                            <Text strong style={{fontSize: 16}}>Deployed successfully!</Text>
+                            {deployState.contractAddress && (
+                                <Text code style={{fontSize: 12, wordBreak: "break-all"}}>
+                                    {deployState.contractAddress}
+                                </Text>
+                            )}
+                        </Space>
+                    ) : deployState.step === "error" ? (
+                        <Space direction="vertical" size={8}>
+                            <ExclamationCircleOutlined style={{fontSize: 40, color: "#ff4d4f"}} />
+                            <Text strong style={{fontSize: 16}}>Deployment failed</Text>
+                            <Text type="secondary">{deployState.error}</Text>
+                        </Space>
+                    ) : (
+                        <Space direction="vertical" size={8}>
+                            <Spin indicator={<LoadingOutlined style={{fontSize: 32}} spin />} />
+                            <Text type="secondary">{TRON_STEP_LABELS[deployState.step]}</Text>
+                            {deployState.step === "deploying" && (
+                                <Text type="secondary" style={{fontSize: 12}}>
+                                    Please confirm the transaction in TronLink and wait for it to be confirmed on-chain...
+                                    This may take up to 90 seconds.
+                                </Text>
+                            )}
+                        </Space>
+                    )}
+                </div>
+            </Modal>
+        </>
+    );
+};
+
+// ============================================================
 // Main Wallet Setup Page
 // ============================================================
 
@@ -544,7 +835,7 @@ const WalletSetupPage: React.FC = () => {
 
             <Title level={4}>Supported Networks</Title>
             <Paragraph type="secondary" style={{marginBottom: 16}}>
-                xpub HD wallets are supported for Bitcoin and TRON. For EVM networks (Ethereum, Polygon, etc.)
+                xpub HD wallets are supported for Bitcoin. For EVM networks and TRON,
                 use the Smart Contract Wallets tab.
             </Paragraph>
 
@@ -719,6 +1010,22 @@ const WalletSetupPage: React.FC = () => {
                 />
             </div>
 
+            {selectedBlockchain === "BTC" && (
+                <div style={{marginBottom: 16}}>
+                    <Text strong>Bitcoin Address Format</Text>
+                    <Select
+                        style={{width: "100%", marginTop: 4}}
+                        value={importPath}
+                        options={BTC_ADDRESS_FORMATS}
+                        onChange={(v) => setImportPath(v)}
+                        size="large"
+                    />
+                    <Text type="secondary" style={{fontSize: 12, display: "block", marginTop: 4}}>
+                        Choose the format matching your wallet. Most modern wallets (Ledger, Trezor, Electrum) default to Native SegWit.
+                    </Text>
+                </div>
+            )}
+
             <div style={{marginBottom: 16}}>
                 <Text strong>Extended Public Key (xpub)</Text>
                 <Input.TextArea
@@ -790,11 +1097,18 @@ const WalletSetupPage: React.FC = () => {
             children: (
                 <div style={{paddingTop: 16}}>
                     {merchantId && (
-                        <EvmCollectorPanel
-                            merchantId={merchantId}
-                            collectors={collectors}
-                            onRefresh={loadData}
-                        />
+                        <>
+                            <EvmCollectorPanel
+                                merchantId={merchantId}
+                                collectors={collectors}
+                                onRefresh={loadData}
+                            />
+                            <TronCollectorPanel
+                                merchantId={merchantId}
+                                collectors={collectors}
+                                onRefresh={loadData}
+                            />
+                        </>
                     )}
                 </div>
             ),
@@ -812,7 +1126,7 @@ const WalletSetupPage: React.FC = () => {
                     </Title>
                     <Paragraph type="secondary">
                         Configure your non-custodial wallets to receive crypto payments directly.
-                        HD wallets (xpub) for Bitcoin & TRON — Smart Contract wallets for EVM chains.
+                        HD wallets (xpub) for Bitcoin — Smart Contracts for EVM chains & TRON (deployed via MetaMask/TronLink).
                     </Paragraph>
                 </div>
 

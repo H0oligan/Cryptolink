@@ -64,12 +64,9 @@ var binanceSymbols = map[string]string{
 	"BNB":       "BNBUSDT",
 	"TRX":       "TRXUSDT",
 	"AVAX":      "AVAXUSDT",
-	"SOL":       "SOLUSDT",
 	"USDT":      "USDTUSD",
 	"USDC":      "USDCUSDT",
-	"BUSD":      "BUSDUSDT",
 	"ARB":       "ARBUSDT",
-	"XMR":       "XMRUSDT",
 	// Stablecoins pegged 1:1
 	"ETH_USDT":  "USDTUSD",
 	"MATIC_USDT": "USDTUSD",
@@ -78,7 +75,6 @@ var binanceSymbols = map[string]string{
 	"ETH_USDC":  "USDCUSDT",
 	"MATIC_USDC": "USDCUSDT",
 	"BSC_USDC":  "USDCUSDT",
-	"BSC_BUSD":  "BUSDUSDT",
 }
 
 // CoinGecko ID mappings for fallback
@@ -89,12 +85,9 @@ var coinGeckoIDs = map[string]string{
 	"BNB":   "binancecoin",
 	"TRX":   "tron",
 	"AVAX":  "avalanche-2",
-	"SOL":   "solana",
 	"USDT":  "tether",
 	"USDC":  "usd-coin",
-	"BUSD":  "binance-usd",
 	"ARB":   "arbitrum",
-	"XMR":   "monero",
 }
 
 func New(config Config, logger *zerolog.Logger) *Provider {
@@ -351,9 +344,9 @@ func rateDivergence(a, b ExchangeRate) float64 {
 
 func isStablecoin(ticker string) bool {
 	t := strings.ToUpper(ticker)
-	return t == "USDT" || t == "USDC" || t == "BUSD" || t == "DAI" ||
+	return t == "USDT" || t == "USDC" || t == "DAI" ||
 		strings.HasSuffix(t, "_USDT") || strings.HasSuffix(t, "_USDC") ||
-		strings.HasSuffix(t, "_BUSD") || strings.HasSuffix(t, "_DAI")
+		strings.HasSuffix(t, "_DAI")
 }
 
 func isFiat(ticker string) bool {

@@ -15,7 +15,7 @@ interface WebhookSettings {
     url: string;
 }
 
-const BLOCKCHAIN = ["ETH", "TRON", "MATIC", "BSC", "ARBITRUM", "AVAX", "SOL", "XMR"] as const;
+const BLOCKCHAIN = ["ETH", "TRON", "MATIC", "BSC", "ARBITRUM", "AVAX"] as const;
 type Blockchain = typeof BLOCKCHAIN[number];
 
 const BLOCKCHAIN_TICKER = [
@@ -29,17 +29,12 @@ const BLOCKCHAIN_TICKER = [
     "TRON_USDT",
     "BNB",
     "BSC_USDT",
-    "BSC_BUSD",
     "ARB",
     "ARBITRUM_USDT",
     "ARBITRUM_USDC",
     "AVAX",
     "AVAX_USDT",
-    "AVAX_USDC",
-    "SOL",
-    "SOL_USDT",
-    "SOL_USDC",
-    "XMR"
+    "AVAX_USDC"
 ] as const;
 
 type BlockchainTicker = typeof BLOCKCHAIN_TICKER[number];
@@ -114,17 +109,12 @@ const CURRENCY_SYMBOL: Record<CurrencyWithFiat, string> = {
     TRON_USDT: "",
     BNB: "",
     BSC_USDT: "",
-    BSC_BUSD: "",
     ARB: "",
     ARBITRUM_USDT: "",
     ARBITRUM_USDC: "",
     AVAX: "",
     AVAX_USDT: "",
-    AVAX_USDC: "",
-    SOL: "",
-    SOL_USDT: "",
-    SOL_USDC: "",
-    XMR: ""
+    AVAX_USDC: ""
 };
 
 type PaymentType = "payment" | "withdrawal";

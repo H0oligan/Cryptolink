@@ -1,6 +1,7 @@
 import * as React from "react";
 import {PageContainer} from "@ant-design/pro-components";
-import {Table, Typography, Tag, Button, Modal, Select, message, Space} from "antd";
+import {Table, Typography, Tag, Button, Modal, Select, message, Space, Popconfirm} from "antd";
+import {DeleteOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import adminProvider, {AdminMerchant, AdminPlan} from "src/providers/admin-provider";
 
@@ -67,6 +68,16 @@ const AdminMerchantsPage: React.FC = () => {
         }
     };
 
+    const handleDeleteMerchant = async (merchant: AdminMerchant) => {
+        try {
+            await adminProvider.deleteMerchant(merchant.id);
+            message.success(`Merchant "${merchant.name}" deleted`);
+            loadMerchants(page);
+        } catch (e: any) {
+            message.error("Failed to delete merchant: " + (e?.response?.data?.message || e.message));
+        }
+    };
+
     const columns: ColumnsType<AdminMerchant> = [
         {
             title: "Name",
@@ -129,9 +140,23 @@ const AdminMerchantsPage: React.FC = () => {
             title: "Actions",
             key: "actions",
             render: (_: any, record: AdminMerchant) => (
-                <Button type="link" size="small" onClick={() => openAssignModal(record)}>
-                    Assign Plan
-                </Button>
+                <Space>
+                    <Button type="link" size="small" onClick={() => openAssignModal(record)}>
+                        Assign Plan
+                    </Button>
+                    <Popconfirm
+                        title="Delete Merchant"
+                        description={`Are you sure you want to delete "${record.name}"? This will also cancel their subscription.`}
+                        onConfirm={() => handleDeleteMerchant(record)}
+                        okText="Delete"
+                        okType="danger"
+                        cancelText="Cancel"
+                    >
+                        <Button type="link" danger size="small" icon={<DeleteOutlined />}>
+                            Delete
+                        </Button>
+                    </Popconfirm>
+                </Space>
             )
         }
     ];

@@ -26,8 +26,9 @@ import useSharedMerchantId from "src/hooks/use-merchant-id";
 import balancesQueries from "src/queries/balances-queries";
 import Icon from "src/components/icon/icon";
 import evmCollectorProvider, {EvmCollector, CollectorBalance} from "src/providers/evm-collector-provider";
-import {EVM_CHAINS, KNOWN_TOKENS} from "src/constants/merchant-collector";
+import {EVM_CHAINS, KNOWN_TOKENS, TRON_CHAIN, TRON_KNOWN_TOKENS} from "src/constants/merchant-collector";
 import {isMetaMaskAvailable, connectWallet, switchChain, withdrawAll} from "src/utils/evm-wallet";
+import {isTronLinkAvailable, connectTronWallet, withdrawAllTron} from "src/utils/tron-wallet";
 import {ThunderboltOutlined, WalletOutlined, LinkOutlined} from "@ant-design/icons";
 
 const b = bevis("balance-page");
@@ -233,6 +234,184 @@ const EvmCollectorBalances: React.FC<{merchantId: string}> = ({merchantId}) => {
 };
 
 // ============================================================
+// TRON Collector Balance & Withdraw
+// ============================================================
+
+const TronCollectorBalance: React.FC<{merchantId: string}> = ({merchantId}) => {
+    const [api, contextHolder] = notification.useNotification();
+    const [collector, setCollector] = React.useState<EvmCollector | null>(null);
+    const [balance, setBalance] = React.useState<CollectorBalance | null>(null);
+    const [loadingCollector, setLoadingCollector] = React.useState(true);
+    const [loadingBalance, setLoadingBalance] = React.useState(false);
+    const [withdrawing, setWithdrawing] = React.useState(false);
+
+    React.useEffect(() => {
+        evmCollectorProvider
+            .listCollectors(merchantId)
+            .then((cols) => {
+                const tron = (cols || []).find((c) => c.blockchain === "TRON" && c.isActive);
+                setCollector(tron || null);
+                if (tron) {
+                    setLoadingBalance(true);
+                    evmCollectorProvider
+                        .getBalance(merchantId, "TRON")
+                        .then((bal) => setBalance(bal))
+                        .catch(() => {})
+                        .finally(() => setLoadingBalance(false));
+                }
+            })
+            .catch(() => {})
+            .finally(() => setLoadingCollector(false));
+    }, [merchantId]);
+
+    const handleWithdraw = async () => {
+        if (!collector) return;
+        setWithdrawing(true);
+        try {
+            await connectTronWallet();
+            const txid = await withdrawAllTron(collector.contractAddress, TRON_KNOWN_TOKENS);
+            api.success({
+                message: "TRON withdrawal submitted",
+                description: (
+                    <span>
+                        Tx:{" "}
+                        <a
+                            href={`${TRON_CHAIN.explorerUrl}/#/transaction/${txid}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {String(txid).slice(0, 18)}...
+                        </a>
+                    </span>
+                ),
+                duration: 10,
+                placement: "bottomRight",
+            });
+        } catch (err: any) {
+            const msg = err?.message || "Withdrawal failed";
+            const isUserRejected = msg.includes("rejected") || msg.includes("denied") || msg.includes("Confirmation");
+            api.error({
+                message: isUserRejected ? "Transaction rejected" : "Withdrawal failed",
+                description: isUserRejected ? "You rejected the transaction in TronLink." : msg,
+                placement: "bottomRight",
+            });
+        } finally {
+            setWithdrawing(false);
+        }
+    };
+
+    if (loadingCollector) return <Spin size="small" />;
+    if (!collector) return null;
+
+    return (
+        <>
+            {contextHolder}
+            <Divider />
+            <div style={{marginBottom: 8}}>
+                <Title level={4} style={{marginBottom: 4}}>
+                    <span style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        width: 24, height: 24, borderRadius: "50%", background: TRON_CHAIN.color,
+                        marginRight: 8, verticalAlign: "middle",
+                    }}>
+                        <ThunderboltOutlined style={{color: "#fff", fontSize: 10}} />
+                    </span>
+                    TRON Smart Contract Wallet
+                </Title>
+                <Text type="secondary">
+                    Funds accumulated in your TRON MerchantCollector contract. Connect TronLink to withdraw.
+                </Text>
+            </div>
+
+            {!isTronLinkAvailable() && (
+                <Alert
+                    message="TronLink not detected"
+                    description="Install the TronLink browser extension to withdraw funds."
+                    type="warning"
+                    showIcon
+                    style={{marginBottom: 12}}
+                    action={
+                        <Button size="small" href="https://www.tronlink.org/" target="_blank" icon={<LinkOutlined />}>
+                            Install
+                        </Button>
+                    }
+                />
+            )}
+
+            <Row gutter={[16, 16]} style={{marginTop: 16}}>
+                <Col xs={24} sm={12} md={8}>
+                    <Card
+                        size="small"
+                        style={{borderColor: "var(--cl-border)", height: "100%"}}
+                        extra={
+                            <Button
+                                type="primary"
+                                size="small"
+                                icon={<WalletOutlined />}
+                                loading={withdrawing}
+                                disabled={!isTronLinkAvailable()}
+                                onClick={handleWithdraw}
+                            >
+                                Withdraw
+                            </Button>
+                        }
+                    >
+                        <Space direction="vertical" size={4} style={{width: "100%"}}>
+                            <Space>
+                                <div style={{
+                                    width: 24, height: 24, borderRadius: "50%",
+                                    background: TRON_CHAIN.color,
+                                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                    flexShrink: 0,
+                                }}>
+                                    <ThunderboltOutlined style={{color: "#fff", fontSize: 10}} />
+                                </div>
+                                <Text strong>TRON</Text>
+                            </Space>
+
+                            <Tooltip title={collector.contractAddress}>
+                                <Text code style={{fontSize: 11}}>
+                                    {collector.contractAddress.slice(0, 10)}...{collector.contractAddress.slice(-8)}
+                                </Text>
+                            </Tooltip>
+
+                            {loadingBalance ? (
+                                <Spin size="small" />
+                            ) : balance ? (
+                                <Space direction="vertical" size={2} style={{width: "100%"}}>
+                                    <Space>
+                                        <Text style={{fontSize: 12}}>TRX:</Text>
+                                        <Text strong style={{fontSize: 12}}>{balance.native.amount}</Text>
+                                        {balance.native.usdAmount !== "0" && (
+                                            <Text type="secondary" style={{fontSize: 11}}>
+                                                ≈ ${balance.native.usdAmount}
+                                            </Text>
+                                        )}
+                                    </Space>
+                                    {balance.tokens.map((t) => (
+                                        <Space key={t.contract}>
+                                            <Text style={{fontSize: 12}}>{t.ticker}:</Text>
+                                            <Text strong style={{fontSize: 12}}>{t.amount}</Text>
+                                            {t.usdAmount !== "0" && (
+                                                <Text type="secondary" style={{fontSize: 11}}>
+                                                    ≈ ${t.usdAmount}
+                                                </Text>
+                                            )}
+                                        </Space>
+                                    ))}
+                                </Space>
+                            ) : (
+                                <Text type="secondary" style={{fontSize: 12}}>Balance unavailable</Text>
+                            )}
+                        </Space>
+                    </Card>
+                </Col>
+            </Row>
+        </>
+    );
+};
+
+// ============================================================
 // Balance Page
 // ============================================================
 
@@ -318,8 +497,8 @@ const BalancePage: React.FC = () => {
         <PageContainer header={{title: "", breadcrumb: {}}}>
             <Typography.Title>Balances</Typography.Title>
             <Typography.Text type="secondary" style={{marginBottom: 16, display: "block"}}>
-                Incoming payment balances tracked by CryptoLink. xpub-based wallets (BTC, TRON) are shown
-                below. EVM smart contract wallet balances and withdrawals are shown further down.
+                Incoming payment balances tracked by CryptoLink. xpub-based wallets (BTC) are shown
+                below. Smart contract wallet balances and withdrawals (EVM chains + TRON) are shown further down.
             </Typography.Text>
             <Table
                 columns={balancesColumns}
@@ -340,6 +519,7 @@ const BalancePage: React.FC = () => {
             />
 
             {merchantId && <EvmCollectorBalances merchantId={merchantId} />}
+            {merchantId && <TronCollectorBalance merchantId={merchantId} />}
         </PageContainer>
     );
 };

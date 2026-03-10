@@ -365,6 +365,7 @@ func (loc *Locator) WatcherService() *watcher.Service {
 			loc.RPCProvider(),
 			loc.BitcoinProvider(),
 			loc.SolanaProvider(),
+			loc.TrongridProvider(),
 			loc.TransactionService(),
 			loc.WalletService(),
 			loc.logger,

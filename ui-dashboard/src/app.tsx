@@ -151,7 +151,10 @@ const App: React.FC = () => {
 
             const merchants = await getMerchants();
 
-            if (!merchantId) {
+            // Reset merchantId if it doesn't belong to the current user's merchants
+            // (prevents cross-user leakage via stale localStorage)
+            const storedIdValid = merchantId && merchants.some((m) => m.id === merchantId);
+            if (!storedIdValid) {
                 newMerchantId = merchants[0]?.id;
                 setMerchantId(newMerchantId);
             }
@@ -216,6 +219,9 @@ const App: React.FC = () => {
         if (isPosthogActive) {
             posthog?.reset(true);
         }
+
+        // Clear stale merchant selection to prevent cross-user leakage
+        setMerchantId(null);
 
         await authProvider.logout();
         navigate("/login", {

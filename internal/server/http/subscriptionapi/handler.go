@@ -562,6 +562,58 @@ func (h *Handler) AssignMerchantPlan(c echo.Context) error {
 
 // ===== Admin Merchant & User Listing =====
 
+// AdminDeleteMerchant soft-deletes a merchant by ID (admin only)
+// DELETE /api/dashboard/v1/admin/merchants/:merchantId
+func (h *Handler) AdminDeleteMerchant(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	merchantIDStr := c.Param("merchantId")
+	merchantID, err := strconv.ParseInt(merchantIDStr, 10, 64)
+	if err != nil {
+		return common.ValidationErrorResponse(c, "invalid merchant ID")
+	}
+
+	err = h.subscriptionService.AdminDeleteMerchant(ctx, merchantID)
+	if err != nil {
+		h.logger.Error().Err(err).Int64("merchant_id", merchantID).Msg("failed to delete merchant")
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{
+			Message: "failed to delete merchant: " + err.Error(),
+			Status:  "internal_error",
+		})
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"message":     "merchant deleted successfully",
+		"merchant_id": merchantID,
+	})
+}
+
+// AdminDeleteUser deletes a user by ID (admin only)
+// DELETE /api/dashboard/v1/admin/users/:userId
+func (h *Handler) AdminDeleteUser(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	userIDStr := c.Param("userId")
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		return common.ValidationErrorResponse(c, "invalid user ID")
+	}
+
+	err = h.subscriptionService.AdminDeleteUser(ctx, userID)
+	if err != nil {
+		h.logger.Error().Err(err).Int64("user_id", userID).Msg("failed to delete user")
+		return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{
+			Message: "failed to delete user: " + err.Error(),
+			Status:  "internal_error",
+		})
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"message": "user deleted successfully",
+		"user_id": userID,
+	})
+}
+
 // ListAllMerchants returns all merchants with plan/usage info (admin only)
 // GET /api/dashboard/v1/admin/merchants
 func (h *Handler) ListAllMerchants(c echo.Context) error {

@@ -70,6 +70,17 @@ const evmCollectorProvider = {
             withApiPath(`/merchant/${merchantId}/evm-collector/${blockchain}/balance`)
         );
         return response.data;
+    },
+
+    async getCollectorFactory(merchantId: string, blockchain: string): Promise<{
+        blockchain: string;
+        implementationAddress: string;
+        factoryAddress: string;
+    }> {
+        const response = await apiRequest.get(
+            withApiPath(`/merchant/${merchantId}/collector-factory/${blockchain}`)
+        );
+        return response.data;
     }
 };
 
