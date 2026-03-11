@@ -422,7 +422,7 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 	if tx != nil && tx.Status != transaction.StatusCancelled {
 		errCancel := s.transactions.Cancel(ctx, tx, transaction.StatusCancelled, "payment expired", nil)
 		if errCancel != nil {
-			return errors.Wrap(err, "unable to cancel transaction")
+			return errors.Wrap(errCancel, "unable to cancel transaction")
 		}
 	}
 

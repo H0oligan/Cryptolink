@@ -180,6 +180,7 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 		walletsService,
 		xpubService,
 		nil, // evmCollectorService (not needed in tests)
+		nil, // subscriptionService (not needed in tests)
 		globalFaker,
 		globalFaker.Bus,
 		&logger,

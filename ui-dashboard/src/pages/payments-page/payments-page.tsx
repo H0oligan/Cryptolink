@@ -263,7 +263,16 @@ const PaymentsPage: React.FC = () => {
                 title="Payment details"
                 isFormOpen={Boolean(openedCard.length)}
                 changeIsFormOpen={changeIsCardOpen}
-                formBody={<PaymentDescCard data={openedCard[0]} openNotificationFunc={openNotification} />}
+                formBody={
+                    <PaymentDescCard
+                        data={openedCard[0]}
+                        openNotificationFunc={openNotification}
+                        onResolved={() => {
+                            changeOpenedCard([]);
+                            listPayments.refetch();
+                        }}
+                    />
+                }
                 hasCloseBtn
                 width={600}
             />

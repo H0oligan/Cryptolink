@@ -203,6 +203,7 @@ const AdminPlansPage: React.FC = () => {
             <Modal
                 title={editingPlan ? `Edit Plan: ${editingPlan.name}` : "Create New Plan"}
                 open={modalOpen}
+                destroyOnClose
                 onCancel={() => setModalOpen(false)}
                 footer={null}
                 width={600}

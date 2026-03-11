@@ -191,6 +191,7 @@ func setupCommonMerchantRoutes(g *echo.Group, handler *merchantapi.Handler) {
 	paymentGroup.GET("", handler.ListPayments)
 	paymentGroup.GET("/:paymentId", handler.GetPayment)
 	paymentGroup.POST("", handler.CreatePayment)
+	paymentGroup.POST("/:paymentId/resolve", handler.ResolvePayment)
 
 	// Payment link routes (rate limited to prevent abuse)
 	paymentLinkRL := mw.NewRateLimiterMemoryStore(50) // 50 requests per second

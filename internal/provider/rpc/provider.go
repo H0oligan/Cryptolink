@@ -52,10 +52,10 @@ const healthRecoveryInterval = 2 * time.Minute
 func DefaultConfig() Config {
 	return Config{
 		ETH: ChainRPC{
-			Mainnet:  "https://eth.llamarpc.com",
+			Mainnet:  "https://ethereum-rpc.publicnode.com",
 			Testnet:  "https://rpc.sepolia.org",
-			Fallback: "https://rpc.ankr.com/eth",
-			Extra:    []string{"https://ethereum-rpc.publicnode.com", "https://1rpc.io/eth"},
+			Fallback: "https://1rpc.io/eth",
+			Extra:    []string{"https://eth.llamarpc.com", "https://rpc.ankr.com/eth"},
 		},
 		MATIC: ChainRPC{
 			Mainnet:  "https://polygon-rpc.com",
@@ -151,6 +151,8 @@ func (p *Provider) AvalancheRPC(ctx context.Context, isTest bool) (*ethclient.Cl
 
 // dialWithFailover tries all endpoints in order: primary, fallback, then extras.
 // Endpoints marked unhealthy are skipped unless enough time has passed for recovery.
+// After dialing, a BlockNumber health-check call is made to detect rate-limiting
+// or other HTTP-level errors that only surface after a successful TCP connection.
 func (p *Provider) dialWithFailover(ctx context.Context, chain ChainRPC, isTest bool) (*ethclient.Client, error) {
 	timeout := time.Duration(p.config.ConnTimeout) * time.Second
 
@@ -180,14 +182,28 @@ func (p *Provider) dialWithFailover(ctx context.Context, chain ChainRPC, isTest 
 		client, err := ethclient.DialContext(dialCtx, url)
 		cancel()
 
-		if err == nil {
-			p.markHealthy(url)
-			return client, nil
+		if err != nil {
+			lastErr = err
+			p.markUnhealthy(url)
+			p.logger.Warn().Err(err).Str("url", url).Msg("RPC dial failed, trying next")
+			continue
 		}
 
-		lastErr = err
-		p.markUnhealthy(url)
-		p.logger.Warn().Err(err).Str("url", url).Msg("RPC endpoint failed, trying next")
+		// Verify the endpoint actually works (catches 429 rate limits, auth errors, etc.)
+		checkCtx, checkCancel := context.WithTimeout(ctx, timeout)
+		_, err = client.BlockNumber(checkCtx)
+		checkCancel()
+
+		if err != nil {
+			client.Close()
+			lastErr = err
+			p.markUnhealthy(url)
+			p.logger.Warn().Err(err).Str("url", url).Msg("RPC health check failed, trying next")
+			continue
+		}
+
+		p.markHealthy(url)
+		return client, nil
 	}
 
 	if lastErr == nil {
