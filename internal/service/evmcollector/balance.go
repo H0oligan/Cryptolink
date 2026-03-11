@@ -13,7 +13,7 @@ import (
 
 // publicRPCFallbacks provides fallback public RPC endpoints for known chains.
 var publicRPCFallbacks = map[string]string{
-	"ETH":      "https://eth.llamarpc.com",
+	"ETH":      "https://ethereum-rpc.publicnode.com",
 	"MATIC":    "https://polygon-rpc.com",
 	"BSC":      "https://bsc-dataseed.binance.org",
 	"ARBITRUM": "https://arb1.arbitrum.io/rpc",
@@ -28,6 +28,37 @@ var chainNativeTickers = map[string]string{
 	"ARBITRUM": "ETH",
 	"AVAX":     "AVAX",
 	"BASE":     "ETH",
+}
+
+// Known ERC-20 tokens per chain — matches frontend KNOWN_TOKENS in merchant-collector.ts
+type knownToken struct {
+	Address  string
+	Ticker   string
+	Decimals int
+}
+
+var knownERC20Tokens = map[string][]knownToken{
+	"ETH": {
+		{Address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", Ticker: "USDT", Decimals: 6},
+		{Address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", Ticker: "USDC", Decimals: 6},
+	},
+	"MATIC": {
+		{Address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", Ticker: "USDT", Decimals: 6},
+		{Address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", Ticker: "USDC", Decimals: 6},
+	},
+	"BSC": {
+		{Address: "0x55d398326f99059fF775485246999027B3197955", Ticker: "USDT", Decimals: 18},
+		{Address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", Ticker: "USDC", Decimals: 18},
+	},
+	"ARBITRUM": {
+		{Address: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", Ticker: "USDT", Decimals: 6},
+		{Address: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", Ticker: "USDC.e", Decimals: 6},
+		{Address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", Ticker: "USDC", Decimals: 6},
+	},
+	"AVAX": {
+		{Address: "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7", Ticker: "USDT", Decimals: 6},
+		{Address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", Ticker: "USDC", Decimals: 6},
+	},
 }
 
 // FetchBalance queries the on-chain native balance for a collector contract.
@@ -62,11 +93,30 @@ func (s *Service) FetchBalance(ctx context.Context, blockchain, contractAddress 
 		return nil, fmt.Errorf("eth_getBalance: %w", err)
 	}
 
-	return &OnChainBalance{
+	bal := &OnChainBalance{
 		NativeAmount: weiToDecimal(hexBal),
 		NativeTicker: ticker,
-		Tokens:       nil,
-	}, nil
+	}
+
+	// Query ERC-20 token balances
+	for _, token := range knownERC20Tokens[chain] {
+		hexTokenBal, err := ethCallBalanceOf(ctx, rpcURL, token.Address, contractAddress)
+		if err != nil {
+			continue // skip failed queries, don't block the whole response
+		}
+		amount := hexToDecimal(hexTokenBal, token.Decimals)
+		if amount == "0" {
+			continue
+		}
+		bal.Tokens = append(bal.Tokens, TokenBalance{
+			ContractAddress: token.Address,
+			Ticker:          token.Ticker,
+			Amount:          amount,
+			Decimals:        token.Decimals,
+		})
+	}
+
+	return bal, nil
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -85,6 +135,68 @@ type rpcResponse struct {
 	Error  *struct {
 		Message string `json:"message"`
 	} `json:"error"`
+}
+
+// ethCallBalanceOf calls ERC-20 balanceOf(address) via eth_call.
+// Returns the hex-encoded uint256 balance.
+func ethCallBalanceOf(ctx context.Context, rpcURL, tokenContract, holder string) (string, error) {
+	// balanceOf(address) selector = 0x70a08231 + left-padded address (32 bytes)
+	paddedAddr := fmt.Sprintf("000000000000000000000000%s", strings.TrimPrefix(strings.ToLower(holder), "0x"))
+	data := "0x70a08231" + paddedAddr
+
+	payload, _ := json.Marshal(rpcRequest{
+		JSONRPC: "2.0",
+		Method:  "eth_call",
+		Params: []interface{}{
+			map[string]string{
+				"to":   tokenContract,
+				"data": data,
+			},
+			"latest",
+		},
+		ID: 1,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewReader(payload))
+	if err != nil {
+		return "0x0", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "0x0", err
+	}
+	defer resp.Body.Close()
+
+	var result rpcResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "0x0", err
+	}
+	if result.Error != nil {
+		return "0x0", fmt.Errorf("rpc: %s", result.Error.Message)
+	}
+
+	return result.Result, nil
+}
+
+// hexToDecimal converts a hex uint256 to a human-readable decimal string with given decimals.
+func hexToDecimal(hexVal string, decimals int) string {
+	hex := strings.TrimPrefix(hexVal, "0x")
+	if hex == "" || hex == "0" {
+		return "0"
+	}
+
+	n := new(big.Int)
+	if _, ok := n.SetString(hex, 16); !ok {
+		return "0"
+	}
+	if n.Sign() == 0 {
+		return "0"
+	}
+
+	return bigIntToDecimal(n, decimals)
 }
 
 func ethGetBalance(ctx context.Context, rpcURL, address string) (string, error) {

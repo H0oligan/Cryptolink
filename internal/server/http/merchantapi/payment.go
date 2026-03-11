@@ -140,6 +140,47 @@ func (h *Handler) CreatePayment(c echo.Context) error {
 	)
 }
 
+func (h *Handler) ResolvePayment(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	paymentUUID, err := uuid.Parse(c.Param(paramPaymentID))
+	if err != nil {
+		return common.ValidationErrorResponse(c, "invalid payment id")
+	}
+
+	mt := middleware.ResolveMerchant(c)
+
+	var req struct {
+		Notes  string `json:"notes"`
+		TxHash string `json:"txHash"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return common.ValidationErrorResponse(c, "invalid request body")
+	}
+
+	pt, err := h.payments.GetByMerchantOrderID(ctx, mt.ID, paymentUUID)
+	if err != nil {
+		if errors.Is(err, payment.ErrNotFound) {
+			return common.NotFoundResponse(c, "payment not found")
+		}
+		return err
+	}
+
+	resolved, err := h.payments.ResolvePayment(ctx, mt.ID, pt.ID, req.Notes, req.TxHash)
+
+	switch {
+	case errors.Is(err, payment.ErrValidation):
+		return common.ValidationErrorResponse(c, err)
+	case err != nil:
+		h.logger.Error().Err(err).Int64("payment_id", pt.ID).Msg("unable to resolve payment")
+		return common.ErrorResponse(c, "internal_error")
+	}
+
+	return c.JSON(http.StatusOK, paymentToResponse(
+		payment.PaymentWithRelations{Payment: resolved},
+	))
+}
+
 func paymentToResponse(pr payment.PaymentWithRelations) *model.Payment {
 	pt := pr.Payment
 	tx := pr.Transaction

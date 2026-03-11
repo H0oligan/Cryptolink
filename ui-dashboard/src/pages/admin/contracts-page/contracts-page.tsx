@@ -270,6 +270,7 @@ const AdminContractsPage: React.FC = () => {
             <Modal
                 title="Deploying TRON Factory Contracts"
                 open={deploying}
+                destroyOnClose
                 footer={
                     phase === "error" ? (
                         <Space>

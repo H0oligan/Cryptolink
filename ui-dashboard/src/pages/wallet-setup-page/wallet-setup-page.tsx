@@ -316,6 +316,7 @@ const EvmCollectorPanel: React.FC<{
             <Modal
                 title={`Deploying ${currentChainConfig?.label} Contract`}
                 open={Boolean(deployingChain)}
+                destroyOnClose
                 footer={
                     deployState.step === "error" || deployState.step === "done" ? (
                         <Button onClick={() => {setDeployingChain(null); setDeployState({step: "idle"});}}>
@@ -598,6 +599,7 @@ const TronCollectorPanel: React.FC<{
             <Modal
                 title="Deploying TRON Collector Contract"
                 open={deploying}
+                destroyOnClose
                 footer={
                     deployState.step === "error" || deployState.step === "done" ? (
                         <Button onClick={() => {setDeploying(false); setDeployState({step: "idle"});}}>

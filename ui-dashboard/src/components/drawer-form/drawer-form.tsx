@@ -18,6 +18,7 @@ const DrawerForm: React.FC<FormProps> = ({title, isFormOpen, changeIsFormOpen, f
             onClose={() => changeIsFormOpen(false)}
             open={isFormOpen}
             closable={false}
+            destroyOnClose
             extra={
                 hasCloseBtn ? (
                     <Space style={{paddingTop: "15px"}}>

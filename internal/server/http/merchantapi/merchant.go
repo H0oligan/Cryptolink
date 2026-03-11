@@ -3,11 +3,13 @@ package merchantapi
 import (
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
+	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 )
@@ -59,6 +61,15 @@ func (h *Handler) CreateMerchant(c echo.Context) error {
 	if err != nil {
 		h.logger.Error().Err(err).Msg("unable to store merchant")
 		return common.ErrorResponse(c, "internal_error")
+	}
+
+	// Auto-assign free plan to new merchants
+	if h.subscriptions != nil {
+		now := time.Now()
+		_, err = h.subscriptions.CreateSubscription(ctx, mt.ID, subscription.PlanFree, now, now.AddDate(1, 0, 0))
+		if err != nil {
+			h.logger.Warn().Err(err).Int64("merchant_id", mt.ID).Msg("failed to assign free plan to new merchant")
+		}
 	}
 
 	return c.JSON(http.StatusCreated, &model.Merchant{

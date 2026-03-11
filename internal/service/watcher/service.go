@@ -53,7 +53,12 @@ type OnTransferDetected func(ctx context.Context, d DetectedTransfer) error
 type Config struct {
 	// BlockScanDepth is how many recent blocks to scan for incoming transactions.
 	// Default: 50 (~10 minutes on ETH, ~2 minutes on MATIC/BSC)
-	BlockScanDepth int64 `yaml:"block_scan_depth" env:"WATCHER_BLOCK_SCAN_DEPTH" env-default:"50"`
+	BlockScanDepth int64 `yaml:"block_scan_depth" env:"WATCHER_BLOCK_SCAN_DEPTH" env-default:"500"`
+
+	// MaxBlocksPerCycle caps how many blocks are scanned in a single poll cycle.
+	// Prevents long-running scans from blocking the scheduler. The watcher catches
+	// up progressively over multiple cycles.
+	MaxBlocksPerCycle int64 `yaml:"max_blocks_per_cycle" env:"WATCHER_MAX_BLOCKS_PER_CYCLE" env-default:"100"`
 
 	// MaxConcurrency limits parallel RPC calls per poll cycle.
 	MaxConcurrency int `yaml:"max_concurrency" env:"WATCHER_MAX_CONCURRENCY" env-default:"4"`
@@ -101,6 +106,9 @@ func New(
 
 	if config.BlockScanDepth <= 0 {
 		config.BlockScanDepth = 50
+	}
+	if config.MaxBlocksPerCycle <= 0 {
+		config.MaxBlocksPerCycle = 100
 	}
 	if config.MaxConcurrency <= 0 {
 		config.MaxConcurrency = 4
@@ -273,6 +281,19 @@ func (s *Service) pollEVMTransactions(
 		return 0, nil
 	}
 
+	// Cap the scan range to avoid long-running cycles
+	toBlock := int64(currentBlock)
+	if toBlock-fromBlock > s.config.MaxBlocksPerCycle {
+		toBlock = fromBlock + s.config.MaxBlocksPerCycle
+		s.logger.Info().
+			Str("blockchain", bc.String()).
+			Int64("from_block", fromBlock).
+			Int64("to_block", toBlock).
+			Int64("current_block", int64(currentBlock)).
+			Int64("blocks_behind", int64(currentBlock)-toBlock).
+			Msg("capping block scan range, will catch up in subsequent cycles")
+	}
+
 	// Build address lookup maps
 	nativeAddresses := make(map[common.Address]pendingInfo)
 	tokenAddresses := make(map[common.Address]map[common.Address]pendingInfo) // contract -> recipient -> info
@@ -280,6 +301,12 @@ func (s *Service) pollEVMTransactions(
 	for _, tx := range txs {
 		addr := s.getRecipientAddress(ctx, tx)
 		if addr == "" {
+			s.logger.Warn().
+				Int64("tx_id", tx.ID).
+				Int64("entity_id", tx.EntityID).
+				Str("blockchain", bc.String()).
+				Str("currency", tx.Currency.Ticker).
+				Msg("skipping transaction: unable to resolve recipient address")
 			continue
 		}
 
@@ -301,20 +328,20 @@ func (s *Service) pollEVMTransactions(
 
 	// 1. Scan for native coin transfers by checking block transactions
 	if len(nativeAddresses) > 0 {
-		d, f := s.scanNativeTransfers(ctx, client, bc, isTest, nativeAddresses, fromBlock, int64(currentBlock), onDetected)
+		d, f := s.scanNativeTransfers(ctx, client, bc, isTest, nativeAddresses, fromBlock, toBlock, onDetected)
 		detected += d
 		failedIDs = append(failedIDs, f...)
 	}
 
 	// 2. Scan for ERC-20 token transfers using Transfer event logs
 	if len(tokenAddresses) > 0 {
-		d, f := s.scanTokenTransfers(ctx, client, isTest, tokenAddresses, fromBlock, int64(currentBlock), onDetected)
+		d, f := s.scanTokenTransfers(ctx, client, isTest, tokenAddresses, fromBlock, toBlock, onDetected)
 		detected += d
 		failedIDs = append(failedIDs, f...)
 	}
 
-	// Update last scanned block
-	s.lastScannedBlock.Store(cacheKey, int64(currentBlock))
+	// Update last scanned block (use capped toBlock, not currentBlock, for progressive catch-up)
+	s.lastScannedBlock.Store(cacheKey, toBlock)
 
 	return detected, failedIDs
 }
@@ -581,6 +608,11 @@ func (s *Service) pollBTCTransactions(
 	for _, tx := range txs {
 		addr := s.getRecipientAddress(ctx, tx)
 		if addr == "" {
+			s.logger.Warn().
+				Int64("tx_id", tx.ID).
+				Int64("entity_id", tx.EntityID).
+				Str("currency", tx.Currency.Ticker).
+				Msg("skipping BTC transaction: unable to resolve recipient address")
 			continue
 		}
 
@@ -710,6 +742,11 @@ func (s *Service) pollTRONTransactions(
 	for _, tx := range txs {
 		addr := s.getRecipientAddress(ctx, tx)
 		if addr == "" {
+			s.logger.Warn().
+				Int64("tx_id", tx.ID).
+				Int64("entity_id", tx.EntityID).
+				Str("currency", tx.Currency.Ticker).
+				Msg("skipping TRON transaction: unable to resolve recipient address")
 			continue
 		}
 

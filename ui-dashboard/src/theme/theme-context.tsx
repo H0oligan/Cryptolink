@@ -1,5 +1,6 @@
 import * as React from "react";
 import {ConfigProvider} from "antd";
+import enUS from "antd/locale/en_US";
 import {darkTokens, lightTokens, darkCSSVars, lightCSSVars} from "./theme-tokens";
 
 type ThemeMode = "dark" | "light";
@@ -55,7 +56,7 @@ export const ThemeProvider: React.FC<{children: React.ReactNode}> = ({children})
 
     return (
         <ThemeContext.Provider value={{mode, toggleTheme, setTheme, isDark}}>
-            <ConfigProvider theme={antdTheme}>{children}</ConfigProvider>
+            <ConfigProvider theme={antdTheme} locale={enUS}>{children}</ConfigProvider>
         </ThemeContext.Provider>
     );
 };

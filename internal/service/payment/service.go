@@ -644,6 +644,33 @@ func (s *Service) Fail(ctx context.Context, pt *Payment) error {
 	return err
 }
 
+// ResolvePayment allows a merchant to manually mark a failed payment as successful.
+// This triggers the standard webhook delivery via bus.TopicPaymentStatusUpdate.
+func (s *Service) ResolvePayment(ctx context.Context, merchantID, paymentID int64, notes, txHash string) (*Payment, error) {
+	pt, err := s.GetByID(ctx, merchantID, paymentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if pt.Status != StatusFailed {
+		return nil, errors.Wrap(ErrValidation, "only failed payments can be manually resolved")
+	}
+
+	pt, err = s.Update(ctx, merchantID, pt.ID, UpdateProps{Status: StatusSuccess})
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to resolve payment")
+	}
+
+	s.logger.Info().
+		Int64("payment_id", paymentID).
+		Int64("merchant_id", merchantID).
+		Str("notes", notes).
+		Str("tx_hash", txHash).
+		Msg("payment manually resolved by merchant")
+
+	return pt, nil
+}
+
 func (s *Service) SetWebhookTimestamp(ctx context.Context, merchantID, id int64, sentAt time.Time) error {
 	err := s.repo.UpdatePaymentWebhookInfo(ctx, repository.UpdatePaymentWebhookInfoParams{
 		ID:            id,

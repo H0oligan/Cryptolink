@@ -61,6 +61,18 @@ const merchantProvider = {
         return response.data;
     },
 
+    async resolvePayment(
+        merchantId: string,
+        paymentId: string,
+        params: {notes?: string; txHash?: string}
+    ): Promise<Payment> {
+        const response = await apiRequest.post(
+            withApiPath(`/merchant/${merchantId}/payment/${paymentId}/resolve`),
+            params
+        );
+        return response.data;
+    },
+
     async updateSupportedMethods(
         merchantId: string,
         params: {supportedPaymentMethods: BlockchainTicker[]}

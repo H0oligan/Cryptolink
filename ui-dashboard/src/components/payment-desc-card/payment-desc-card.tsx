@@ -1,8 +1,8 @@
 import "./payment-desc-card.scss";
 
 import * as React from "react";
-import {Descriptions, Tag, Button, Tooltip, Space} from "antd";
-import {CopyOutlined, LinkOutlined} from "@ant-design/icons";
+import {Descriptions, Tag, Button, Tooltip, Space, Modal, Input, notification} from "antd";
+import {CopyOutlined, LinkOutlined, CheckCircleOutlined} from "@ant-design/icons";
 import bevis from "src/utils/bevis";
 import {Payment, CURRENCY_SYMBOL} from "src/types";
 import PaymentStatusLabel from "src/components/payment-status/payment-status";
@@ -10,10 +10,13 @@ import SpinWithMask from "src/components/spin-with-mask/spin-with-mask";
 import copyToClipboard from "src/utils/copy-to-clipboard";
 import TimeLabel from "src/components/time-label/time-label";
 import renderStrippedStr from "src/utils/render-stripped-str";
+import merchantProvider from "src/providers/merchant-provider";
+import useSharedMerchantId from "src/hooks/use-merchant-id";
 
 interface Props {
     data?: Payment;
     openNotificationFunc: (title: string, description: string) => void;
+    onResolved?: () => void;
 }
 
 const emptyState: Payment = {
@@ -61,7 +64,13 @@ const HashWithCopy = ({
     </Space>
 );
 
-const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc}) => {
+const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc, onResolved}) => {
+    const {merchantId} = useSharedMerchantId();
+    const [resolveOpen, setResolveOpen] = React.useState(false);
+    const [resolveNotes, setResolveNotes] = React.useState("");
+    const [resolveTxHash, setResolveTxHash] = React.useState("");
+    const [resolving, setResolving] = React.useState(false);
+
     React.useEffect(() => {
         if (!data) {
             data = emptyState;
@@ -69,6 +78,34 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc}) => {
     }, [data]);
 
     const paymentInfo = data?.additionalInfo?.payment;
+
+    const handleResolve = async () => {
+        if (!data || !merchantId) return;
+        setResolving(true);
+        try {
+            await merchantProvider.resolvePayment(merchantId, data.id, {
+                notes: resolveNotes || undefined,
+                txHash: resolveTxHash || undefined,
+            });
+            notification.success({
+                message: "Payment resolved",
+                description: "Payment has been marked as successful. Webhook will be delivered.",
+                placement: "bottomRight",
+            });
+            setResolveOpen(false);
+            setResolveNotes("");
+            setResolveTxHash("");
+            onResolved?.();
+        } catch (err: any) {
+            notification.error({
+                message: "Failed to resolve payment",
+                description: err?.response?.data?.message || err?.message || "Unknown error",
+                placement: "bottomRight",
+            });
+        } finally {
+            setResolving(false);
+        }
+    };
 
     return (
         <>
@@ -165,6 +202,55 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc}) => {
                             </Descriptions.Item>
                         )}
                     </Descriptions>
+
+                    {data.status === "failed" && data.type === "payment" && (
+                        <div style={{marginTop: 16, textAlign: "center"}}>
+                            <Button
+                                type="primary"
+                                icon={<CheckCircleOutlined />}
+                                onClick={() => setResolveOpen(true)}
+                            >
+                                Resolve Payment
+                            </Button>
+                        </div>
+                    )}
+
+                    <Modal
+                        title="Resolve Payment"
+                        open={resolveOpen}
+                        destroyOnClose
+                        onCancel={() => setResolveOpen(false)}
+                        onOk={handleResolve}
+                        okText="Confirm Resolution"
+                        confirmLoading={resolving}
+                    >
+                        <p style={{marginBottom: 16}}>
+                            This will mark the payment as <strong>successful</strong> and trigger
+                            the webhook notification. Use this when you have manually verified
+                            the customer's payment.
+                        </p>
+                        <div style={{marginBottom: 12}}>
+                            <label style={{display: "block", marginBottom: 4, fontWeight: 500}}>
+                                Transaction Hash (optional)
+                            </label>
+                            <Input
+                                placeholder="0x..."
+                                value={resolveTxHash}
+                                onChange={(e) => setResolveTxHash(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label style={{display: "block", marginBottom: 4, fontWeight: 500}}>
+                                Notes (optional)
+                            </label>
+                            <Input.TextArea
+                                placeholder="e.g. Customer confirmed payment via email"
+                                value={resolveNotes}
+                                onChange={(e) => setResolveNotes(e.target.value)}
+                                rows={3}
+                            />
+                        </div>
+                    </Modal>
                 </>
             )}
         </>

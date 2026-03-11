@@ -9,8 +9,6 @@ import {
     Tag,
     Typography,
     Row,
-    Col,
-    Card,
     Button,
     notification,
     Spin,
@@ -50,7 +48,7 @@ const EvmCollectorBalances: React.FC<{merchantId: string}> = ({merchantId}) => {
         evmCollectorProvider
             .listCollectors(merchantId)
             .then((cols) => {
-                const active = (cols || []).filter((c) => c.isActive);
+                const active = (cols || []).filter((c) => c.isActive && c.blockchain !== "TRON");
                 setCollectors(active);
                 // Load balances for each active collector
                 active.forEach((col) => {
@@ -151,84 +149,103 @@ const EvmCollectorBalances: React.FC<{merchantId: string}> = ({merchantId}) => {
                 />
             )}
 
-            <Row gutter={[16, 16]} style={{marginTop: 16}}>
-                {collectors.map((collector) => {
-                    const chain = EVM_CHAINS.find((c) => c.value === collector.blockchain);
-                    const bal = balances[collector.blockchain];
-                    const isLoadingBal = loadingBalances[collector.blockchain];
-                    const isWithdrawing = withdrawing[collector.blockchain];
-
-                    return (
-                        <Col xs={24} sm={12} md={8} key={collector.blockchain}>
-                            <Card
-                                size="small"
-                                style={{borderColor: "var(--cl-border)", height: "100%"}}
-                                extra={
-                                    <Button
-                                        type="primary"
-                                        size="small"
-                                        icon={<WalletOutlined />}
-                                        loading={isWithdrawing}
-                                        disabled={!isMetaMaskAvailable()}
-                                        onClick={() => handleWithdraw(collector)}
-                                    >
-                                        Withdraw
-                                    </Button>
-                                }
-                            >
-                                <Space direction="vertical" size={4} style={{width: "100%"}}>
-                                    <Space>
-                                        <div style={{
-                                            width: 24, height: 24, borderRadius: "50%",
-                                            background: chain?.color || "#666",
-                                            display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                            flexShrink: 0,
-                                        }}>
-                                            <ThunderboltOutlined style={{color: "#fff", fontSize: 10}} />
-                                        </div>
-                                        <Text strong>{chain?.label || collector.blockchain}</Text>
-                                    </Space>
-
-                                    <Tooltip title={collector.contractAddress}>
-                                        <Text code style={{fontSize: 11}}>
-                                            {collector.contractAddress.slice(0, 10)}...{collector.contractAddress.slice(-8)}
-                                        </Text>
-                                    </Tooltip>
-
-                                    {isLoadingBal ? (
-                                        <Spin size="small" />
-                                    ) : bal ? (
-                                        <Space direction="vertical" size={2} style={{width: "100%"}}>
-                                            <Space>
-                                                <Text style={{fontSize: 12}}>{chain?.nativeTicker}:</Text>
-                                                <Text strong style={{fontSize: 12}}>{bal.native.amount}</Text>
-                                                {bal.native.usdAmount !== "0" && (
-                                                    <Text type="secondary" style={{fontSize: 11}}>
-                                                        ≈ ${bal.native.usdAmount}
-                                                    </Text>
-                                                )}
-                                            </Space>
-                                            {bal.tokens.map((t) => (
-                                                <Space key={t.contract}>
-                                                    <Text style={{fontSize: 12}}>{t.ticker}:</Text>
-                                                    <Text strong style={{fontSize: 12}}>{t.amount}</Text>
-                                                    {t.usdAmount !== "0" && (
-                                                        <Text type="secondary" style={{fontSize: 11}}>
-                                                            ≈ ${t.usdAmount}
-                                                        </Text>
-                                                    )}
-                                                </Space>
-                                            ))}
-                                        </Space>
-                                    ) : (
-                                        <Text type="secondary" style={{fontSize: 12}}>Balance unavailable</Text>
+            <Table
+                dataSource={collectors}
+                rowKey={(r) => r.blockchain}
+                pagination={false}
+                size="middle"
+                style={{marginTop: 16}}
+                columns={[
+                    {
+                        title: "Network",
+                        dataIndex: "blockchain",
+                        key: "network",
+                        render: (_, collector) => {
+                            const chain = EVM_CHAINS.find((c) => c.value === collector.blockchain);
+                            return (
+                                <Space>
+                                    <div style={{
+                                        width: 24, height: 24, borderRadius: "50%",
+                                        background: chain?.color || "#666",
+                                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                    }}>
+                                        <ThunderboltOutlined style={{color: "#fff", fontSize: 10}} />
+                                    </div>
+                                    <Text strong>{chain?.label || collector.blockchain}</Text>
+                                </Space>
+                            );
+                        },
+                    },
+                    {
+                        title: "Contract",
+                        dataIndex: "contractAddress",
+                        key: "contract",
+                        render: (addr: string) => (
+                            <Tooltip title={addr}>
+                                <Text code style={{fontSize: 11}}>
+                                    {addr.slice(0, 10)}...{addr.slice(-8)}
+                                </Text>
+                            </Tooltip>
+                        ),
+                    },
+                    {
+                        title: "Native Balance",
+                        key: "native",
+                        render: (_, collector) => {
+                            const chain = EVM_CHAINS.find((c) => c.value === collector.blockchain);
+                            const bal = balances[collector.blockchain];
+                            if (loadingBalances[collector.blockchain]) return <Spin size="small" />;
+                            if (!bal) return <Text type="secondary">Unavailable</Text>;
+                            return (
+                                <Space>
+                                    <Text>{chain?.nativeTicker}: <strong>{bal.native.amount}</strong></Text>
+                                    {bal.native.usdAmount !== "0" && (
+                                        <Text type="secondary" style={{fontSize: 11}}>≈ ${bal.native.usdAmount}</Text>
                                     )}
                                 </Space>
-                            </Card>
-                        </Col>
-                    );
-                })}
-            </Row>
+                            );
+                        },
+                    },
+                    {
+                        title: "Tokens",
+                        key: "tokens",
+                        render: (_, collector) => {
+                            const bal = balances[collector.blockchain];
+                            if (loadingBalances[collector.blockchain]) return <Spin size="small" />;
+                            if (!bal || bal.tokens.length === 0) return <Text type="secondary">—</Text>;
+                            return (
+                                <Space direction="vertical" size={2}>
+                                    {bal.tokens.map((t) => (
+                                        <Space key={t.contract}>
+                                            <Text>{t.ticker}: <strong>{t.amount}</strong></Text>
+                                            {t.usdAmount !== "0" && (
+                                                <Text type="secondary" style={{fontSize: 11}}>≈ ${t.usdAmount}</Text>
+                                            )}
+                                        </Space>
+                                    ))}
+                                </Space>
+                            );
+                        },
+                    },
+                    {
+                        title: "Action",
+                        key: "action",
+                        width: 120,
+                        render: (_, collector) => (
+                            <Button
+                                type="primary"
+                                size="small"
+                                icon={<WalletOutlined />}
+                                loading={withdrawing[collector.blockchain]}
+                                disabled={!isMetaMaskAvailable()}
+                                onClick={() => handleWithdraw(collector)}
+                            >
+                                Withdraw
+                            </Button>
+                        ),
+                    },
+                ]}
+            />
         </>
     );
 };
@@ -338,12 +355,81 @@ const TronCollectorBalance: React.FC<{merchantId: string}> = ({merchantId}) => {
                 />
             )}
 
-            <Row gutter={[16, 16]} style={{marginTop: 16}}>
-                <Col xs={24} sm={12} md={8}>
-                    <Card
-                        size="small"
-                        style={{borderColor: "var(--cl-border)", height: "100%"}}
-                        extra={
+            <Table
+                dataSource={[collector]}
+                rowKey={(r) => r.blockchain}
+                pagination={false}
+                size="middle"
+                style={{marginTop: 16}}
+                columns={[
+                    {
+                        title: "Network",
+                        key: "network",
+                        render: () => (
+                            <Space>
+                                <div style={{
+                                    width: 24, height: 24, borderRadius: "50%",
+                                    background: TRON_CHAIN.color,
+                                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                }}>
+                                    <ThunderboltOutlined style={{color: "#fff", fontSize: 10}} />
+                                </div>
+                                <Text strong>TRON</Text>
+                            </Space>
+                        ),
+                    },
+                    {
+                        title: "Contract",
+                        key: "contract",
+                        render: () => (
+                            <Tooltip title={collector.contractAddress}>
+                                <Text code style={{fontSize: 11}}>
+                                    {collector.contractAddress.slice(0, 10)}...{collector.contractAddress.slice(-8)}
+                                </Text>
+                            </Tooltip>
+                        ),
+                    },
+                    {
+                        title: "Native Balance",
+                        key: "native",
+                        render: () => {
+                            if (loadingBalance) return <Spin size="small" />;
+                            if (!balance) return <Text type="secondary">Unavailable</Text>;
+                            return (
+                                <Space>
+                                    <Text>TRX: <strong>{balance.native.amount}</strong></Text>
+                                    {balance.native.usdAmount !== "0" && (
+                                        <Text type="secondary" style={{fontSize: 11}}>≈ ${balance.native.usdAmount}</Text>
+                                    )}
+                                </Space>
+                            );
+                        },
+                    },
+                    {
+                        title: "Tokens",
+                        key: "tokens",
+                        render: () => {
+                            if (loadingBalance) return <Spin size="small" />;
+                            if (!balance || balance.tokens.length === 0) return <Text type="secondary">—</Text>;
+                            return (
+                                <Space direction="vertical" size={2}>
+                                    {balance.tokens.map((t) => (
+                                        <Space key={t.contract}>
+                                            <Text>{t.ticker}: <strong>{t.amount}</strong></Text>
+                                            {t.usdAmount !== "0" && (
+                                                <Text type="secondary" style={{fontSize: 11}}>≈ ${t.usdAmount}</Text>
+                                            )}
+                                        </Space>
+                                    ))}
+                                </Space>
+                            );
+                        },
+                    },
+                    {
+                        title: "Action",
+                        key: "action",
+                        width: 120,
+                        render: () => (
                             <Button
                                 type="primary"
                                 size="small"
@@ -354,59 +440,10 @@ const TronCollectorBalance: React.FC<{merchantId: string}> = ({merchantId}) => {
                             >
                                 Withdraw
                             </Button>
-                        }
-                    >
-                        <Space direction="vertical" size={4} style={{width: "100%"}}>
-                            <Space>
-                                <div style={{
-                                    width: 24, height: 24, borderRadius: "50%",
-                                    background: TRON_CHAIN.color,
-                                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                    flexShrink: 0,
-                                }}>
-                                    <ThunderboltOutlined style={{color: "#fff", fontSize: 10}} />
-                                </div>
-                                <Text strong>TRON</Text>
-                            </Space>
-
-                            <Tooltip title={collector.contractAddress}>
-                                <Text code style={{fontSize: 11}}>
-                                    {collector.contractAddress.slice(0, 10)}...{collector.contractAddress.slice(-8)}
-                                </Text>
-                            </Tooltip>
-
-                            {loadingBalance ? (
-                                <Spin size="small" />
-                            ) : balance ? (
-                                <Space direction="vertical" size={2} style={{width: "100%"}}>
-                                    <Space>
-                                        <Text style={{fontSize: 12}}>TRX:</Text>
-                                        <Text strong style={{fontSize: 12}}>{balance.native.amount}</Text>
-                                        {balance.native.usdAmount !== "0" && (
-                                            <Text type="secondary" style={{fontSize: 11}}>
-                                                ≈ ${balance.native.usdAmount}
-                                            </Text>
-                                        )}
-                                    </Space>
-                                    {balance.tokens.map((t) => (
-                                        <Space key={t.contract}>
-                                            <Text style={{fontSize: 12}}>{t.ticker}:</Text>
-                                            <Text strong style={{fontSize: 12}}>{t.amount}</Text>
-                                            {t.usdAmount !== "0" && (
-                                                <Text type="secondary" style={{fontSize: 11}}>
-                                                    ≈ ${t.usdAmount}
-                                                </Text>
-                                            )}
-                                        </Space>
-                                    ))}
-                                </Space>
-                            ) : (
-                                <Text type="secondary" style={{fontSize: 12}}>Balance unavailable</Text>
-                            )}
-                        </Space>
-                    </Card>
-                </Col>
-            </Row>
+                        ),
+                    },
+                ]}
+            />
         </>
     );
 };
@@ -445,7 +482,7 @@ const BalancePage: React.FC = () => {
             ),
         },
         {
-            title: "Balance",
+            title: "Total Received",
             dataIndex: "balance",
             key: "balance",
             render: (_, record) => (
@@ -462,7 +499,7 @@ const BalancePage: React.FC = () => {
             ),
         },
         {
-            title: "USD Balance",
+            title: "USD Value",
             dataIndex: "usdBalance",
             key: "usdBalance",
             render: (_, record) => (
@@ -495,10 +532,11 @@ const BalancePage: React.FC = () => {
 
     return (
         <PageContainer header={{title: "", breadcrumb: {}}}>
-            <Typography.Title>Balances</Typography.Title>
+            <Typography.Title>Received Payment Totals</Typography.Title>
             <Typography.Text type="secondary" style={{marginBottom: 16, display: "block"}}>
-                Incoming payment balances tracked by CryptoLink. xpub-based wallets (BTC) are shown
-                below. Smart contract wallet balances and withdrawals (EVM chains + TRON) are shown further down.
+                Cumulative totals of payments received via xpub-based wallets (BTC). These are not on-chain wallet
+                balances — they reflect the sum of all incoming payments tracked by CryptoLink. Smart contract
+                wallet balances and withdrawals (EVM chains + TRON) are shown further down.
             </Typography.Text>
             <Table
                 columns={balancesColumns}

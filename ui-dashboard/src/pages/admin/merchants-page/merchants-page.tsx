@@ -181,6 +181,7 @@ const AdminMerchantsPage: React.FC = () => {
             <Modal
                 title={`Assign Plan — ${selectedMerchant?.name || ""}`}
                 open={assignModalOpen}
+                destroyOnClose
                 onCancel={() => setAssignModalOpen(false)}
                 onOk={handleAssignPlan}
                 confirmLoading={assigning}

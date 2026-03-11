@@ -75,6 +75,7 @@ func (app *App) RunServer() {
 		app.services.WalletService(),
 		app.services.XpubService(),
 		app.services.EvmCollectorService(),
+		app.services.SubscriptionService(),
 		app.services.BlockchainService(),
 		app.services.EventBus(),
 		app.Logger(),
