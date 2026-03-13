@@ -68,7 +68,7 @@ const AdminEmailPage: React.FC = () => {
             notificationApi.success({
                 message: "Settings saved",
                 placement: "bottomRight",
-                icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                icon: <CheckOutlined style={{color: "#10b981"}} />
             });
             await loadSettings();
         } catch (e: any) {
@@ -90,7 +90,7 @@ const AdminEmailPage: React.FC = () => {
                 message: "Test email sent",
                 description: result.message,
                 placement: "bottomRight",
-                icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                icon: <CheckOutlined style={{color: "#10b981"}} />
             });
             await loadLogs(1);
         } catch (e: any) {
@@ -112,7 +112,7 @@ const AdminEmailPage: React.FC = () => {
                 message: "Email sent",
                 description: `Email sent to ${values.to}`,
                 placement: "bottomRight",
-                icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                icon: <CheckOutlined style={{color: "#10b981"}} />
             });
             composeForm.resetFields();
             await loadLogs(1);

@@ -295,7 +295,8 @@ func (s *Service) CheckPaymentLimit(ctx context.Context, merchantID int64) error
 	}
 
 	if usage.PaymentCount >= sub.Plan.MaxPaymentsMonthly.Int32 {
-		return fmt.Errorf("%w: monthly payment limit of %d reached", ErrLimitExceeded, sub.Plan.MaxPaymentsMonthly.Int32)
+		return fmt.Errorf("%w: Monthly payment limit reached (%d/%d). Please upgrade your plan at /merchants/subscription",
+			ErrLimitExceeded, usage.PaymentCount, sub.Plan.MaxPaymentsMonthly.Int32)
 	}
 
 	return nil
@@ -318,7 +319,8 @@ func (s *Service) CheckAPILimit(ctx context.Context, merchantID int64) error {
 	}
 
 	if usage.APICallsCount >= sub.Plan.MaxAPICallsMonthly.Int32 {
-		return fmt.Errorf("%w: monthly API call limit of %d reached", ErrLimitExceeded, sub.Plan.MaxAPICallsMonthly.Int32)
+		return fmt.Errorf("%w: Monthly API call limit reached (%d/%d). Please upgrade your plan at /merchants/subscription",
+			ErrLimitExceeded, usage.APICallsCount, sub.Plan.MaxAPICallsMonthly.Int32)
 	}
 
 	return nil
@@ -342,8 +344,8 @@ func (s *Service) CheckVolumeLimit(ctx context.Context, merchantID int64, additi
 
 	newTotal := usage.PaymentVolumeUSD.Add(additionalVolumeUSD)
 	if newTotal.GreaterThan(sub.Plan.MaxVolumeMonthlyUSD.Decimal) {
-		return fmt.Errorf("%w: monthly volume limit of $%s reached (current: $%s)",
-			ErrLimitExceeded, sub.Plan.MaxVolumeMonthlyUSD.Decimal.StringFixed(2), usage.PaymentVolumeUSD.StringFixed(2))
+		return fmt.Errorf("%w: Monthly volume limit reached ($%s/$%s). Please upgrade your plan at /merchants/subscription",
+			ErrLimitExceeded, usage.PaymentVolumeUSD.StringFixed(2), sub.Plan.MaxVolumeMonthlyUSD.Decimal.StringFixed(2))
 	}
 
 	return nil
@@ -662,7 +664,8 @@ func (s *Service) CheckMerchantLimit(ctx context.Context, userID int64, currentC
 	}
 
 	if currentCount >= int(plan.MaxMerchants) {
-		return fmt.Errorf("%w: merchant limit of %d reached for plan %s", ErrLimitExceeded, plan.MaxMerchants, plan.Name)
+		return fmt.Errorf("%w: Merchant limit reached (%d/%d on %s plan). Please upgrade your plan at /merchants/subscription",
+			ErrLimitExceeded, currentCount, plan.MaxMerchants, plan.Name)
 	}
 
 	return nil

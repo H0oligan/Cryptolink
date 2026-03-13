@@ -17,7 +17,6 @@ type Querier interface {
 	CalculateCustomerPayments(ctx context.Context, arg CalculateCustomerPaymentsParams) (int64, error)
 	CancelMerchantSubscription(ctx context.Context, id int64) error
 	CancelTransaction(ctx context.Context, arg CancelTransactionParams) error
-	CheckSystemWalletExistsByAddress(ctx context.Context, address string) (Wallet, error)
 	CountUnusedAddresses(ctx context.Context, xpubWalletID int64) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	CreateBalance(ctx context.Context, arg CreateBalanceParams) (Balance, error)
@@ -25,7 +24,6 @@ type Querier interface {
 	CreateDerivedAddress(ctx context.Context, arg CreateDerivedAddressParams) (DerivedAddress, error)
 	CreateJobLog(ctx context.Context, arg CreateJobLogParams) error
 	CreateMerchant(ctx context.Context, arg CreateMerchantParams) (Merchant, error)
-	CreateMerchantAddress(ctx context.Context, arg CreateMerchantAddressParams) (MerchantAddress, error)
 	CreateMerchantSubscription(ctx context.Context, arg CreateMerchantSubscriptionParams) (MerchantSubscription, error)
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
 	CreatePaymentLink(ctx context.Context, arg CreatePaymentLinkParams) (PaymentLink, error)
@@ -33,20 +31,16 @@ type Querier interface {
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
 	CreateUsageTracking(ctx context.Context, arg CreateUsageTrackingParams) (UsageTracking, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	CreateWallet(ctx context.Context, arg CreateWalletParams) (Wallet, error)
-	CreateWalletLock(ctx context.Context, arg CreateWalletLockParams) (WalletLock, error)
 	CreateXpubWallet(ctx context.Context, arg CreateXpubWalletParams) (XpubWallet, error)
 	DeactivateXpubWallet(ctx context.Context, arg DeactivateXpubWalletParams) error
 	DeleteAPITokenByID(ctx context.Context, id int64) error
 	DeleteAPITokenByToken(ctx context.Context, token string) error
-	DeleteMerchantAddress(ctx context.Context, arg DeleteMerchantAddressParams) error
 	DeletePaymentLinkByPublicID(ctx context.Context, arg DeletePaymentLinkByPublicIDParams) error
 	DeleteUser(ctx context.Context, id int64) error
 	EagerLoadTransactionsByPaymentID(ctx context.Context, arg EagerLoadTransactionsByPaymentIDParams) ([]Transaction, error)
 	GetAPIToken(ctx context.Context, arg GetAPITokenParams) (ApiToken, error)
 	GetAPITokenByUUID(ctx context.Context, argUuid uuid.UUID) (ApiToken, error)
 	GetActiveSubscriptionByMerchantID(ctx context.Context, merchantID int64) (MerchantSubscription, error)
-	GetAvailableWallet(ctx context.Context, arg GetAvailableWalletParams) (Wallet, error)
 	GetBalanceByFilter(ctx context.Context, arg GetBalanceByFilterParams) (Balance, error)
 	GetBalanceByFilterWithLock(ctx context.Context, arg GetBalanceByFilterWithLockParams) (Balance, error)
 	GetBalanceByID(ctx context.Context, arg GetBalanceByIDParams) (Balance, error)
@@ -63,9 +57,6 @@ type Querier interface {
 	GetDerivedAddressByUUID(ctx context.Context, argUuid uuid.UUID) (DerivedAddress, error)
 	GetLastDerivedIndex(ctx context.Context, xpubWalletID int64) (interface{}, error)
 	GetLatestTransactionByPaymentID(ctx context.Context, entityID sql.NullInt64) (Transaction, error)
-	GetMerchantAddressByAddress(ctx context.Context, arg GetMerchantAddressByAddressParams) (MerchantAddress, error)
-	GetMerchantAddressByID(ctx context.Context, arg GetMerchantAddressByIDParams) (MerchantAddress, error)
-	GetMerchantAddressByUUID(ctx context.Context, arg GetMerchantAddressByUUIDParams) (MerchantAddress, error)
 	GetMerchantByID(ctx context.Context, arg GetMerchantByIDParams) (Merchant, error)
 	GetMerchantByUUID(ctx context.Context, arg GetMerchantByUUIDParams) (Merchant, error)
 	GetMerchantByUUIDAndCreatorID(ctx context.Context, arg GetMerchantByUUIDAndCreatorIDParams) (Merchant, error)
@@ -92,10 +83,6 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID sql.NullString) (User, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
-	GetWalletByID(ctx context.Context, id int64) (Wallet, error)
-	GetWalletByUUID(ctx context.Context, argUuid uuid.UUID) (Wallet, error)
-	GetWalletForUpdateByID(ctx context.Context, id int64) (Wallet, error)
-	GetWalletLock(ctx context.Context, arg GetWalletLockParams) (WalletLock, error)
 	GetXpubWalletByID(ctx context.Context, id int64) (XpubWallet, error)
 	GetXpubWalletByMerchantAndBlockchain(ctx context.Context, arg GetXpubWalletByMerchantAndBlockchainParams) (XpubWallet, error)
 	GetXpubWalletByUUID(ctx context.Context, argUuid uuid.UUID) (XpubWallet, error)
@@ -111,7 +98,6 @@ type Querier interface {
 	ListDerivedAddressesByWalletID(ctx context.Context, xpubWalletID int64) ([]DerivedAddress, error)
 	ListExpiringSubscriptions(ctx context.Context, currentPeriodEnd time.Time) ([]MerchantSubscription, error)
 	ListJobLogsByID(ctx context.Context, arg ListJobLogsByIDParams) ([]JobLog, error)
-	ListMerchantAddresses(ctx context.Context, merchantID int64) ([]MerchantAddress, error)
 	ListMerchantSubscriptionsByMerchantID(ctx context.Context, merchantID int64) ([]MerchantSubscription, error)
 	ListMerchantsByCreatorID(ctx context.Context, arg ListMerchantsByCreatorIDParams) ([]Merchant, error)
 	ListPaymentLinks(ctx context.Context, arg ListPaymentLinksParams) ([]PaymentLink, error)
@@ -126,13 +112,10 @@ type Querier interface {
 	PaginateCustomersDesc(ctx context.Context, arg PaginateCustomersDescParams) ([]Customer, error)
 	PaginatePaymentsAsc(ctx context.Context, arg PaginatePaymentsAscParams) ([]Payment, error)
 	PaginatePaymentsDesc(ctx context.Context, arg PaginatePaymentsDescParams) ([]Payment, error)
-	PaginateWalletsByID(ctx context.Context, arg PaginateWalletsByIDParams) ([]Wallet, error)
-	ReleaseWalletLock(ctx context.Context, id int64) error
 	SetTransactionHash(ctx context.Context, arg SetTransactionHashParams) error
 	SoftDeleteMerchantByUUID(ctx context.Context, argUuid uuid.UUID) error
 	UpdateBalanceByID(ctx context.Context, arg UpdateBalanceByIDParams) (Balance, error)
 	UpdateMerchant(ctx context.Context, arg UpdateMerchantParams) (Merchant, error)
-	UpdateMerchantAddress(ctx context.Context, arg UpdateMerchantAddressParams) (MerchantAddress, error)
 	UpdateMerchantSettings(ctx context.Context, arg UpdateMerchantSettingsParams) error
 	UpdateMerchantSubscription(ctx context.Context, arg UpdateMerchantSubscriptionParams) (MerchantSubscription, error)
 	UpdatePayment(ctx context.Context, arg UpdatePaymentParams) (Payment, error)
@@ -144,8 +127,6 @@ type Querier interface {
 	UpdateUsageTracking(ctx context.Context, arg UpdateUsageTrackingParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error)
-	UpdateWalletMainnetTransactionCounters(ctx context.Context, arg UpdateWalletMainnetTransactionCountersParams) error
-	UpdateWalletTestnetTransactionCounters(ctx context.Context, arg UpdateWalletTestnetTransactionCountersParams) error
 	UpdateXpubWalletLastIndex(ctx context.Context, arg UpdateXpubWalletLastIndexParams) (XpubWallet, error)
 	GetXpubWalletByMerchantAndBlockchainAny(ctx context.Context, arg GetXpubWalletByMerchantAndBlockchainParams) (XpubWallet, error)
 	ReactivateXpubWallet(ctx context.Context, arg ReactivateXpubWalletParams) (XpubWallet, error)

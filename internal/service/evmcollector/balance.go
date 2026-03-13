@@ -98,15 +98,13 @@ func (s *Service) FetchBalance(ctx context.Context, blockchain, contractAddress 
 		NativeTicker: ticker,
 	}
 
-	// Query ERC-20 token balances
+	// Query ERC-20 token balances — include all known tokens (even zero)
+	// so the frontend can always display them based on merchant settings.
 	for _, token := range knownERC20Tokens[chain] {
+		amount := "0"
 		hexTokenBal, err := ethCallBalanceOf(ctx, rpcURL, token.Address, contractAddress)
-		if err != nil {
-			continue // skip failed queries, don't block the whole response
-		}
-		amount := hexToDecimal(hexTokenBal, token.Decimals)
-		if amount == "0" {
-			continue
+		if err == nil {
+			amount = hexToDecimal(hexTokenBal, token.Decimals)
 		}
 		bal.Tokens = append(bal.Tokens, TokenBalance{
 			ContractAddress: token.Address,
@@ -235,75 +233,151 @@ func ethGetBalance(ctx context.Context, rpcURL, address string) (string, error) 
 // TRON balance via TronGrid REST API
 // ────────────────────────────────────────────────────────────────────────────
 
-// Known TRC-20 tokens to check balance for
-var tronKnownTokens = map[string]string{
-	"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t": "USDT",
-	"TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8": "USDC",
+// Known TRC-20 tokens on TRON (base58 address → hex address, ticker, decimals)
+type tronToken struct {
+	Base58   string
+	Hex      string // 41-prefixed hex (no 0x)
+	Ticker   string
+	Decimals int
 }
 
-type tronGridResponse struct {
+var tronKnownTokensList = []tronToken{
+	{Base58: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", Hex: "41a614f803b6fd780986a42c78ec9c7f77e6ded13c", Ticker: "USDT", Decimals: 6},
+	{Base58: "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8", Hex: "41382bb369637e33ada3072744a29c96e80087810e", Ticker: "USDC", Decimals: 6},
+}
+
+type tronGridAccountResponse struct {
 	Data []struct {
 		Balance int64 `json:"balance"` // TRX in SUN (1 TRX = 1,000,000 SUN)
-		TRC20   []map[string]string `json:"trc20"`
 	} `json:"data"`
 }
 
+// tronTriggerResponse is the response from /wallet/triggerconstantcontract
+type tronTriggerResponse struct {
+	Result struct {
+		Result bool `json:"result"`
+	} `json:"result"`
+	ConstantResult []string `json:"constant_result"`
+}
+
 func tronGetBalance(ctx context.Context, base58Address string) (*OnChainBalance, error) {
-	url := fmt.Sprintf("https://api.trongrid.io/v1/accounts/%s", base58Address)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("trongrid request: %w", err)
-	}
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("trongrid fetch: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var result tronGridResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("trongrid decode: %w", err)
-	}
-
 	bal := &OnChainBalance{
 		NativeAmount: "0",
 		NativeTicker: "TRX",
 	}
 
-	if len(result.Data) == 0 {
-		return bal, nil
-	}
+	// Convert the collector's base58 address to hex for smart contract calls
+	holderHex := tronBase58ToHex(base58Address)
 
-	account := result.Data[0]
-
-	// TRX balance: SUN to TRX (6 decimals)
-	bal.NativeAmount = sunToDecimal(account.Balance, 6)
-
-	// TRC-20 token balances
-	for _, tokenMap := range account.TRC20 {
-		for contractAddr, rawAmount := range tokenMap {
-			ticker, known := tronKnownTokens[contractAddr]
-			if !known {
-				continue
-			}
-			bal.Tokens = append(bal.Tokens, TokenBalance{
-				ContractAddress: contractAddr,
-				Ticker:          ticker,
-				Amount:          sunToDecimal(0, 6), // parsed below
-			})
-			// Parse the string amount
-			n := new(big.Int)
-			if _, ok := n.SetString(rawAmount, 10); ok {
-				bal.Tokens[len(bal.Tokens)-1].Amount = bigIntToDecimal(n, 6)
+	// 1. Fetch native TRX balance via /v1/accounts/
+	trxURL := fmt.Sprintf("https://api.trongrid.io/v1/accounts/%s", base58Address)
+	trxReq, err := http.NewRequestWithContext(ctx, http.MethodGet, trxURL, nil)
+	if err == nil {
+		trxReq.Header.Set("Accept", "application/json")
+		client := &http.Client{Timeout: 10 * time.Second}
+		trxResp, err := client.Do(trxReq)
+		if err == nil {
+			defer trxResp.Body.Close()
+			var result tronGridAccountResponse
+			if err := json.NewDecoder(trxResp.Body).Decode(&result); err == nil && len(result.Data) > 0 {
+				bal.NativeAmount = sunToDecimal(result.Data[0].Balance, 6)
 			}
 		}
 	}
 
+	// 2. Fetch TRC-20 token balances via direct balanceOf() calls.
+	// The /v1/accounts/ trc20 field does NOT reliably index smart contract
+	// token holdings (EIP-1167 clones), so we call each token contract directly.
+	for _, token := range tronKnownTokensList {
+		amount := tronCallBalanceOf(ctx, token.Hex, holderHex, token.Decimals)
+		bal.Tokens = append(bal.Tokens, TokenBalance{
+			ContractAddress: token.Base58,
+			Ticker:          token.Ticker,
+			Amount:          amount,
+			Decimals:        token.Decimals,
+		})
+	}
+
 	return bal, nil
+}
+
+// tronCallBalanceOf calls balanceOf(address) on a TRC-20 token contract via
+// TronGrid's triggerconstantcontract endpoint (read-only, no energy cost).
+func tronCallBalanceOf(ctx context.Context, tokenHex, holderHex string, decimals int) string {
+	// ABI-encode: balanceOf(address) — strip 41 prefix from holder for 20-byte address
+	holderAddr := strings.TrimPrefix(holderHex, "41")
+	parameter := fmt.Sprintf("000000000000000000000000%s", holderAddr)
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"owner_address":    holderHex,
+		"contract_address": tokenHex,
+		"function_selector": "balanceOf(address)",
+		"parameter":         parameter,
+		"visible":           false,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://api.trongrid.io/wallet/triggerconstantcontract", bytes.NewReader(payload))
+	if err != nil {
+		return "0"
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "0"
+	}
+	defer resp.Body.Close()
+
+	var result tronTriggerResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "0"
+	}
+
+	if !result.Result.Result || len(result.ConstantResult) == 0 {
+		return "0"
+	}
+
+	// constant_result[0] is a hex-encoded uint256
+	return hexToDecimal("0x"+result.ConstantResult[0], decimals)
+}
+
+// tronBase58ToHex decodes a TRON base58check address to its 41-prefixed hex form.
+func tronBase58ToHex(base58Addr string) string {
+	decoded := base58Decode(base58Addr)
+	if len(decoded) < 21 {
+		return ""
+	}
+	// First 21 bytes are the address (41 prefix + 20-byte address), rest is checksum
+	return fmt.Sprintf("%x", decoded[:21])
+}
+
+// base58Decode decodes a base58-encoded string (no check).
+func base58Decode(input string) []byte {
+	alphabet := "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	result := big.NewInt(0)
+	for _, c := range input {
+		idx := strings.IndexRune(alphabet, c)
+		if idx < 0 {
+			return nil
+		}
+		result.Mul(result, big.NewInt(58))
+		result.Add(result, big.NewInt(int64(idx)))
+	}
+	// Convert to bytes
+	bz := result.Bytes()
+	// Count leading '1's in input — they represent leading zero bytes
+	numLeadingZeros := 0
+	for _, c := range input {
+		if c != '1' {
+			break
+		}
+		numLeadingZeros++
+	}
+	out := make([]byte, numLeadingZeros+len(bz))
+	copy(out[numLeadingZeros:], bz)
+	return out
 }
 
 // sunToDecimal converts a SUN int64 value to a decimal string (1 TRX = 10^6 SUN).

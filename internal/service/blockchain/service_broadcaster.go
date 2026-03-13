@@ -72,16 +72,6 @@ func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blo
 		}
 		return txID, nil
 
-	case kms.SOL:
-		hashID, err := s.providers.Solana.SendTransaction(ctx, []byte(rawTX), isTest)
-		if err != nil {
-			return "", errors.Wrap(err, "unable to broadcast Solana transaction")
-		}
-		return hashID, nil
-
-	case kms.XMR:
-		return "", fmt.Errorf("Monero broadcasting is handled through wallet service, not via raw transaction")
-
 	default:
 		return "", fmt.Errorf("broadcast for %q is not implemented yet", blockchain)
 	}
@@ -127,8 +117,6 @@ func (s *Service) getTransactionReceipt(
 		bscConfirmations      = 15
 		arbitrumConfirmations = 20
 		avaxConfirmations     = 20
-		solanaConfirmations   = 32
-		moneroConfirmations   = 10
 	)
 
 	nativeCoin, err := s.GetNativeCoin(blockchain)
@@ -201,10 +189,6 @@ func (s *Service) getTransactionReceipt(
 		}, nil
 	case kms.BTC:
 		return s.getBitcoinReceipt(ctx, nativeCoin, transactionID, btcConfirmations, isTest)
-	case kms.SOL:
-		return s.getSolanaReceipt(ctx, nativeCoin, transactionID, solanaConfirmations, isTest)
-	case kms.XMR:
-		return s.getMoneroReceipt(ctx, nativeCoin, transactionID, moneroConfirmations, isTest)
 	}
 
 	return nil, kms.ErrUnknownBlockchain
@@ -362,55 +346,3 @@ func (s *Service) broadcastRawTransaction(ctx context.Context, rpc *ethclient.Cl
 	return tx.Hash().Hex(), nil
 }
 
-// getSolanaReceipt retrieves transaction receipt from Solana blockchain
-func (s *Service) getSolanaReceipt(
-	ctx context.Context,
-	nativeCoin money.CryptoCurrency,
-	txID string,
-	requiredConfirmations int64,
-	isTest bool,
-) (*TransactionReceipt, error) {
-	// Confirm the transaction and get details
-	confirmed, err := s.providers.Solana.ConfirmTransaction(ctx, txID, isTest, 30)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to confirm Solana transaction")
-	}
-
-	// For now, we'll return a basic receipt
-	// TODO: Implement full transaction parsing to get sender, recipient, and fee details
-	return &TransactionReceipt{
-		Blockchain:    nativeCoin.Blockchain,
-		IsTest:        isTest,
-		Sender:        "", // Would need to parse transaction data
-		Recipient:     "", // Would need to parse transaction data
-		Hash:          txID,
-		NetworkFee:    nativeCoin.MakeAmountMust("0.000005"), // Typical Solana fee is ~0.000005 SOL
-		Success:       confirmed,
-		Confirmations: requiredConfirmations, // Solana finality is very fast
-		IsConfirmed:   confirmed,
-	}, nil
-}
-
-// getMoneroReceipt retrieves transaction receipt from Monero blockchain
-func (s *Service) getMoneroReceipt(
-	ctx context.Context,
-	nativeCoin money.CryptoCurrency,
-	txID string,
-	requiredConfirmations int64,
-	isTest bool,
-) (*TransactionReceipt, error) {
-	// Monero transactions are managed through wallet-RPC
-	// For now, return a placeholder receipt
-	// TODO: Implement using Monero wallet-RPC GetTransfers and check transaction status
-	return &TransactionReceipt{
-		Blockchain:    nativeCoin.Blockchain,
-		IsTest:        isTest,
-		Sender:        "", // Monero privacy - sender not publicly visible
-		Recipient:     "", // Recipient address from wallet
-		Hash:          txID,
-		NetworkFee:    nativeCoin.MakeAmountMust("0"), // Would need to query from wallet-RPC
-		Success:       true,
-		Confirmations: 0, // Would need to query from wallet-RPC
-		IsConfirmed:   false,
-	}, nil
-}

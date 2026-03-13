@@ -309,7 +309,7 @@ func TestHandlers(t *testing.T) {
 			person, err := tc.Services.Payment.AssignCustomerByEmail(tc.Context, p, email)
 			require.NoError(t, err)
 
-			// and mocked Tatum data
+			// and mocked provider data
 			ticker := "ETH"
 			tc.Providers.PriceFeedMock.SetupRates(ticker, money.USD, 1)
 			tc.SetupCreateWalletWithSubscription(ticker, "0x123", "pubkey-goes-here")
@@ -387,7 +387,7 @@ func TestHandlers(t *testing.T) {
 			person, err := tc.Services.Payment.AssignCustomerByEmail(tc.Context, p, email)
 			require.NoError(t, err)
 
-			// and mocked Tatum data
+			// and mocked provider data
 			ticker := "ETH"
 			tc.Providers.PriceFeedMock.SetupRates(ticker, money.USD, 1)
 			tc.SetupCreateWalletWithSubscription(ticker, "0x123", "pubkey-goes-here")
@@ -465,7 +465,7 @@ func TestHandlers(t *testing.T) {
 			person, err := tc.Services.Payment.AssignCustomerByEmail(tc.Context, p, email)
 			require.NoError(t, err)
 
-			// and mocked Tatum data
+			// and mocked provider data
 			ticker := "ETH"
 			tc.Providers.PriceFeedMock.SetupRates(ticker, money.USD, 1)
 			tc.SetupCreateWalletWithSubscription(ticker, "0x123", "pubkey-goes-here")

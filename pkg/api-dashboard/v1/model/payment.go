@@ -70,7 +70,7 @@ type Payment struct {
 
 	// Payment status
 	// Required: true
-	// Enum: ["pending","inProgress","success","failed"]
+	// Enum: ["pending","inProgress","success","failed","underpaid"]
 	Status string `json:"status"`
 
 	// Payment type
@@ -197,7 +197,7 @@ var paymentTypeStatusPropEnum []any
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["pending","inProgress","success","failed"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["pending","inProgress","success","failed","underpaid"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -218,6 +218,9 @@ const (
 
 	// PaymentStatusFailed captures enum value "failed"
 	PaymentStatusFailed string = "failed"
+
+	// PaymentStatusUnderpaid captures enum value "underpaid"
+	PaymentStatusUnderpaid string = "underpaid"
 )
 
 // prop value enum

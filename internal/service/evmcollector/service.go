@@ -89,8 +89,12 @@ func (s *Service) RegisterCollector(
 	factoryAddress string,
 ) (*Collector, error) {
 	blockchain = strings.ToUpper(blockchain)
-	contractAddress = strings.ToLower(contractAddress)
-	ownerAddress = strings.ToLower(ownerAddress)
+
+	// Only lowercase EVM addresses (hex). TRON uses Base58Check where case matters.
+	if blockchain != "TRON" {
+		contractAddress = strings.ToLower(contractAddress)
+		ownerAddress = strings.ToLower(ownerAddress)
+	}
 
 	now := time.Now().UTC().Truncate(time.Second)
 	id := uuid.New()
@@ -99,13 +103,18 @@ func (s *Service) RegisterCollector(
 		INSERT INTO evm_collector_wallets
 			(uuid, merchant_id, blockchain, chain_id, contract_address, owner_address, factory_address, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $8)
+		ON CONFLICT (merchant_id, blockchain)
+		DO UPDATE SET
+			contract_address = EXCLUDED.contract_address,
+			owner_address    = EXCLUDED.owner_address,
+			factory_address  = EXCLUDED.factory_address,
+			chain_id         = EXCLUDED.chain_id,
+			is_active        = true,
+			updated_at       = EXCLUDED.updated_at
 	`, id, merchantID, blockchain, chainID, contractAddress, ownerAddress, factoryAddress, now)
 
 	if err != nil {
-		if strings.Contains(err.Error(), "evm_collectors_merchant_blockchain") {
-			return nil, ErrAlreadyExists
-		}
-		return nil, errors.Wrap(err, "unable to insert evm collector")
+		return nil, errors.Wrap(err, "unable to upsert evm collector")
 	}
 
 	return s.GetByMerchantAndBlockchain(ctx, merchantID, blockchain)

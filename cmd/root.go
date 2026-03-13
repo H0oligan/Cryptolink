@@ -63,7 +63,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&skipConfig, "skip-config", false, "skips config and uses ENV only")
 
 	rootCmd.AddCommand(serveWebCommand)
-	rootCmd.AddCommand(serverKMSCommand)
 	rootCmd.AddCommand(runSchedulerCommand)
 	rootCmd.AddCommand(allInOneCommand)
 	rootCmd.AddCommand(envHelp)
@@ -74,7 +73,6 @@ func init() {
 	rootCmd.AddCommand(createUserCommand)
 	createUserCommand.PersistentFlags().BoolVar(&overridePassword, "override-password", false, "overrides password if user already exists")
 
-	rootCmd.AddCommand(listWalletsCommand)
 	rootCmd.AddCommand(listBalancesCommand)
 
 	topupBalanceSetup(topupBalanceCommand)

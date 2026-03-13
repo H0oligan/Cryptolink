@@ -8,7 +8,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/cryptolink/cryptolink/internal/scheduler"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
-	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/rs/zerolog"
 )
 
@@ -19,14 +18,12 @@ type BlockchainService interface {
 }
 
 type Handler struct {
-	wallet     *wallet.Service
 	blockchain BlockchainService
 	scheduler  *scheduler.Handler
 	logger     *zerolog.Logger
 }
 
 func New(
-	walletService *wallet.Service,
 	blockchainService BlockchainService,
 	schedulerHandler *scheduler.Handler,
 	logger *zerolog.Logger,
@@ -34,7 +31,6 @@ func New(
 	log := logger.With().Str("channel", "admin_api").Logger()
 
 	return &Handler{
-		wallet:     walletService,
 		blockchain: blockchainService,
 		scheduler:  schedulerHandler,
 		logger:     &log,

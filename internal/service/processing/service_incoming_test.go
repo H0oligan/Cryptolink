@@ -779,9 +779,9 @@ func TestService_BatchExpirePayments(t *testing.T) {
 	)
 }
 
-// warn: chain and mempool props are omitted
-func webhook(toAddress, txID, asset, txType, amount string) *processing.TatumWebhook {
-	return &processing.TatumWebhook{
+// webhook creates a test IncomingWebhook. Chain and mempool props are omitted.
+func webhook(toAddress, txID, asset, txType, amount string) *processing.IncomingWebhook {
+	return &processing.IncomingWebhook{
 		SubscriptionType: "ADDRESS_TRANSACTION",
 		TransactionID:    txID,
 		Sender:           "0x123sender456",

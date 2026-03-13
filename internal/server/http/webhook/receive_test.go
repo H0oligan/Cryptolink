@@ -36,7 +36,7 @@ const (
 
 //nolint:funlen
 //goland:noinspection GoBoolExpressions
-func TestHandler_ReceiveTatum(t *testing.T) {
+func TestHandler_ReceiveWebhook(t *testing.T) {
 	tc := test.NewIntegrationTest(t)
 
 	mt, _ := tc.Must.CreateMerchant(t, 1)
@@ -79,7 +79,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 		payment             func() *payment.Payment
 		modifyReceipt       func(r *blockchain.TransactionReceipt)
 		customWalletIDParam uuid.UUID
-		req                 func(*transaction.Transaction, *wallet.Wallet) *processing.TatumWebhook
+		req                 func(*transaction.Transaction, *wallet.Wallet) *processing.IncomingWebhook
 		expectError         string
 		assert              func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction)
 	}{
@@ -87,7 +87,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "success ETH",
 			selectedCurrency: "ETH",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX1", "ETH", typeCoin, "50.51")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -107,7 +107,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "success ETH_USDT",
 			selectedCurrency: "ETH_USDT",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX2", EthUsdAddress, typeToken, "50")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -127,7 +127,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "success ETH: customer paid more that expected",
 			selectedCurrency: "ETH",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX3", "ETH", typeCoin, "60")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -148,7 +148,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "error ETH: customer paid less than expected",
 			selectedCurrency: "ETH",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX4", "ETH", typeCoin, "45")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -169,7 +169,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "success ETH_USDT: customer paid less than expected but diff is less than $0.01",
 			selectedCurrency: "ETH_USDT",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX5", EthUsdAddress, typeToken, "49.99")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -189,7 +189,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "error ETH_USDT: customer paid less than expected: diff more than $0.01",
 			selectedCurrency: "ETH_USDT",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX6", EthUsdAddress, typeToken, "49.98")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -207,7 +207,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "success BSC_USDT",
 			selectedCurrency: "BSC_USDT",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX_BSC", BSCUSDTAddress, typeToken, "50")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -224,11 +224,11 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			},
 		},
 		{
-			// Imitation of Tatum's "weird" webhook when they send ticker instead of contract address
+			// Webhook sends ticker instead of contract address for some tokens
 			name:             "success TRON_USDT",
 			selectedCurrency: "TRON_USDT",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX7", "USDT_TRON", "trc20", "50")
 			},
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
@@ -248,10 +248,10 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "Unknown token",
 			selectedCurrency: "ETH",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX7", "0x123-wtf-token", typeToken, "123")
 			},
-			expectError: "unable to process tatum webhook",
+			expectError: "unable to process incoming webhook",
 			assert: func(t *testing.T, pt *payment.Payment, tx *transaction.Transaction) {
 				assert.Equal(t, payment.StatusLocked, pt.Status)
 				assert.Equal(t, transaction.StatusPending, tx.Status)
@@ -265,20 +265,20 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			name:             "wallet not found",
 			selectedCurrency: "ETH",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX4", "ETH", typeCoin, "123")
 			},
 			customWalletIDParam: uuid.New(),
-			expectError:         "unable to process tatum webhook",
+			expectError:         "unable to process incoming webhook",
 		},
 		{
 			name:             "provided currency not found",
 			selectedCurrency: "ETH",
 			payment:          func() *payment.Payment { return setupPayment(money.USD, 50) },
-			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.TatumWebhook {
+			req: func(tx *transaction.Transaction, wt *wallet.Wallet) *processing.IncomingWebhook {
 				return webhook(wt.Address, "0xTX5", "0xABC123", typeToken, "123")
 			},
-			expectError: "unable to process tatum webhook",
+			expectError: "unable to process incoming webhook",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -416,7 +416,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 			arrange       func(t *testing.T, wt *wallet.Wallet)
 			isTest        bool
 			modifyReceipt func(r *blockchain.TransactionReceipt)
-			req           *processing.TatumWebhook
+			req           *processing.IncomingWebhook
 			assert        func(t *testing.T, wt *wallet.Wallet, tx *transaction.Transaction, c money.CryptoCurrency, networkID string)
 			expectError   bool
 		}{
@@ -612,7 +612,7 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 	})
 
 	// Description: TRON requires a separate transaction for an address activation of 1 trx.
-	// Tatum sends 2 webhooks sequentially (unordered): 'top-up of 1 trx (account activated)', 'incoming tx of X trx'
+	// The watcher sends 2 webhooks sequentially (unordered): 'top-up of 1 trx (account activated)', 'incoming tx of X trx'
 	t.Run("Handles TRON account activations", func(t *testing.T) {
 		tc.Clear.Wallets(t)
 		tc.Clear.Table(t, "payments")
@@ -642,12 +642,12 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 		tc.AssertTableRows(t, "wallet_locks", 1)
 
 		// Given 2 webhooks
-		webhooks := []*processing.TatumWebhook{
+		webhooks := []*processing.IncomingWebhook{
 			webhook(wt.Address, "0xabc_1", currency, typeCoin, "0.000001"), // "account activated"
 			webhook(wt.Address, "0xabc_2", currency, typeCoin, "100"),      // "incoming payment"
 		}
 
-		req := func(wh *processing.TatumWebhook) *test.Response {
+		req := func(wh *processing.IncomingWebhook) *test.Response {
 			return tc.
 				POST().
 				Path(webhookRoute).
@@ -689,9 +689,9 @@ func TestHandler_ReceiveTatum(t *testing.T) {
 	})
 }
 
-// warn: chain and mempool props are omitted
-func webhook(toAddress, txID, asset, txType, amount string) *processing.TatumWebhook {
-	return &processing.TatumWebhook{
+// webhook creates a test IncomingWebhook. Chain and mempool props are omitted.
+func webhook(toAddress, txID, asset, txType, amount string) *processing.IncomingWebhook {
+	return &processing.IncomingWebhook{
 		SubscriptionType: "ADDRESS_TRANSACTION",
 		TransactionID:    txID,
 		Sender:           "0x123sender456",

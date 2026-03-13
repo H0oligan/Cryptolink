@@ -77,13 +77,18 @@ func (m *Must) CreateMerchantToken(t *testing.T, mt *merchant.Merchant) string {
 	return token.Token
 }
 
-func (m *Must) CreateWallet(t *testing.T, blockchain, address, pubKey string, walletType wallet.Type) *wallet.Wallet {
-	m.tc.SetupCreateWalletWithSubscription(blockchain, address, pubKey)
-
-	wt, err := m.tc.Services.Wallet.Create(m.tc.Context, kmswallet.Blockchain(blockchain), walletType)
-	require.NoError(t, err)
-
-	return wt
+// CreateWallet creates a fake wallet record for testing. Since the KMS and hot
+// wallet system have been removed, this creates a wallet.Wallet struct directly
+// without any KMS interaction.
+func (m *Must) CreateWallet(t *testing.T, blockchain, address, _ string, walletType wallet.Type) *wallet.Wallet {
+	return &wallet.Wallet{
+		ID:         time.Now().UnixNano(),
+		CreatedAt:  time.Now(),
+		UUID:       uuid.New(),
+		Address:    address,
+		Blockchain: kmswallet.Blockchain(blockchain),
+		Type:       walletType,
+	}
 }
 
 func (m *Must) CreateWalletWithBalance(
@@ -93,9 +98,8 @@ func (m *Must) CreateWalletWithBalance(
 	balanceOpts ...func(params *repository.CreateBalanceParams),
 ) (*wallet.Wallet, *wallet.Balance) {
 	address := fmt.Sprintf("0x-fake-address-%s", util.Strings.Random(6))
-	pubKey := fmt.Sprintf("0x-fake-pubkey-%s", util.Strings.Random(6))
 
-	w := m.CreateWallet(t, blockchain, address, pubKey, walletType)
+	w := m.CreateWallet(t, blockchain, address, "", walletType)
 	b := m.CreateBalance(t, wallet.EntityTypeWallet, w.ID, balanceOpts...)
 
 	return w, b

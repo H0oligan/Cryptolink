@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/cryptolink/cryptolink/internal/bus"
-	kmswallet "github.com/cryptolink/cryptolink/internal/kms/wallet"
 	"github.com/cryptolink/cryptolink/internal/lock"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
@@ -15,6 +14,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/cryptolink/cryptolink/internal/service/xpub"
@@ -38,6 +38,7 @@ type Service struct {
 	xpubService      *xpub.Service
 	evmCollector     *evmcollector.Service
 	emailService     *email.Service
+	subscriptions    *subscription.Service
 	blockchain       BlockchainService
 	publisher        bus.Publisher
 	locker           *lock.Locker
@@ -67,7 +68,6 @@ var (
 	ErrStatusInvalid         = errors.New("payment status is invalid")
 	ErrPaymentOptionsMissing = errors.New("payment options are not fully fulfilled")
 	ErrSignatureVerification = errors.New("unable to verify request signature")
-	ErrInboundWallet         = errors.New("inbound wallet error")
 )
 
 func New(
@@ -79,6 +79,7 @@ func New(
 	xpubService *xpub.Service,
 	evmCollectorService *evmcollector.Service,
 	emailService *email.Service,
+	subscriptionService *subscription.Service,
 	blockchainService BlockchainService,
 	publisher bus.Publisher,
 	locker *lock.Locker,
@@ -87,18 +88,19 @@ func New(
 	log := logger.With().Str("channel", "processing_service").Logger()
 
 	return &Service{
-		config:       config,
-		wallets:      wallets,
-		merchants:    merchants,
-		payments:     payments,
-		transactions: transactions,
-		xpubService:  xpubService,
-		evmCollector: evmCollectorService,
-		emailService: emailService,
-		blockchain:   blockchainService,
-		publisher:    publisher,
-		locker:       locker,
-		logger:       &log,
+		config:        config,
+		wallets:       wallets,
+		merchants:     merchants,
+		payments:      payments,
+		transactions:  transactions,
+		xpubService:   xpubService,
+		evmCollector:  evmCollectorService,
+		emailService:  emailService,
+		subscriptions: subscriptionService,
+		blockchain:    blockchainService,
+		publisher:     publisher,
+		locker:        locker,
+		logger:        &log,
 	}
 }
 
@@ -300,41 +302,6 @@ func (s *Service) getPaymentMethod(ctx context.Context, mt *merchant.Merchant, t
 	return money.CryptoCurrency{}, err
 }
 
-// EnsureOutboundWallet makes sure that outbound wallet for specified blockchain exists in the database
-// and the system is subscribed to all of selected currencies both for mainnet & testnet.
-// Returning bool indicates whether the wallet was created or returned from db.
-func (s *Service) EnsureOutboundWallet(ctx context.Context, chain money.Blockchain) (*wallet.Wallet, bool, error) {
-	currencies := s.blockchain.ListBlockchainCurrencies(chain)
-	if len(currencies) == 0 {
-		return nil, false, errors.New("currencies are empty")
-	}
-
-	// wallet should exist in DB
-	w, justCreated, err := s.wallets.EnsureOutboundWallet(ctx, kmswallet.Blockchain(chain))
-	if err != nil {
-		return nil, false, errors.Wrap(err, "unable to ensure outbound wallet")
-	}
-
-	// wallet should be subscribed to notifications
-	if err := s.ensureWalletSubscription(ctx, w, currencies[0]); err != nil {
-		return nil, false, err
-	}
-
-	// wallet should have balances records, even if they're empty
-	//nolint:gocritic
-	for _, currency := range currencies {
-		if _, err := s.wallets.EnsureBalance(ctx, wallet.EntityTypeWallet, w.ID, currency, false); err != nil {
-			return nil, false, errors.Wrapf(err, "unable to ensure mainnet balance for %s", currency.Ticker)
-		}
-
-		if _, err := s.wallets.EnsureBalance(ctx, wallet.EntityTypeWallet, w.ID, currency, true); err != nil {
-			return nil, false, errors.Wrapf(err, "unable to ensure testnet balance for %s", currency.Ticker)
-		}
-	}
-
-	return w, justCreated, nil
-}
-
 // createIncomingTransaction creates transaction that represents pending payment created by merchant.
 // Each time customer changes payment method (e.g. switching from ETH to ETH_USDT in payment UI) we need
 // to create a new tx.
@@ -366,27 +333,12 @@ func (s *Service) createIncomingTransaction(
 
 	usdAmount := conv.To
 
-	// 2. Check if merchant has xpub wallet for this blockchain (non-custodial flow)
+	// 2. Determine recipient address.
+	// Smart contract collector for EVM/TRON chains, xpub for BTC.
+	// No fallback — merchant must have a wallet set up for the blockchain.
 	blockchain := currency.Blockchain.String()
-	xpubWallets, err := s.xpubService.ListByMerchantID(ctx, pt.MerchantID)
-	if err != nil {
-		s.logger.Warn().Err(err).Msg("unable to list xpub wallets, falling back to traditional flow")
-	}
 
-	var xpubWallet *xpub.XpubWallet
-	for _, w := range xpubWallets {
-		if w.Blockchain == blockchain && w.IsActive {
-			xpubWallet = w
-			break
-		}
-	}
-
-	// If merchant has xpub wallet for this blockchain, use derived address
-	if xpubWallet != nil {
-		return s.createTransactionWithXpubAddress(ctx, pt, currency, xpubWallet, cryptoAmount, cryptoServiceFee, usdAmount)
-	}
-
-	// 2b. Check if merchant has an EVM collector for this blockchain
+	// 2a. Check if merchant has a smart contract collector for this blockchain
 	if s.evmCollector != nil {
 		collector, collectorErr := s.evmCollector.GetByMerchantAndBlockchain(ctx, pt.MerchantID, blockchain)
 		if collectorErr == nil && collector != nil {
@@ -394,50 +346,20 @@ func (s *Service) createIncomingTransaction(
 		}
 	}
 
-	// 3. Fall back to traditional wallet flow - Acquire available inbound wallet or create one.
-	acquiredWallet, err := s.wallets.AcquireLock(ctx, pt.MerchantID, currency, pt.IsTest)
+	// 2b. Check if merchant has a BTC xpub wallet
+	xpubWallets, err := s.xpubService.ListByMerchantID(ctx, pt.MerchantID)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to acquire wallet")
+		s.logger.Warn().Err(err).Msg("unable to list xpub wallets")
 	}
 
-	// 4. Subscribe to notifications
-	if errSubs := s.ensureWalletSubscription(ctx, acquiredWallet, currency); errSubs != nil {
-		return nil, errors.Wrap(errSubs, "unable to ensure wallet subscription to notifications")
-	}
-
-	// 5. Create transaction record
-	tx, err := s.transactions.Create(ctx, pt.MerchantID, transaction.CreateTransaction{
-		Type:            transaction.TypeIncoming,
-		EntityID:        pt.ID,
-		RecipientWallet: acquiredWallet,
-		Currency:        currency,
-		Amount:          cryptoAmount,
-		ServiceFee:      cryptoServiceFee,
-		USDAmount:       usdAmount,
-		IsTest:          pt.IsTest,
-	})
-
-	if err != nil {
-		s.logger.Err(err).
-			Str("ticker", currency.Ticker).
-			Int64("payment_id", pt.MerchantID).
-			Msg("unable to create transaction")
-
-		errRelease := s.wallets.ReleaseLock(
-			ctx,
-			acquiredWallet.ID,
-			currency.Ticker,
-			tx.NetworkID(),
-		)
-
-		if errRelease != nil {
-			return nil, errors.Wrap(errRelease, "unable to release wallet")
+	for _, w := range xpubWallets {
+		if w.Blockchain == blockchain && w.IsActive {
+			return s.createTransactionWithXpubAddress(ctx, pt, currency, w, cryptoAmount, cryptoServiceFee, usdAmount)
 		}
-
-		return nil, errors.Wrap(err, "unable to create tx")
 	}
 
-	return payment.MakeMethod(tx, currency), nil
+	// No wallet configured for this blockchain — reject the payment
+	return nil, errors.Errorf("no wallet configured for %s. Merchant must deploy a smart contract collector or set up an xpub wallet.", blockchain)
 }
 
 // createTransactionWithXpubAddress creates a transaction using an xpub-derived address (non-custodial flow)
@@ -493,12 +415,12 @@ func (s *Service) createTransactionWithXpubAddress(
 		// Don't fail the transaction creation, just log the warning
 	}
 
-	// Subscribe the xpub-derived address to Tatum webhooks for real-time payment detection
+	// Ensure the xpub-derived address is registered for payment detection
 	if err := s.ensureXpubAddressSubscription(ctx, derivedAddr, currency); err != nil {
 		s.logger.Warn().Err(err).
 			Str("address", derivedAddr.Address).
 			Int64("payment_id", pt.ID).
-			Msg("unable to subscribe xpub address to Tatum webhooks")
+			Msg("unable to register xpub address for payment detection")
 		// Don't fail - the scheduler will still poll for confirmation
 	}
 
@@ -559,14 +481,8 @@ func (s *Service) changePaymentMethod(
 	return s.createIncomingTransaction(ctx, p, currency)
 }
 
-// ensureWalletSubscription is a no-op now that Tatum webhooks have been replaced
-// with the internal address watcher polling service. Kept as a stub for compatibility.
-func (s *Service) ensureWalletSubscription(_ context.Context, _ *wallet.Wallet, _ money.CryptoCurrency) error {
-	return nil
-}
-
-// ensureXpubAddressSubscription is a no-op now that Tatum webhooks have been replaced
-// with the internal address watcher polling service.
+// ensureXpubAddressSubscription is a no-op. The internal address watcher handles
+// payment detection via polling.
 func (s *Service) ensureXpubAddressSubscription(_ context.Context, _ *xpub.DerivedAddress, _ money.CryptoCurrency) error {
 	return nil
 }

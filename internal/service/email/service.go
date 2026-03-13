@@ -267,6 +267,36 @@ func (s *Service) SendPaymentReceived(ctx context.Context, params PaymentReceive
 	}
 }
 
+// GetMerchantEmail returns the email of the user who created the given merchant.
+func (s *Service) GetMerchantEmail(ctx context.Context, merchantID int64) (string, error) {
+	var email string
+	err := s.db.QueryRow(ctx, `
+		SELECT u.email
+		FROM merchants m
+		JOIN users u ON u.id = m.creator_id
+		WHERE m.id = $1 AND u.deleted_at IS NULL
+	`, merchantID).Scan(&email)
+	if err != nil {
+		return "", errors.Wrap(err, "unable to get merchant user email")
+	}
+	return email, nil
+}
+
+// GetCustomerEmail returns the email of a customer by payment ID.
+func (s *Service) GetCustomerEmail(ctx context.Context, paymentID int64) (string, error) {
+	var email string
+	err := s.db.QueryRow(ctx, `
+		SELECT c.email
+		FROM payments p
+		JOIN customers c ON c.id = p.customer_id
+		WHERE p.id = $1 AND p.customer_id IS NOT NULL
+	`, paymentID).Scan(&email)
+	if err != nil {
+		return "", errors.Wrap(err, "unable to get customer email")
+	}
+	return email, nil
+}
+
 // GetLogs returns email logs
 func (s *Service) GetLogs(ctx context.Context, limit, offset int) ([]*EmailLog, int, error) {
 	if limit <= 0 {
@@ -308,6 +338,84 @@ func (s *Service) logEmail(ctx context.Context, to, subject, tmpl, status, errMs
 	if err != nil {
 		s.logger.Error().Err(err).Msg("failed to log email")
 	}
+}
+
+// CustomerPaymentConfirmParams contains data for a customer payment confirmation email.
+type CustomerPaymentConfirmParams struct {
+	CustomerEmail    string
+	MerchantName     string
+	Amount           string
+	Ticker           string
+	USDAmount        string
+	TxHash           string
+	ExplorerLink     string
+	Network          string
+	ReceivedAt       time.Time
+}
+
+// SendCustomerPaymentConfirmation sends a payment confirmation email to the customer.
+// Best-effort: errors are logged but not propagated.
+func (s *Service) SendCustomerPaymentConfirmation(ctx context.Context, params CustomerPaymentConfirmParams) {
+	body := renderCustomerPaymentConfirmTemplate(params)
+	subject := fmt.Sprintf("[CryptoLink] Payment confirmed: %s %s to %s", params.Amount, params.Ticker, params.MerchantName)
+
+	if err := s.SendEmail(ctx, SendEmailParams{
+		To:       params.CustomerEmail,
+		Subject:  subject,
+		Body:     body,
+		Template: "customer_payment_confirmed",
+	}); err != nil {
+		s.logger.Warn().Err(err).
+			Str("customer_email", params.CustomerEmail).
+			Str("tx_hash", params.TxHash).
+			Msg("unable to send customer payment confirmation email")
+	}
+}
+
+func renderCustomerPaymentConfirmTemplate(params CustomerPaymentConfirmParams) string {
+	shortTx := params.TxHash
+	if len(shortTx) > 20 {
+		shortTx = shortTx[:10] + "..." + shortTx[len(shortTx)-10:]
+	}
+
+	explorerBtn := ""
+	if params.ExplorerLink != "" {
+		explorerBtn = fmt.Sprintf(`<a href="%s" style="display:inline-block;background:#10b981;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;margin-top:8px;">View Transaction</a>`, params.ExplorerLink)
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="background:#0f172a;padding:24px;border-radius:8px 8px 0 0;">
+    <h1 style="color:#fff;margin:0;font-size:20px;">CryptoLink</h1>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+    <h2 style="color:#10b981;margin-top:0;">Payment Confirmed</h2>
+    <p>Your payment to <strong>%s</strong> has been confirmed on the <strong>%s</strong> network.</p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:8px;margin:16px 0;">
+      <p style="margin:4px 0;font-size:24px;font-weight:700;color:#059669;">%s %s</p>
+      <p style="margin:4px 0;color:#64748b;">≈ $%s USD</p>
+    </div>
+    <table style="width:100%%;border-collapse:collapse;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#64748b;width:40%%;">Transaction</td><td style="padding:6px 0;font-family:monospace;font-size:12px;">%s</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">Date</td><td style="padding:6px 0;">%s</td></tr>
+    </table>
+    %s
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+    <p style="color:#94a3b8;font-size:12px;">This is an automated receipt from CryptoLink on behalf of %s.</p>
+  </div>
+</body>
+</html>`,
+		params.MerchantName,
+		params.Network,
+		params.Amount, params.Ticker,
+		params.USDAmount,
+		shortTx,
+		params.ReceivedAt.Format("2006-01-02 15:04:05 UTC"),
+		explorerBtn,
+		params.MerchantName,
+	)
 }
 
 func renderPaymentReceivedTemplate(params PaymentReceivedParams) string {

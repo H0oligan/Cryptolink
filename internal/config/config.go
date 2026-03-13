@@ -9,7 +9,6 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/olekukonko/tablewriter"
 	"github.com/cryptolink/cryptolink/internal/auth"
-	"github.com/cryptolink/cryptolink/internal/db/connection/bolt"
 	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
 	"github.com/cryptolink/cryptolink/internal/log"
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
@@ -21,7 +20,6 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/processing"
 	"github.com/cryptolink/cryptolink/internal/service/watcher"
 	"github.com/cryptolink/cryptolink/internal/util"
-	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/client"
 	"github.com/samber/lo"
 )
 
@@ -36,7 +34,6 @@ type Config struct {
 	Logger log.Config `yaml:"logger"`
 
 	Oxygen Oxygen `yaml:"oxygen"`
-	KMS    KMS    `yaml:"kms"`
 
 	Providers Providers `yaml:"providers"`
 
@@ -58,37 +55,11 @@ type Subscription struct {
 	AdminMerchantID int64 `yaml:"admin_merchant_id" env:"OXYGEN_SUBSCRIPTION_ADMIN_MERCHANT_ID" env-description:"Admin merchant ID for receiving subscription payments"`
 }
 
-type KMS struct {
-	// IsEmbedded indicates that app is running in 'all-in-one' mode.
-	// Not suitable for safety reasons as KMS should operate in isolated environment in order to
-	// keep private keys secure.
-	IsEmbedded bool `yaml:"-"`
-
-	Server http.Config `yaml:"server"`
-	Bolt   bolt.Config `yaml:"store"`
-}
-
 type Providers struct {
 	RPC       rpc.Config       `yaml:"rpc"`
 	PriceFeed pricefeed.Config `yaml:"pricefeed"`
 	Trongrid  trongrid.Config  `yaml:"trongrid"`
-	KmsClient client.Config    `yaml:"kms"`
-	Solana    SolanaConfig     `yaml:"solana"`
-	Monero    MoneroConfig     `yaml:"monero"`
 	Bitcoin   bitcoin.Config   `yaml:"bitcoin"`
-}
-
-type SolanaConfig struct {
-	RPCEndpoint        string `yaml:"rpc_endpoint" env:"PROVIDERS_SOLANA_RPC_ENDPOINT" env-default:"https://api.mainnet-beta.solana.com" env-description:"Solana RPC endpoint"`
-	DevnetRPCEndpoint  string `yaml:"devnet_rpc_endpoint" env:"PROVIDERS_SOLANA_DEVNET_RPC_ENDPOINT" env-default:"https://api.devnet.solana.com" env-description:"Solana devnet RPC endpoint"`
-	APIKey             string `yaml:"api_key" env:"PROVIDERS_SOLANA_API_KEY" env-description:"Solana RPC API key (optional, for paid services)"`
-}
-
-type MoneroConfig struct {
-	WalletRPCEndpoint        string `yaml:"wallet_rpc_endpoint" env:"PROVIDERS_MONERO_WALLET_RPC_ENDPOINT" env-default:"http://localhost:18082/json_rpc" env-description:"Monero wallet RPC endpoint"`
-	TestnetWalletRPCEndpoint string `yaml:"testnet_wallet_rpc_endpoint" env:"PROVIDERS_MONERO_TESTNET_WALLET_RPC_ENDPOINT" env-default:"http://localhost:28082/json_rpc" env-description:"Monero testnet wallet RPC endpoint"`
-	RPCUsername              string `yaml:"rpc_username" env:"PROVIDERS_MONERO_RPC_USERNAME" env-description:"Monero wallet RPC username"`
-	RPCPassword              string `yaml:"rpc_password" env:"PROVIDERS_MONERO_RPC_PASSWORD" env-description:"Monero wallet RPC password"`
 }
 
 type Notifications struct {

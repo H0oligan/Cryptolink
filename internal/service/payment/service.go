@@ -49,12 +49,13 @@ type Service struct {
 	publisher    bus.Publisher
 }
 
-// ExpirationPeriodForLocked expiration period for incoming payment when locked
-const ExpirationPeriodForLocked = time.Minute * 60
+// ExpirationPeriodForLocked expiration period for incoming payment when locked.
+// Industry standard: 20 minutes for customer to complete payment.
+const ExpirationPeriodForLocked = time.Minute * 20
 
 // ExpirationPeriodForNotLocked expiration period for non-locked payment
 // e.g. when payment is created but user haven't opened the page or haven't locked a cryptocurrency.
-const ExpirationPeriodForNotLocked = time.Hour * 6
+const ExpirationPeriodForNotLocked = time.Hour * 1
 
 const MerchantIDWildcard = transaction.MerchantIDWildcard
 
@@ -281,7 +282,6 @@ type PaymentWithRelations struct {
 	Payment     *Payment
 	Transaction *transaction.Transaction
 	Customer    *Customer
-	Address     *merchant.Address
 	Balance     *wallet.Balance
 }
 
@@ -310,10 +310,6 @@ func (s *Service) eagerLoadRelations(ctx context.Context, merchantID int64, paym
 
 	if err := s.eagerLoadCustomers(ctx, merchantID, payments); err != nil {
 		return errors.Wrap(err, "unable to eager load customers")
-	}
-
-	if err := s.eagerLoadAddresses(ctx, merchantID, payments); err != nil {
-		return errors.Wrap(err, "unable to eager load addresses")
 	}
 
 	if err := s.eagerLoadBalances(ctx, merchantID, payments); err != nil {
@@ -374,27 +370,6 @@ func (s *Service) eagerLoadCustomers(ctx context.Context, merchantID int64, pagi
 		c, ok := customersByID[*pagination[i].Payment.CustomerID]
 		if ok {
 			pagination[i].Customer = c
-		}
-	}
-
-	return nil
-}
-
-func (s *Service) eagerLoadAddresses(ctx context.Context, merchantID int64, payments []PaymentWithRelations) error {
-	addresses, err := s.merchants.ListMerchantAddresses(ctx, merchantID)
-	if err != nil {
-		return err
-	}
-
-	addressesByID := util.KeyFunc(addresses, func(c *merchant.Address) int64 { return c.ID })
-	if len(addressesByID) == 0 {
-		return nil
-	}
-
-	for i := range payments {
-		addr, ok := addressesByID[payments[i].Payment.WithdrawalAddressID()]
-		if ok {
-			payments[i].Address = addr
 		}
 	}
 
@@ -644,21 +619,59 @@ func (s *Service) Fail(ctx context.Context, pt *Payment) error {
 	return err
 }
 
-// ResolvePayment allows a merchant to manually mark a failed payment as successful.
+// ResolvePayment allows a merchant to manually mark a failed or underpaid payment as successful.
 // This triggers the standard webhook delivery via bus.TopicPaymentStatusUpdate.
+// For underpaid payments, it also credits the merchant's balance with the actual received amount.
 func (s *Service) ResolvePayment(ctx context.Context, merchantID, paymentID int64, notes, txHash string) (*Payment, error) {
 	pt, err := s.GetByID(ctx, merchantID, paymentID)
 	if err != nil {
 		return nil, err
 	}
 
-	if pt.Status != StatusFailed {
-		return nil, errors.Wrap(ErrValidation, "only failed payments can be manually resolved")
+	if pt.Status != StatusFailed && pt.Status != StatusUnderpaid {
+		return nil, errors.Wrap(ErrValidation, "only failed or underpaid payments can be resolved")
 	}
+
+	wasUnderpaid := pt.Status == StatusUnderpaid
 
 	pt, err = s.Update(ctx, merchantID, pt.ID, UpdateProps{Status: StatusSuccess})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to resolve payment")
+	}
+
+	// Credit merchant balance when resolving an underpaid payment.
+	// The automatic balance increment was skipped for completedInv transactions,
+	// so we credit the fact_amount (actual amount received on-chain) here.
+	if wasUnderpaid {
+		tx, txErr := s.transactions.GetLatestByPaymentID(ctx, pt.ID)
+		if txErr != nil {
+			s.logger.Error().Err(txErr).Int64("payment_id", paymentID).
+				Msg("unable to find transaction for resolved underpaid payment; balance not credited")
+		} else if tx.FactAmount != nil && !tx.FactAmount.IsZero() {
+			balance, ensureErr := s.wallets.EnsureBalance(ctx, wallet.EntityTypeMerchant, merchantID, tx.Currency, tx.IsTest)
+			if ensureErr != nil {
+				s.logger.Error().Err(ensureErr).Int64("payment_id", paymentID).
+					Msg("unable to ensure balance for resolved payment")
+			} else {
+				_, balErr := s.wallets.UpdateBalanceByID(ctx, balance.ID, wallet.UpdateBalanceByIDQuery{
+					Operation: wallet.OperationIncrement,
+					Amount:    *tx.FactAmount,
+					Comment:   fmt.Sprintf("resolved underpaid payment #%d", pt.ID),
+				})
+				if balErr != nil {
+					s.logger.Error().Err(balErr).Int64("payment_id", paymentID).
+						Int64("balance_id", balance.ID).
+						Msg("failed to credit balance for resolved underpaid payment")
+				} else {
+					s.logger.Info().
+						Int64("payment_id", paymentID).
+						Int64("balance_id", balance.ID).
+						Str("amount", tx.FactAmount.String()).
+						Str("currency", tx.Currency.Ticker).
+						Msg("credited merchant balance for resolved underpaid payment")
+				}
+			}
+		}
 	}
 
 	s.logger.Info().
@@ -666,7 +679,33 @@ func (s *Service) ResolvePayment(ctx context.Context, merchantID, paymentID int6
 		Int64("merchant_id", merchantID).
 		Str("notes", notes).
 		Str("tx_hash", txHash).
+		Str("previous_status", string(pt.Status)).
 		Msg("payment manually resolved by merchant")
+
+	return pt, nil
+}
+
+// DeclinePayment allows a merchant to decline an underpaid payment, marking it as failed.
+func (s *Service) DeclinePayment(ctx context.Context, merchantID, paymentID int64, notes string) (*Payment, error) {
+	pt, err := s.GetByID(ctx, merchantID, paymentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if pt.Status != StatusUnderpaid {
+		return nil, errors.Wrap(ErrValidation, "only underpaid payments can be declined")
+	}
+
+	pt, err = s.Update(ctx, merchantID, pt.ID, UpdateProps{Status: StatusFailed})
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to decline payment")
+	}
+
+	s.logger.Info().
+		Int64("payment_id", paymentID).
+		Int64("merchant_id", merchantID).
+		Str("notes", notes).
+		Msg("underpaid payment declined by merchant")
 
 	return pt, nil
 }

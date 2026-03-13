@@ -51,7 +51,7 @@ const CurrenciesPage: React.FC = () => {
         notificationApi.info({
             message: msg,
             placement: "bottomRight",
-            icon: <CheckOutlined style={{color: "#49D1AC"}} />
+            icon: <CheckOutlined style={{color: "#10b981"}} />
         });
     };
 

@@ -1,5 +1,4 @@
-// Package pricefeed provides cryptocurrency exchange rates from free public APIs,
-// replacing the Tatum exchange rate API dependency.
+// Package pricefeed provides cryptocurrency exchange rates from free public APIs.
 //
 // Sources:
 //   - Primary: Binance public ticker API (no key needed, generous rate limits)
@@ -123,7 +122,7 @@ func New(config Config, logger *zerolog.Logger) *Provider {
 }
 
 // GetExchangeRate returns the exchange rate for a crypto asset priced in a fiat base pair.
-// Semantics match the old Tatum API: GetExchangeRate("USD", "ETH") returns rate = 1823.45
+// Example: GetExchangeRate("USD", "ETH") returns rate = 1823.45
 // meaning 1 ETH = 1823.45 USD.
 //
 // Parameters:

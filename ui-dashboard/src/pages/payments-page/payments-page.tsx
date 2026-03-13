@@ -144,7 +144,7 @@ const PaymentsPage: React.FC = () => {
             message: title,
             description,
             placement: "bottomRight",
-            icon: <CheckOutlined style={{color: "#49D1AC"}} />
+            icon: <CheckOutlined style={{color: "#10b981"}} />
         });
     };
 

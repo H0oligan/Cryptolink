@@ -1,6 +1,7 @@
 package merchantapi
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-openapi/strfmt"
@@ -10,9 +11,11 @@ import (
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -116,6 +119,29 @@ func (h *Handler) CreatePayment(c echo.Context) error {
 		return common.ValidationErrorItemResponse(c, "price", "price should be between %.2f and %.0f", money.FiatMin, money.FiatMax)
 	}
 
+	// Enforce subscription limits before creating payment
+	if h.subscriptions != nil {
+		if err := h.subscriptions.CheckPaymentLimit(ctx, mt.ID); err != nil {
+			if errors.Is(err, subscription.ErrLimitExceeded) {
+				return common.ErrorResponseWithStatus(c, http.StatusPaymentRequired, err.Error())
+			}
+			// If subscription not found, allow payment (graceful degradation)
+			if !errors.Is(err, subscription.ErrSubscriptionNotFound) {
+				h.logger.Warn().Err(err).Int64("merchant_id", mt.ID).Msg("failed to check payment limit")
+			}
+		}
+
+		priceUSD, _ := decimal.NewFromString(fmt.Sprintf("%.2f", req.Price))
+		if err := h.subscriptions.CheckVolumeLimit(ctx, mt.ID, priceUSD); err != nil {
+			if errors.Is(err, subscription.ErrLimitExceeded) {
+				return common.ErrorResponseWithStatus(c, http.StatusPaymentRequired, err.Error())
+			}
+			if !errors.Is(err, subscription.ErrSubscriptionNotFound) {
+				h.logger.Warn().Err(err).Int64("merchant_id", mt.ID).Msg("failed to check volume limit")
+			}
+		}
+	}
+
 	pt, err := h.payments.CreatePayment(ctx, mt.ID, payment.CreatePaymentProps{
 		MerchantOrderUUID: merchantOrderUUID,
 		MerchantOrderID:   req.OrderID,
@@ -181,11 +207,50 @@ func (h *Handler) ResolvePayment(c echo.Context) error {
 	))
 }
 
+func (h *Handler) DeclinePayment(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	paymentUUID, err := uuid.Parse(c.Param(paramPaymentID))
+	if err != nil {
+		return common.ValidationErrorResponse(c, "invalid payment id")
+	}
+
+	mt := middleware.ResolveMerchant(c)
+
+	var req struct {
+		Notes string `json:"notes"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return common.ValidationErrorResponse(c, "invalid request body")
+	}
+
+	pt, err := h.payments.GetByMerchantOrderID(ctx, mt.ID, paymentUUID)
+	if err != nil {
+		if errors.Is(err, payment.ErrNotFound) {
+			return common.NotFoundResponse(c, "payment not found")
+		}
+		return err
+	}
+
+	declined, err := h.payments.DeclinePayment(ctx, mt.ID, pt.ID, req.Notes)
+
+	switch {
+	case errors.Is(err, payment.ErrValidation):
+		return common.ValidationErrorResponse(c, err)
+	case err != nil:
+		h.logger.Error().Err(err).Int64("payment_id", pt.ID).Msg("unable to decline payment")
+		return common.ErrorResponse(c, "internal_error")
+	}
+
+	return c.JSON(http.StatusOK, paymentToResponse(
+		payment.PaymentWithRelations{Payment: declined},
+	))
+}
+
 func paymentToResponse(pr payment.PaymentWithRelations) *model.Payment {
 	pt := pr.Payment
 	tx := pr.Transaction
 	customer := pr.Customer
-	addr := pr.Address
 	balance := pr.Balance
 
 	res := &model.Payment{
@@ -238,9 +303,6 @@ func paymentToResponse(pr payment.PaymentWithRelations) *model.Payment {
 	if pt.Type == payment.TypeWithdrawal {
 		info := &model.AdditionalWithdrawalInfo{}
 
-		if addr != nil {
-			info.AddressID = addr.UUID.String()
-		}
 		if balance != nil {
 			info.BalanceID = balance.UUID.String()
 		}

@@ -1,17 +1,27 @@
+import "./subscription-page.scss";
+
 import * as React from "react";
 import {PageContainer} from "@ant-design/pro-components";
 import {
-    Row, Col, Card, Typography, Progress, Tag, Button, Space,
-    notification, Spin, Table, Statistic, Badge, Divider
+    Row, Col, Typography, Progress, Button, Space,
+    notification, Spin, Table, Divider
 } from "antd";
 import {
     CheckOutlined, CrownOutlined, RocketOutlined,
-    ThunderboltOutlined, WarningOutlined
+    ThunderboltOutlined, StarOutlined
 } from "@ant-design/icons";
 import useSharedMerchantId from "src/hooks/use-merchant-id";
 import subscriptionProvider, {
     SubscriptionPlan, CurrentSubscription, UsageInfo
 } from "src/providers/subscription-provider";
+
+const PLAN_ICONS: Record<string, React.ReactNode> = {
+    free: <ThunderboltOutlined />,
+    starter: <StarOutlined />,
+    growth: <RocketOutlined />,
+    business: <CrownOutlined />,
+    enterprise: <CrownOutlined />
+};
 
 const SubscriptionPage: React.FC = () => {
     const [notificationApi, contextHolder] = notification.useNotification();
@@ -61,7 +71,7 @@ const SubscriptionPage: React.FC = () => {
                     message: "Plan activated",
                     description: "Your subscription has been activated.",
                     placement: "bottomRight",
-                    icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                    icon: <CheckOutlined style={{color: "#10b981"}} />
                 });
                 await loadData();
             }
@@ -84,7 +94,7 @@ const SubscriptionPage: React.FC = () => {
                 message: "Auto-renew cancelled",
                 description: "Your subscription will not renew at the end of the current period.",
                 placement: "bottomRight",
-                icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                icon: <CheckOutlined style={{color: "#10b981"}} />
             });
             await loadData();
         } catch (e: any) {
@@ -116,7 +126,7 @@ const SubscriptionPage: React.FC = () => {
         ? parseFloat(currentPlan.max_volume_monthly_usd)
         : null;
     const volumePercent = volumeLimit ? Math.min((volumeUsed / volumeLimit) * 100, 100) : 0;
-    const volumeColor = volumePercent > 90 ? "#ff4d4f" : volumePercent > 70 ? "#faad14" : "#10b981";
+    const volumeColor = volumePercent > 90 ? "#ef4444" : volumePercent > 70 ? "#f59e0b" : "#10b981";
 
     // Payment count usage
     const paymentCount = usage?.payment_count || 0;
@@ -126,180 +136,214 @@ const SubscriptionPage: React.FC = () => {
     return (
         <PageContainer header={{title: ""}}>
             {contextHolder}
-            <Typography.Title level={3}>Subscription</Typography.Title>
 
-            {/* Current Plan */}
-            {current?.subscription && (
-                <Card title="Current Plan" style={{marginBottom: 24}}>
-                    <Row gutter={24}>
-                        <Col xs={24} md={8}>
-                            <Space direction="vertical" size={4}>
-                                <Typography.Text type="secondary">Plan</Typography.Text>
-                                <Typography.Title level={4} style={{margin: 0}}>
+            <div className="sub-page">
+                <Typography.Title level={3} className="sub-page__title">
+                    Subscription
+                </Typography.Title>
+
+                {/* ── Current Plan Status ── */}
+                {current?.subscription && (
+                    <div className="sub-page__status-card">
+                        <div className="sub-page__status-header">
+                            <div className="sub-page__status-plan">
+                                <span className="sub-page__status-label">CURRENT PLAN</span>
+                                <span className="sub-page__status-name">
                                     {currentPlan?.name || currentPlanId}
-                                </Typography.Title>
-                                <Tag color={
-                                    current.subscription.status === "active" ? "green" :
-                                    current.subscription.status === "pending_payment" ? "orange" : "red"
-                                }>
+                                </span>
+                                <span className={`sub-page__status-badge sub-page__status-badge--${current.subscription.status}`}>
                                     {current.subscription.status}
-                                </Tag>
-                                {current.subscription.auto_renew && (
-                                    <Typography.Text type="secondary" style={{fontSize: 12}}>
-                                        Renews: {new Date(current.subscription.current_period_end).toLocaleDateString()}
-                                    </Typography.Text>
-                                )}
-                            </Space>
-                        </Col>
-                        <Col xs={24} md={8}>
-                            <Typography.Text type="secondary">Monthly Volume</Typography.Text>
-                            <Progress
-                                percent={Math.round(volumePercent)}
-                                strokeColor={volumeColor}
-                                format={() => volumeLimit
-                                    ? `$${volumeUsed.toLocaleString()} / $${volumeLimit.toLocaleString()}`
-                                    : `$${volumeUsed.toLocaleString()} (Unlimited)`
-                                }
-                            />
-                        </Col>
-                        <Col xs={24} md={8}>
-                            <Typography.Text type="secondary">Payments This Month</Typography.Text>
-                            <Progress
-                                percent={paymentLimit ? Math.round(paymentPercent) : 0}
-                                strokeColor={paymentPercent > 90 ? "#ff4d4f" : "#6366f1"}
-                                format={() => paymentLimit
-                                    ? `${paymentCount} / ${paymentLimit.toLocaleString()}`
-                                    : `${paymentCount} (Unlimited)`
-                                }
-                            />
-                        </Col>
-                    </Row>
-                    {current.subscription.auto_renew && current.subscription.status === "active" && (
-                        <div style={{marginTop: 16}}>
-                            <Button type="link" danger onClick={handleCancel}>
-                                Cancel auto-renewal
-                            </Button>
+                                </span>
+                            </div>
+                            {current.subscription.auto_renew && current.subscription.status === "active" && (
+                                <div className="sub-page__status-actions">
+                                    <span className="sub-page__status-renew">
+                                        Renews {new Date(current.subscription.current_period_end).toLocaleDateString()}
+                                    </span>
+                                    <Button type="text" danger size="small" onClick={handleCancel}>
+                                        Cancel renewal
+                                    </Button>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </Card>
-            )}
+                        <div className="sub-page__status-meters">
+                            <div className="sub-page__meter">
+                                <div className="sub-page__meter-label">
+                                    <span>Volume</span>
+                                    <span className="sub-page__meter-value">
+                                        {volumeLimit
+                                            ? `$${volumeUsed.toLocaleString()} / $${volumeLimit.toLocaleString()}`
+                                            : `$${volumeUsed.toLocaleString()}`
+                                        }
+                                    </span>
+                                </div>
+                                <Progress
+                                    percent={Math.round(volumePercent)}
+                                    strokeColor={volumeColor}
+                                    showInfo={false}
+                                    size="small"
+                                />
+                            </div>
+                            <div className="sub-page__meter">
+                                <div className="sub-page__meter-label">
+                                    <span>Payments</span>
+                                    <span className="sub-page__meter-value">
+                                        {paymentLimit
+                                            ? `${paymentCount} / ${paymentLimit.toLocaleString()}`
+                                            : `${paymentCount}`
+                                        }
+                                    </span>
+                                </div>
+                                <Progress
+                                    percent={paymentLimit ? Math.round(paymentPercent) : 0}
+                                    strokeColor={paymentPercent > 90 ? "#ef4444" : "#10b981"}
+                                    showInfo={false}
+                                    size="small"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
 
-            {/* Plan Comparison */}
-            <Typography.Title level={4}>Available Plans</Typography.Title>
-            <Row gutter={[16, 16]}>
-                {plans.map((plan) => {
-                    const isCurrent = plan.id === currentPlanId;
-                    const isHigher = !currentPlanId || parseFloat(plan.price_usd) > parseFloat(currentPlan?.price_usd || "0");
+                {/* ── Plan Grid ── */}
+                <div className="sub-page__section-label">AVAILABLE PLANS</div>
+                <div className="sub-page__plans-grid">
+                    {plans.map((plan) => {
+                        const isCurrent = plan.id === currentPlanId;
+                        const isHigher = !currentPlanId || parseFloat(plan.price_usd) > parseFloat(currentPlan?.price_usd || "0");
+                        const isFree = parseFloat(plan.price_usd) === 0;
+                        const planKey = plan.name.toLowerCase();
+                        const isPopular = planKey === "growth";
 
-                    return (
-                        <Col xs={24} sm={12} lg={8} xl={Math.floor(24 / Math.min(plans.length, 5))} key={plan.id}>
-                            <Badge.Ribbon
-                                text={isCurrent ? "Current" : ""}
-                                color={isCurrent ? "#6366f1" : "transparent"}
-                                style={isCurrent ? {} : {display: "none"}}
+                        return (
+                            <div
+                                className={`sub-page__plan-card ${isCurrent ? "sub-page__plan-card--current" : ""} ${isPopular ? "sub-page__plan-card--popular" : ""}`}
+                                key={plan.id}
                             >
-                                <Card
-                                    style={{
-                                        height: "100%",
-                                        borderColor: isCurrent ? "#6366f1" : undefined,
-                                        borderWidth: isCurrent ? 2 : 1
-                                    }}
-                                >
-                                    <Space direction="vertical" size={12} style={{width: "100%"}}>
-                                        <Typography.Title level={4} style={{margin: 0}}>
-                                            {plan.name}
-                                        </Typography.Title>
-                                        <Typography.Text type="secondary">{plan.description}</Typography.Text>
+                                {isPopular && <div className="sub-page__plan-badge">POPULAR</div>}
+                                {isCurrent && <div className="sub-page__plan-badge sub-page__plan-badge--current">ACTIVE</div>}
 
-                                        <Typography.Title level={2} style={{margin: 0, color: "#6366f1"}}>
-                                            ${parseFloat(plan.price_usd).toFixed(2)}
-                                            <Typography.Text type="secondary" style={{fontSize: 14}}>/mo</Typography.Text>
-                                        </Typography.Title>
+                                <div className="sub-page__plan-icon">
+                                    {PLAN_ICONS[planKey] || <ThunderboltOutlined />}
+                                </div>
 
-                                        <Divider style={{margin: "8px 0"}} />
+                                <div className="sub-page__plan-name">{plan.name}</div>
+                                <div className="sub-page__plan-desc">{plan.description}</div>
 
-                                        <div>
-                                            <div style={{marginBottom: 4}}>
-                                                <CheckOutlined style={{color: "#10b981", marginRight: 8}} />
-                                                Volume: {plan.max_volume_monthly_usd
-                                                    ? `$${parseFloat(plan.max_volume_monthly_usd).toLocaleString()}/mo`
-                                                    : "Unlimited"}
-                                            </div>
-                                            <div style={{marginBottom: 4}}>
-                                                <CheckOutlined style={{color: "#10b981", marginRight: 8}} />
-                                                Payments: {plan.max_payments_monthly === null ? "Unlimited" : `${plan.max_payments_monthly}/mo`}
-                                            </div>
-                                            <div style={{marginBottom: 4}}>
-                                                <CheckOutlined style={{color: "#10b981", marginRight: 8}} />
-                                                Merchants: {plan.max_merchants === -1 ? "Unlimited" : plan.max_merchants}
-                                            </div>
-                                            <div style={{marginBottom: 4}}>
-                                                <CheckOutlined style={{color: "#10b981", marginRight: 8}} />
-                                                API Calls: {plan.max_api_calls_monthly === null ? "Unlimited" : `${plan.max_api_calls_monthly.toLocaleString()}/mo`}
-                                            </div>
-                                        </div>
+                                <div className="sub-page__plan-price">
+                                    {isFree ? (
+                                        <span className="sub-page__plan-amount">Free</span>
+                                    ) : (
+                                        <>
+                                            <span className="sub-page__plan-currency">$</span>
+                                            <span className="sub-page__plan-amount">
+                                                {parseFloat(plan.price_usd).toFixed(2)}
+                                            </span>
+                                            <span className="sub-page__plan-period">/mo</span>
+                                        </>
+                                    )}
+                                </div>
 
-                                        {!isCurrent && (
-                                            <Button
-                                                type={isHigher ? "primary" : "default"}
-                                                block
-                                                loading={upgrading === plan.id}
-                                                onClick={() => handleUpgrade(plan.id)}
-                                                icon={isHigher ? <RocketOutlined /> : undefined}
-                                            >
-                                                {isHigher ? "Upgrade" : "Switch"}
-                                            </Button>
-                                        )}
-                                        {isCurrent && (
-                                            <Button type="primary" block disabled>
-                                                Current Plan
-                                            </Button>
-                                        )}
-                                    </Space>
-                                </Card>
-                            </Badge.Ribbon>
-                        </Col>
-                    );
-                })}
-            </Row>
+                                <Divider className="sub-page__plan-divider" />
 
-            {/* Usage History */}
-            {usageHistory.length > 0 && (
-                <>
-                    <Typography.Title level={4} style={{marginTop: 32}}>Usage History</Typography.Title>
-                    <Table
-                        dataSource={usageHistory}
-                        rowKey="period_start"
-                        pagination={false}
-                        columns={[
-                            {
-                                title: "Period",
-                                key: "period",
-                                render: (_: any, record: UsageInfo) => {
-                                    const start = new Date(record.period_start);
-                                    return start.toLocaleDateString("en-US", {month: "long", year: "numeric"});
+                                <div className="sub-page__plan-features">
+                                    <div className="sub-page__plan-feature">
+                                        <CheckOutlined className="sub-page__plan-check" />
+                                        <span>
+                                            {plan.max_volume_monthly_usd
+                                                ? `$${parseFloat(plan.max_volume_monthly_usd).toLocaleString()}/mo volume`
+                                                : "Unlimited volume"}
+                                        </span>
+                                    </div>
+                                    <div className="sub-page__plan-feature">
+                                        <CheckOutlined className="sub-page__plan-check" />
+                                        <span>
+                                            {plan.max_payments_monthly === null
+                                                ? "Unlimited payments"
+                                                : `${plan.max_payments_monthly}/mo payments`}
+                                        </span>
+                                    </div>
+                                    <div className="sub-page__plan-feature">
+                                        <CheckOutlined className="sub-page__plan-check" />
+                                        <span>
+                                            {plan.max_merchants === -1
+                                                ? "Unlimited merchants"
+                                                : `${plan.max_merchants} merchant${plan.max_merchants > 1 ? "s" : ""}`}
+                                        </span>
+                                    </div>
+                                    <div className="sub-page__plan-feature">
+                                        <CheckOutlined className="sub-page__plan-check" />
+                                        <span>
+                                            {plan.max_api_calls_monthly === null
+                                                ? "Unlimited API calls"
+                                                : `${plan.max_api_calls_monthly.toLocaleString()}/mo API calls`}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="sub-page__plan-action">
+                                    {isCurrent ? (
+                                        <Button block disabled className="sub-page__plan-btn">
+                                            Current Plan
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type={isHigher ? "primary" : "default"}
+                                            block
+                                            loading={upgrading === plan.id}
+                                            onClick={() => handleUpgrade(plan.id)}
+                                            className="sub-page__plan-btn"
+                                        >
+                                            {isHigher ? "Upgrade" : "Switch"}
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* ── Usage History ── */}
+                {usageHistory.length > 0 && (
+                    <>
+                        <div className="sub-page__section-label" style={{marginTop: 40}}>
+                            USAGE HISTORY
+                        </div>
+                        <Table
+                            dataSource={usageHistory}
+                            rowKey="period_start"
+                            pagination={false}
+                            className="sub-page__history-table"
+                            columns={[
+                                {
+                                    title: "Period",
+                                    key: "period",
+                                    render: (_: any, record: UsageInfo) => {
+                                        const start = new Date(record.period_start);
+                                        return start.toLocaleDateString("en-US", {month: "long", year: "numeric"});
+                                    }
+                                },
+                                {
+                                    title: "Volume (USD)",
+                                    dataIndex: "payment_volume_usd",
+                                    key: "volume",
+                                    render: (vol: string) => `$${parseFloat(vol).toLocaleString()}`
+                                },
+                                {
+                                    title: "Payments",
+                                    dataIndex: "payment_count",
+                                    key: "payments"
+                                },
+                                {
+                                    title: "API Calls",
+                                    dataIndex: "api_calls_count",
+                                    key: "api"
                                 }
-                            },
-                            {
-                                title: "Volume (USD)",
-                                dataIndex: "payment_volume_usd",
-                                key: "volume",
-                                render: (vol: string) => `$${parseFloat(vol).toLocaleString()}`
-                            },
-                            {
-                                title: "Payments",
-                                dataIndex: "payment_count",
-                                key: "payments"
-                            },
-                            {
-                                title: "API Calls",
-                                dataIndex: "api_calls_count",
-                                key: "api"
-                            }
-                        ]}
-                    />
-                </>
-            )}
+                            ]}
+                        />
+                    </>
+                )}
+            </div>
         </PageContainer>
     );
 };

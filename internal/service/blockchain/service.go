@@ -2,10 +2,8 @@ package blockchain
 
 import (
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
-	"github.com/cryptolink/cryptolink/internal/provider/monero"
 	"github.com/cryptolink/cryptolink/internal/provider/pricefeed"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
-	"github.com/cryptolink/cryptolink/internal/provider/solana"
 	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -24,8 +22,6 @@ type Providers struct {
 	RPC       *rpc.Provider
 	PriceFeed *pricefeed.Provider
 	Trongrid  *trongrid.Provider
-	Solana    *solana.Provider
-	Monero    *monero.Provider
 	Bitcoin   *bitcoin.Provider
 }
 

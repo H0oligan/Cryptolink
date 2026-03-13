@@ -96,7 +96,7 @@ func (app *App) RunServer() {
 		app.Logger(),
 	)
 
-	// handler for providers webhook (e.g. Tatum)
+	// handler for incoming payment webhooks
 	incomingWebhooksHandler := webhook.New(
 		app.services.ProcessingService(),
 		app.Logger(),
@@ -153,7 +153,6 @@ func (app *App) RunServer() {
 		),
 		httpServer.When(withInternalAPI, httpServer.WithInternalAPI(
 			internalapi.New(
-				app.services.WalletService(),
 				app.services.BlockchainService(),
 				schedulerHandler,
 				app.logger,

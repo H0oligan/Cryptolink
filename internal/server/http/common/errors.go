@@ -27,3 +27,11 @@ func ErrorResponse(c echo.Context, status string) error {
 		Status:  status,
 	})
 }
+
+func ErrorResponseWithStatus(c echo.Context, httpStatus int, message string) error {
+	return c.JSON(httpStatus, map[string]interface{}{
+		"status":      "limit_exceeded",
+		"message":     message,
+		"upgrade_url": "/merchants/subscription",
+	})
+}

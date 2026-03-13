@@ -61,7 +61,7 @@ const AdminDashboardPage: React.FC = () => {
                             title="Paying Merchants"
                             value={stats?.paying_merchants ?? 0}
                             prefix={<CrownOutlined />}
-                            valueStyle={{color: "#6366f1"}}
+                            valueStyle={{color: "#10b981"}}
                         />
                     </Card>
                 </Col>

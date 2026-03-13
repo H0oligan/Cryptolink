@@ -232,7 +232,7 @@ export const deployTronCloneViaFactory = async (
 };
 
 // ---------------------------------------------------------------
-// Call withdrawAll() on a deployed TRON MerchantCollector (V1 or V2)
+// Call withdrawAll() on a deployed TRON MerchantCollectorV2 clone
 // ---------------------------------------------------------------
 
 export const withdrawAllTron = async (
@@ -241,8 +241,13 @@ export const withdrawAllTron = async (
 ): Promise<string> => {
     const tronWeb = await ensureTronWebReady();
 
+    // Convert base58 token addresses to hex — TronWeb's ABI encoder for
+    // address[] parameters requires the 41-prefixed hex form, not base58.
+    // Passing base58 directly produces garbled calldata and zero balances.
+    const hexAddresses = tokenAddresses.map((addr) => tronWeb.address.toHex(addr));
+
     const contract = await tronWeb.contract(MERCHANT_COLLECTOR_V2_ABI, contractBase58);
-    const txid = await contract.withdrawAll(tokenAddresses).send({
+    const txid = await contract.withdrawAll(hexAddresses).send({
         feeLimit: 500_000_000, // 500 TRX
     });
 

@@ -172,6 +172,10 @@ const (
 	// StatusInProgress underlying tx is in progress
 	StatusInProgress Status = "inProgress"
 
+	// StatusUnderpaid customer sent less than expected (confirmed on-chain).
+	// Merchant decides to accept or decline.
+	StatusUnderpaid Status = "underpaid"
+
 	StatusSuccess Status = "success"
 	StatusFailed  Status = "failed"
 )

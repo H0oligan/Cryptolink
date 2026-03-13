@@ -62,15 +62,6 @@ func (s *Service) Receive(
 
 		result = tx
 
-		// EVM collector transactions use a contract address (RecipientAddress) rather
-		// than a managed wallet, so there is no wallet lock to release.
-		if result.RecipientWalletID != nil {
-			errRelease := wallet.ReleaseLock(ctx, q, *tx.RecipientWalletID, tx.Currency.Ticker, tx.NetworkID())
-			if errRelease != nil {
-				return errors.Wrap(errRelease, "unable to release lock")
-			}
-		}
-
 		return nil
 	})
 
@@ -522,13 +513,6 @@ func (s *Service) Cancel(ctx context.Context, tx *Transaction, status Status, re
 		})
 		if errCancel != nil {
 			return errors.Wrap(errCancel, "unable to cancel transaction")
-		}
-
-		if tx.Type == TypeIncoming && tx.RecipientWalletID != nil {
-			errRelease := wallet.ReleaseLock(ctx, q, *tx.RecipientWalletID, tx.Currency.Ticker, tx.NetworkID())
-			if errRelease != nil {
-				return errors.Wrap(errCancel, "unable to release wallet lock")
-			}
 		}
 
 		return nil

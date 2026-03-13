@@ -96,7 +96,7 @@ func (h *Handler) CancelExpiredPayments(ctx context.Context) error {
 }
 
 // WatchPendingAddresses polls blockchain addresses for incoming payments.
-// This replaces Tatum webhook subscriptions with direct RPC polling.
+// This uses direct RPC polling instead of external webhook subscriptions.
 func (h *Handler) WatchPendingAddresses(ctx context.Context) error {
 	if h.watcher == nil {
 		return nil
