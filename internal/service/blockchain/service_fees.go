@@ -39,10 +39,6 @@ func (s *Service) CalculateFee(ctx context.Context, baseCurrency, currency money
 		return s.avaxFee(ctx, baseCurrency, currency, isTest)
 	case kmswallet.TRON:
 		return s.tronFee(ctx, baseCurrency, currency, isTest)
-	case kmswallet.SOL:
-		return s.solanaFee(ctx, baseCurrency, currency, isTest)
-	case kmswallet.XMR:
-		return s.moneroFee(ctx, baseCurrency, currency, isTest)
 	}
 
 	return Fee{}, errors.New("unsupported blockchain for fees calculations " + currency.Ticker)
@@ -81,12 +77,6 @@ func (s *Service) CalculateWithdrawalFeeUSD(
 	case kmswallet.TRON:
 		f, _ := fee.ToTronFee()
 		usdFee = f.feeLimitUSD
-	case kmswallet.SOL:
-		f, _ := fee.ToSolanaFee()
-		usdFee = f.totalCostUSD
-	case kmswallet.XMR:
-		f, _ := fee.ToMoneroFee()
-		usdFee = f.totalCostUSD
 	default:
 		return money.Money{}, ErrCurrencyNotFound
 	}
@@ -644,90 +634,3 @@ func (s *Service) avaxFee(ctx context.Context, baseCurrency, currency money.Cryp
 	}), nil
 }
 
-// Solana Fee structures and methods
-type SolanaFee struct {
-	FeePerSignature uint64 `json:"feePerSignature"`
-	TotalCostSOL    string `json:"totalCostSol"`
-	TotalCostUSD    string `json:"totalCostUsd"`
-
-	totalCostUSD money.Money
-}
-
-func (f *Fee) ToSolanaFee() (SolanaFee, error) {
-	if fee, ok := f.raw.(SolanaFee); ok {
-		return fee, nil
-	}
-	return SolanaFee{}, errors.New("invalid fee type assertion for SOL")
-}
-
-func (s *Service) solanaFee(ctx context.Context, baseCurrency, currency money.CryptoCurrency, isTest bool) (Fee, error) {
-	// Solana has fixed fees per signature (currently 5000 lamports = 0.000005 SOL)
-	// This is much simpler than EVM chains
-	const (
-		feePerSignatureLamports = uint64(5000) // Standard Solana fee
-	)
-
-	// Convert lamports to SOL
-	feeInSOL, err := baseCurrency.MakeAmountFromBigInt(big.NewInt(int64(feePerSignatureLamports)))
-	if err != nil {
-		return Fee{}, errors.Wrap(err, "unable to make SOL from lamports")
-	}
-
-	conv, err := s.CryptoToFiat(ctx, feeInSOL, money.USD)
-	if err != nil {
-		return Fee{}, errors.Wrap(err, "unable to calculate total cost in USD")
-	}
-
-	return NewFee(currency, time.Now().UTC(), isTest, SolanaFee{
-		FeePerSignature: feePerSignatureLamports,
-		TotalCostSOL:    feeInSOL.String(),
-		TotalCostUSD:    conv.To.String(),
-		totalCostUSD:    conv.To,
-	}), nil
-}
-
-// Monero Fee structures and methods
-type MoneroFee struct {
-	FeePerKB     uint64 `json:"feePerKb"`
-	TotalCostXMR string `json:"totalCostXmr"`
-	TotalCostUSD string `json:"totalCostUsd"`
-
-	totalCostUSD money.Money
-}
-
-func (f *Fee) ToMoneroFee() (MoneroFee, error) {
-	if fee, ok := f.raw.(MoneroFee); ok {
-		return fee, nil
-	}
-	return MoneroFee{}, errors.New("invalid fee type assertion for XMR")
-}
-
-func (s *Service) moneroFee(ctx context.Context, baseCurrency, currency money.CryptoCurrency, isTest bool) (Fee, error) {
-	// Monero has dynamic fees based on network congestion
-	// For simplicity, we'll use a conservative estimate
-	// Typical Monero transaction is ~2KB, fees are ~0.00001-0.0001 XMR
-	const (
-		estimatedTxSizeKB = 2
-		feePerKBPiconeros = uint64(20000000) // ~0.00002 XMR per KB (conservative estimate)
-	)
-
-	totalFeePiconeros := feePerKBPiconeros * estimatedTxSizeKB
-
-	// Convert piconeros to XMR (1 XMR = 1e12 piconeros)
-	feeInXMR, err := baseCurrency.MakeAmountFromBigInt(big.NewInt(int64(totalFeePiconeros)))
-	if err != nil {
-		return Fee{}, errors.Wrap(err, "unable to make XMR from piconeros")
-	}
-
-	conv, err := s.CryptoToFiat(ctx, feeInXMR, money.USD)
-	if err != nil {
-		return Fee{}, errors.Wrap(err, "unable to calculate total cost in USD")
-	}
-
-	return NewFee(currency, time.Now().UTC(), isTest, MoneroFee{
-		FeePerKB:     feePerKBPiconeros,
-		TotalCostXMR: feeInXMR.String(),
-		TotalCostUSD: conv.To.String(),
-		totalCostUSD: conv.To,
-	}), nil
-}

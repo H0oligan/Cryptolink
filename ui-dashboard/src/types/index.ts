@@ -119,7 +119,7 @@ const CURRENCY_SYMBOL: Record<CurrencyWithFiat, string> = {
 
 type PaymentType = "payment" | "withdrawal";
 
-type PaymentStatus = "pending" | "inProgress" | "success" | "failed";
+type PaymentStatus = "pending" | "inProgress" | "success" | "failed" | "underpaid";
 
 interface ServiceFee {
     blockchain: string;

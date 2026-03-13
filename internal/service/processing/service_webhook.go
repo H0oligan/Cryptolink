@@ -16,8 +16,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TatumWebhook see https://apidoc.tatum.io/tag/Notification-subscriptions#operation/createSubscription
-type TatumWebhook struct {
+// IncomingWebhook represents an incoming payment notification from the address watcher.
+// Fields mirror the legacy webhook format for backwards compatibility.
+type IncomingWebhook struct {
 	SubscriptionType string `json:"subscriptionType"`
 	TransactionID    string `json:"txId"`
 	Address          string `json:"address"`
@@ -41,11 +42,11 @@ type TatumWebhook struct {
 	Chain string `json:"chain"`
 }
 
-func (w *TatumWebhook) MarshalBinary() ([]byte, error) {
+func (w *IncomingWebhook) MarshalBinary() ([]byte, error) {
 	return json.Marshal(w)
 }
 
-func (w *TatumWebhook) CurrencyType() money.CryptoCurrencyType {
+func (w *IncomingWebhook) CurrencyType() money.CryptoCurrencyType {
 	if w.Type == "native" {
 		return money.Coin
 	}
@@ -53,14 +54,13 @@ func (w *TatumWebhook) CurrencyType() money.CryptoCurrencyType {
 	return money.Token
 }
 
-// ValidateWebhookSignature is a no-op stub. Tatum HMAC validation has been removed
-// as part of the Tatum independence migration. The internal address watcher replaces
-// external webhook-based payment detection.
+// ValidateWebhookSignature is a no-op stub. The internal address watcher handles
+// payment detection directly, so no external signature validation is needed.
 func (s *Service) ValidateWebhookSignature(_ []byte, _ string) error {
 	return nil
 }
 
-func (s *Service) ProcessIncomingWebhook(ctx context.Context, walletID uuid.UUID, networkID string, wh TatumWebhook) error {
+func (s *Service) ProcessIncomingWebhook(ctx context.Context, walletID uuid.UUID, networkID string, wh IncomingWebhook) error {
 	// 0. Omit certain webhooks
 	switch {
 	case wh.Mempool:
@@ -103,7 +103,7 @@ func (s *Service) ProcessIncomingWebhook(ctx context.Context, walletID uuid.UUID
 }
 
 // processTraditionalWebhook handles webhooks for traditional (hot wallet) addresses
-func (s *Service) processTraditionalWebhook(ctx context.Context, wt *wallet.Wallet, networkID string, wh TatumWebhook) error {
+func (s *Service) processTraditionalWebhook(ctx context.Context, wt *wallet.Wallet, networkID string, wh IncomingWebhook) error {
 	currency, err := s.resolveCurrencyFromWebhook(wt.Blockchain.ToMoneyBlockchain(), networkID, wh)
 	if err != nil {
 		return errors.Wrap(err, "unable to resolve currency from webhook")
@@ -146,7 +146,7 @@ func (s *Service) processTraditionalWebhook(ctx context.Context, wt *wallet.Wall
 }
 
 // processXpubWebhook handles webhooks for xpub-derived addresses (non-custodial flow)
-func (s *Service) processXpubWebhook(ctx context.Context, addr *xpub.DerivedAddress, networkID string, wh TatumWebhook) error {
+func (s *Service) processXpubWebhook(ctx context.Context, addr *xpub.DerivedAddress, networkID string, wh IncomingWebhook) error {
 	bc := money.Blockchain(addr.Blockchain)
 
 	currency, err := s.resolveCurrencyFromWebhook(bc, networkID, wh)
@@ -203,7 +203,7 @@ func (s *Service) processXpubWebhook(ctx context.Context, addr *xpub.DerivedAddr
 }
 
 // processCollectorWebhook handles webhooks for EVM smart contract collector addresses.
-func (s *Service) processCollectorWebhook(ctx context.Context, collector *evmcollector.Collector, networkID string, wh TatumWebhook) error {
+func (s *Service) processCollectorWebhook(ctx context.Context, collector *evmcollector.Collector, networkID string, wh IncomingWebhook) error {
 	bc := money.Blockchain(collector.Blockchain)
 
 	// The webhook URL may carry the blockchain name (e.g. "ETH") instead of the
@@ -275,7 +275,7 @@ func (s *Service) processCollectorWebhook(ctx context.Context, collector *evmcol
 }
 
 // sendPaymentReceivedEmail looks up the merchant email and sends the payment notification.
-func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64, tx *transaction.Transaction, currency money.CryptoCurrency, wh TatumWebhook) {
+func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64, tx *transaction.Transaction, currency money.CryptoCurrency, wh IncomingWebhook) {
 	mt, err := s.merchants.GetByID(ctx, merchantID, false)
 	if err != nil {
 		s.logger.Warn().Err(err).Int64("merchant_id", merchantID).Msg("unable to get merchant for payment email")
@@ -394,7 +394,7 @@ func (s *Service) processTronAccountActivation(ctx context.Context, wt *wallet.W
 	return s.processUnexpectedWebhook(ctx, wt, input)
 }
 
-func (s *Service) resolveCurrencyFromWebhook(bc money.Blockchain, networkID string, wh TatumWebhook) (money.CryptoCurrency, error) {
+func (s *Service) resolveCurrencyFromWebhook(bc money.Blockchain, networkID string, wh IncomingWebhook) (money.CryptoCurrency, error) {
 	var (
 		currency money.CryptoCurrency
 		err      error

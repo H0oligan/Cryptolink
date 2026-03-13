@@ -98,7 +98,6 @@ You (xpub key) → CryptoLink Server → unique address → Customer sends crypt
 - Go 1.21+
 - PostgreSQL 14+
 - Node.js 18+
-- [Tatum API key](https://tatum.io) (free tier available)
 
 ### 1. Clone & Configure
 
@@ -106,7 +105,7 @@ You (xpub key) → CryptoLink Server → unique address → Customer sends crypt
 git clone https://github.com/H0oligan/Cryptolink.git
 cd Cryptolink
 cp config/cryptolink.example.yml config/cryptolink.yml
-# Edit config/cryptolink.yml with your DB, Tatum key, and SMTP settings
+# Edit config/cryptolink.yml with your DB, RPC endpoints, and SMTP settings
 ```
 
 ### 2. Build Frontend
@@ -240,7 +239,7 @@ return redirect($response->json('url'));
 // Verify webhook
 public function handle(Request $request): Response
 {
-    $signature = $request->header('X-Tatum-Signature');
+    $signature = $request->header('X-Payload-Hash');
     $body      = $request->getContent();
     $expected  = base64_encode(hash_hmac('sha512', $body, config('cryptolink.hmac_secret'), true));
 
@@ -310,7 +309,7 @@ A full security audit was performed in February 2025. Key findings and resolutio
 │   ├── event/              # Event bus (payment events, user events)
 │   ├── kms/                # Key Management Service
 │   ├── locator/            # Service locator / dependency injection
-│   ├── provider/           # Blockchain providers (Tatum, TronGrid, Monero)
+│   ├── provider/           # Blockchain providers (RPC, PriceFeed, TronGrid, Bitcoin)
 │   ├── scheduler/          # Background jobs (payment expiry, balance checks)
 │   ├── server/http/        # Echo HTTP server, middleware, API handlers
 │   ├── service/            # Business logic (payment, merchant, subscription, email)

@@ -12,6 +12,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
+	"github.com/pkg/errors"
 )
 
 func (h *Handler) ListMerchants(c echo.Context) error {
@@ -49,6 +50,17 @@ func (h *Handler) CreateMerchant(c echo.Context) error {
 
 	ctx := c.Request().Context()
 	user := middleware.ResolveUser(c)
+
+	// Enforce merchant count limit from subscription plan
+	if h.subscriptions != nil {
+		existing, _ := h.merchants.ListByCreatorID(ctx, user.ID)
+		if err := h.subscriptions.CheckMerchantLimit(ctx, user.ID, len(existing)); err != nil {
+			if errors.Is(err, subscription.ErrLimitExceeded) {
+				return common.ErrorResponseWithStatus(c, http.StatusPaymentRequired, err.Error())
+			}
+			// Graceful degradation: allow if check fails for non-limit reasons
+		}
+	}
 
 	mt, err := h.merchants.Create(
 		ctx,

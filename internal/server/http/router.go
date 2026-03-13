@@ -93,13 +93,6 @@ func WithDashboardAPI(
 		tokenGroup.POST("", handler.CreateMerchantToken)
 		tokenGroup.DELETE("/:tokenId", handler.DeleteMerchantTokens)
 
-		// Merchant Addresses
-		merchantGroup.GET("/address", handler.ListMerchantAddresses)
-		merchantGroup.POST("/address", handler.CreateMerchantAddress)
-		merchantGroup.GET("/address/:addressId", handler.GetMerchantAddress)
-		merchantGroup.PUT("/address/:addressId", handler.UpdateMerchantAddress)
-		merchantGroup.DELETE("/address/:addressId", handler.DeleteMerchantAddress)
-
 		// Xpub Wallets
 		merchantGroup.GET("/xpub-wallet", handler.ListXpubWallets)
 		merchantGroup.POST("/xpub-wallet", handler.CreateXpubWallet)
@@ -192,6 +185,7 @@ func setupCommonMerchantRoutes(g *echo.Group, handler *merchantapi.Handler) {
 	paymentGroup.GET("/:paymentId", handler.GetPayment)
 	paymentGroup.POST("", handler.CreatePayment)
 	paymentGroup.POST("/:paymentId/resolve", handler.ResolvePayment)
+	paymentGroup.POST("/:paymentId/decline", handler.DeclinePayment)
 
 	// Payment link routes (rate limited to prevent abuse)
 	paymentLinkRL := mw.NewRateLimiterMemoryStore(50) // 50 requests per second
@@ -247,7 +241,7 @@ func WithPaymentAPI(handler *paymentapi.Handler, cfg Config) Opt {
 func WithWebhookAPI(handler *webhook.Handler) Opt {
 	return func(s *Server) {
 		webhookAPI := s.echo.Group("/api/webhook/v1")
-		webhookAPI.POST("/tatum/:networkId/:walletId", handler.ReceiveTatum)
+		webhookAPI.POST("/tatum/:networkId/:walletId", handler.ReceiveWebhook)
 	}
 }
 
@@ -270,10 +264,6 @@ func WithInternalAPI(h *v1.Handler) Opt {
 		internal.GET("/router", h.GetRouter)
 
 		admin := internal.Group("/admin")
-		admin.GET("/wallet", h.ListWallets)
-		admin.GET("/wallet/:walletID", h.GetWallet)
-		admin.POST("/wallet", h.CreateWallet)
-		admin.POST("/wallet/bulk", h.BulkCreateWallets)
 		admin.POST("/job", h.RunSchedulerJob)
 
 		admin.POST("/blockchain/fee", h.CalculateTransactionFee)

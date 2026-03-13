@@ -87,9 +87,9 @@ contract MerchantCollector {
     }
 
     function _safeTransfer(address token, address to, uint256 amount) internal {
-        (bool success, bytes memory data) = token.call(
+        (bool success, ) = token.call(
             abi.encodeWithSignature("transfer(address,uint256)", to, amount)
         );
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "token transfer failed");
+        require(success, "token transfer failed");
     }
 }

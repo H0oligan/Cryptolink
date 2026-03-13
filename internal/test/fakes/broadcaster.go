@@ -10,7 +10,6 @@ import (
 	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
-	kmsmodel "github.com/cryptolink/cryptolink/pkg/api-kms/v1/model"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )
@@ -74,7 +73,10 @@ func (m *Broadcaster) SetupBroadcastTransaction(
 
 	rawTX := rawTransaction
 	if chain == kms.TRON.ToMoneyBlockchain() {
-		b, _ := json.Marshal(kmsmodel.TronTransaction{RawDataHex: rawTX})
+		type tronTx struct {
+			RawDataHex string `json:"rawDataHex"`
+		}
+		b, _ := json.Marshal(tronTx{RawDataHex: rawTX})
 		rawTX = string(b)
 	}
 

@@ -4,15 +4,24 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/email"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"golang.org/x/sync/errgroup"
 )
+
+// inProgressTimeout is the maximum time a transaction can stay in inProgress
+// before being timed out. Prevents stuck transactions from consuming resources.
+const inProgressTimeout = 24 * time.Hour
+
+const revertReason = "transaction reverted on chain"
 
 var (
 	ErrInvalidInput = errors.New("invalid incoming input")
@@ -250,6 +259,14 @@ func (s *Service) checkIncomingTransaction(ctx context.Context, txID int64) erro
 	}
 
 	if !receipt.IsConfirmed {
+		// Timeout stuck inProgress transactions after 24h
+		if time.Since(tx.UpdatedAt) > inProgressTimeout {
+			s.logger.Warn().
+				Int64("transaction_id", tx.ID).
+				Str("hash", *tx.HashID).
+				Msg("transaction timed out after 24h without confirmation")
+			return s.cancelIncomingTransaction(ctx, tx)
+		}
 		// check later
 		return nil
 	}
@@ -273,7 +290,8 @@ func (s *Service) confirmIncomingTransaction(
 
 	if tx.Status == transaction.StatusInProgressInvalid {
 		setTXStatus = transaction.StatusCompletedInvalid
-		setPaymentStatus = payment.StatusFailed
+		// Underpayment confirmed on-chain → merchant decides to accept or decline
+		setPaymentStatus = payment.StatusUnderpaid
 	}
 
 	confirmation := transaction.ConfirmTransaction{
@@ -320,7 +338,107 @@ func (s *Service) confirmIncomingTransaction(
 		Str("payment_status", string(pt.Status)).
 		Msg("processed payment")
 
+	// Increment subscription usage counters (best-effort, non-blocking)
+	if setPaymentStatus == payment.StatusSuccess && s.subscriptions != nil {
+		volumeUSD := decimal.Zero
+		if tx.USDAmount.String() != "" {
+			volumeUSD, _ = decimal.NewFromString(tx.USDAmount.StringRaw())
+		}
+		if err := s.subscriptions.IncrementPaymentUsage(ctx, tx.MerchantID, volumeUSD); err != nil {
+			s.logger.Warn().Err(err).Int64("merchant_id", tx.MerchantID).Msg("failed to increment payment usage")
+		}
+	}
+
+	// Send email notifications (best-effort, non-blocking)
+	if setPaymentStatus == payment.StatusSuccess && s.emailService != nil {
+		go s.sendConfirmationEmails(context.Background(), tx, pt)
+	}
+
 	return nil
+}
+
+// sendConfirmationEmails sends payment notification emails to the merchant and customer.
+// Best-effort: errors are logged but never propagated.
+func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Transaction, pt *payment.Payment) {
+	// --- Merchant notification ---
+	mt, err := s.merchants.GetByID(ctx, tx.MerchantID, false)
+	if err != nil {
+		s.logger.Warn().Err(err).Int64("merchant_id", tx.MerchantID).Msg("unable to get merchant for payment email")
+		return
+	}
+
+	merchantEmail, err := s.emailService.GetMerchantEmail(ctx, tx.MerchantID)
+	if err != nil || merchantEmail == "" {
+		s.logger.Warn().Err(err).Int64("merchant_id", tx.MerchantID).Msg("no merchant email found for payment notification")
+	} else {
+		explorerLink := ""
+		if link, linkErr := tx.ExplorerLink(); linkErr == nil {
+			explorerLink = link
+		}
+
+		senderAddr := ""
+		if tx.SenderAddress != nil {
+			senderAddr = *tx.SenderAddress
+		}
+
+		txHash := ""
+		if tx.HashID != nil {
+			txHash = *tx.HashID
+		}
+
+		factAmount := tx.Amount.String()
+		if tx.FactAmount != nil {
+			factAmount = tx.FactAmount.String()
+		}
+
+		s.emailService.SendPaymentReceived(ctx, email.PaymentReceivedParams{
+			MerchantEmail:    merchantEmail,
+			MerchantName:     mt.Name,
+			TxHash:           txHash,
+			Amount:           factAmount,
+			Ticker:           tx.Currency.Ticker,
+			USDAmount:        tx.USDAmount.String(),
+			SenderAddress:    senderAddr,
+			RecipientAddress: tx.RecipientAddress,
+			ExplorerLink:     explorerLink,
+			Network:          tx.Currency.BlockchainName,
+			ReceivedAt:       tx.CreatedAt,
+		})
+	}
+
+	// --- Customer notification ---
+	customerEmail, err := s.emailService.GetCustomerEmail(ctx, pt.ID)
+	if err != nil || customerEmail == "" {
+		// No customer email — this is normal for payments without customer info
+		return
+	}
+
+	explorerLink := ""
+	if link, linkErr := tx.ExplorerLink(); linkErr == nil {
+		explorerLink = link
+	}
+
+	txHash := ""
+	if tx.HashID != nil {
+		txHash = *tx.HashID
+	}
+
+	factAmount := tx.Amount.String()
+	if tx.FactAmount != nil {
+		factAmount = tx.FactAmount.String()
+	}
+
+	s.emailService.SendCustomerPaymentConfirmation(ctx, email.CustomerPaymentConfirmParams{
+		CustomerEmail: customerEmail,
+		MerchantName:  mt.Name,
+		Amount:        factAmount,
+		Ticker:        tx.Currency.Ticker,
+		USDAmount:     tx.USDAmount.String(),
+		TxHash:        txHash,
+		ExplorerLink:  explorerLink,
+		Network:       tx.Currency.BlockchainName,
+		ReceivedAt:    tx.CreatedAt,
+	})
 }
 
 func (s *Service) cancelIncomingTransaction(ctx context.Context, tx *transaction.Transaction) error {

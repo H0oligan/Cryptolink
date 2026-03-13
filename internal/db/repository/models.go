@@ -92,17 +92,6 @@ type Merchant struct {
 	Settings  pgtype.JSONB
 }
 
-type MerchantAddress struct {
-	ID         int64
-	Uuid       uuid.UUID
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	MerchantID int64
-	Name       string
-	Blockchain string
-	Address    string
-}
-
 type MerchantSubscription struct {
 	ID                 int64
 	Uuid               uuid.UUID
@@ -237,29 +226,6 @@ type User struct {
 	Settings        pgtype.JSONB
 	Password        sql.NullString
 	IsSuperAdmin    sql.NullBool
-}
-
-type Wallet struct {
-	ID                           int64
-	CreatedAt                    time.Time
-	Uuid                         uuid.UUID
-	Address                      string
-	Blockchain                   string
-	Type                         sql.NullString
-	ConfirmedMainnetTransactions int64
-	PendingMainnetTransactions   int64
-	PendingTestnetTransactions   int64
-	ConfirmedTestnetTransactions int64
-}
-
-type WalletLock struct {
-	ID          int64
-	WalletID    int64
-	MerchantID  int64
-	Currency    string
-	NetworkID   string
-	LockedAt    time.Time
-	LockedUntil sql.NullTime
 }
 
 type XpubWallet struct {

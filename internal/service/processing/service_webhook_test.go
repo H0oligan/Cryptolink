@@ -16,7 +16,7 @@ func TestUnknownNetwork(t *testing.T) {
 	wt := tc.Must.CreateWallet(t, "ETH", "0x123", "0x123", wallet.TypeInbound)
 
 	// And a webhook
-	wh := processing.TatumWebhook{
+	wh := processing.IncomingWebhook{
 		Asset:         "ETH",
 		Type:          "native",
 		TransactionID: "0x444",

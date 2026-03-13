@@ -86,7 +86,7 @@ body {
     height: 44px;
 }
 
-// Dark theme overrides
+// ─── Dark theme: Matrix Neon ─────────────────────────────────────
 [data-theme="dark"] {
     // ProLayout sidebar border
     .ant-pro-sider {
@@ -100,16 +100,78 @@ body {
         transition: box-shadow 0.3s ease, border-color 0.3s ease;
 
         &:hover {
-            box-shadow: 0 0 20px rgba(129, 140, 248, 0.08);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.06);
+            border-color: rgba(16, 185, 129, 0.2);
         }
     }
 
-    // Primary button glow
-    .ant-btn-primary {
-        box-shadow: 0 2px 8px rgba(129, 140, 248, 0.35);
+    // ─── Global button standardization ───────────────────────────
+    .ant-btn {
+        height: 40px;
+        border-radius: 8px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        transition: all 0.25s ease;
+    }
 
-        &:hover {
-            box-shadow: 0 4px 16px rgba(129, 140, 248, 0.5);
+    .ant-btn-lg {
+        height: 44px;
+    }
+
+    .ant-btn-sm {
+        height: 32px;
+    }
+
+    // Primary: neon green glow
+    .ant-btn-primary {
+        background: #10b981;
+        border-color: #10b981;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+
+        &:hover:not(:disabled) {
+            background: #34d399 !important;
+            border-color: #34d399 !important;
+            box-shadow: 0 0 24px rgba(16, 185, 129, 0.5), 0 0 48px rgba(16, 185, 129, 0.15);
+        }
+
+        &:active:not(:disabled) {
+            background: #059669 !important;
+            border-color: #059669 !important;
+        }
+    }
+
+    // Default: ghost-like with green border on hover
+    .ant-btn-default {
+        background: transparent;
+        border-color: var(--cl-border);
+        color: var(--cl-text-secondary);
+
+        &:hover:not(:disabled) {
+            border-color: #10b981 !important;
+            color: #10b981 !important;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.15);
+        }
+    }
+
+    // Text/Link buttons
+    .ant-btn-text,
+    .ant-btn-link {
+        color: var(--cl-text-secondary);
+
+        &:hover:not(:disabled) {
+            color: #10b981 !important;
+            background: rgba(16, 185, 129, 0.06) !important;
+        }
+    }
+
+    // Danger buttons
+    .ant-btn-primary.ant-btn-dangerous {
+        background: #ef4444;
+        border-color: #ef4444;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+
+        &:hover:not(:disabled) {
+            box-shadow: 0 0 24px rgba(239, 68, 68, 0.5);
         }
     }
 
@@ -133,20 +195,32 @@ body {
         background: transparent;
     }
 
+    // Input focus glow
+    .ant-input:focus,
+    .ant-input-focused,
+    .ant-input-affix-wrapper-focused {
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important;
+    }
+
+    // Select focus glow
+    .ant-select-focused .ant-select-selector {
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important;
+    }
+
     // Scrollbar styling
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
     }
     ::-webkit-scrollbar-track {
         background: var(--cl-bg-deepest);
     }
     ::-webkit-scrollbar-thumb {
-        background: var(--cl-border);
-        border-radius: 4px;
+        background: #1e1e1e;
+        border-radius: 3px;
     }
     ::-webkit-scrollbar-thumb:hover {
-        background: var(--cl-accent-primary);
+        background: #10b981;
     }
 }
 
@@ -154,6 +228,20 @@ body {
 [data-theme="light"] {
     .ant-pro-sider {
         border-right: 1px solid var(--cl-border-secondary) !important;
+    }
+
+    .ant-btn {
+        height: 40px;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+
+    .ant-btn-lg {
+        height: 44px;
+    }
+
+    .ant-btn-sm {
+        height: 32px;
     }
 }
 

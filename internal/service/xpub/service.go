@@ -12,12 +12,10 @@ import (
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/btcsuite/btcutil/bech32"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/kms/wallet"
-	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/wemeetagain/go-hdwallet"
@@ -391,27 +389,9 @@ func (s *Service) deriveAddressFromXpub(xpub, blockchain, derivationPath string,
 	case wallet.BTC:
 		return s.deriveBTCAddress(compressedPubKey, pubKeyHex, derivationPath)
 
-	case wallet.ETH, wallet.MATIC, wallet.BSC, wallet.ARBITRUM, wallet.AVAX:
-		// Decompress the public key and compute keccak256-based ETH address
-		ecdsaPubKey, err := crypto.DecompressPubkey(compressedPubKey)
-		if err != nil {
-			return "", "", errors.Wrap(err, "failed to decompress public key for ETH")
-		}
-		address := crypto.PubkeyToAddress(*ecdsaPubKey).Hex()
-		return address, pubKeyHex, nil
-
-	case wallet.TRON:
-		// TRON uses same derivation as ETH but with 0x41 prefix + base58check
-		ecdsaPubKey, err := crypto.DecompressPubkey(compressedPubKey)
-		if err != nil {
-			return "", "", errors.Wrap(err, "failed to decompress public key for TRON")
-		}
-		ethAddr := crypto.PubkeyToAddress(*ecdsaPubKey).Hex()
-		tronHex := "41" + ethAddr[2:]
-		address := util.TronHexToBase58(tronHex)
-		return address, pubKeyHex, nil
-
 	default:
+		// Only BTC uses xpub-derived addresses.
+		// EVM chains and TRON use smart contract collectors instead.
 		return childKey.Address(), pubKeyHex, nil
 	}
 }

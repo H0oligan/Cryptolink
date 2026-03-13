@@ -24,7 +24,7 @@ interface Customer {
 const CURRENCY = ["USD", "EUR"] as const;
 type Currency = typeof CURRENCY[number];
 
-type PaymentStatus = "pending" | "inProgress" | "success" | "failed";
+type PaymentStatus = "pending" | "inProgress" | "success" | "failed" | "underpaid";
 type PaymentAction = "redirect" | "showMessage";
 
 interface PaymentInfo {

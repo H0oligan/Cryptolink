@@ -1,6 +1,6 @@
-// Package watcher implements blockchain address monitoring, replacing Tatum webhook subscriptions
-// with direct RPC polling. It detects incoming payments by scanning for transactions
-// to watched addresses and triggers the existing payment processing flow.
+// Package watcher implements blockchain address monitoring via direct RPC polling.
+// It detects incoming payments by scanning for transactions to watched addresses
+// and triggers the existing payment processing flow.
 package watcher
 
 import (
@@ -20,7 +20,6 @@ import (
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
-	"github.com/cryptolink/cryptolink/internal/provider/solana"
 	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
@@ -72,7 +71,6 @@ type Service struct {
 	config       Config
 	rpc          *rpc.Provider
 	bitcoin      *bitcoin.Provider
-	solana       *solana.Provider
 	tron         *trongrid.Provider
 	transactions *transaction.Service
 	wallets      *wallet.Service
@@ -86,9 +84,6 @@ type Service struct {
 	// to detect incoming payments by balance change.
 	lastBTCBalance sync.Map // key: "address:isTest" -> value: int64
 
-	// lastSOLBalance tracks the last known balance (lamports) per SOL address
-	// to detect incoming payments by balance change.
-	lastSOLBalance sync.Map // key: "address:isTest" -> value: uint64
 }
 
 // New creates a new watcher service.
@@ -96,7 +91,6 @@ func New(
 	config Config,
 	rpcProvider *rpc.Provider,
 	bitcoinProvider *bitcoin.Provider,
-	solanaProvider *solana.Provider,
 	tronProvider *trongrid.Provider,
 	transactions *transaction.Service,
 	wallets *wallet.Service,
@@ -118,7 +112,6 @@ func New(
 		config:       config,
 		rpc:          rpcProvider,
 		bitcoin:      bitcoinProvider,
-		solana:       solanaProvider,
 		tron:         tronProvider,
 		transactions: transactions,
 		wallets:      wallets,
@@ -177,12 +170,29 @@ func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTran
 
 	group.SetLimit(s.config.MaxConcurrency)
 
+	// Wrap onDetected with tx hash deduplication to prevent the same
+	// on-chain transaction from being matched to multiple pending payments.
+	// This can happen when multiple payments share the same collector contract address.
+	dedupOnDetected := func(ctx context.Context, d DetectedTransfer) error {
+		existing, err := s.transactions.GetByHash(ctx, d.NetworkID, d.TxHash)
+		if err == nil && existing != nil {
+			s.logger.Warn().
+				Str("tx_hash", d.TxHash).
+				Str("network_id", d.NetworkID).
+				Int64("pending_tx_id", d.PendingTx.ID).
+				Int64("existing_tx_id", existing.ID).
+				Msg("skipping duplicate: tx hash already assigned to another transaction")
+			return nil
+		}
+		return onDetected(ctx, d)
+	}
+
 	for key, chainTxs := range grouped {
 		key := key
 		chainTxs := chainTxs
 
 		group.Go(func() error {
-			count, failed := s.pollChainTransactions(ctx, key.blockchain, key.isTest, chainTxs, onDetected)
+			count, failed := s.pollChainTransactions(ctx, key.blockchain, key.isTest, chainTxs, dedupOnDetected)
 			atomic.AddInt64(&detected, count)
 			if len(failed) > 0 {
 				mu.Lock()
@@ -750,6 +760,10 @@ func (s *Service) pollTRONTransactions(
 			continue
 		}
 
+		// Only match on-chain transactions that occurred AFTER the pending
+		// transaction was created, to avoid picking up old/test transfers.
+		txCreatedAtMs := tx.CreatedAt.UnixMilli()
+
 		if tx.Currency.Type == money.Coin {
 			// TRX native transfer — query recent native transactions
 			recentTxs, err := s.tron.GetAccountTransactions(ctx, addr, isTest, 10)
@@ -765,6 +779,10 @@ func (s *Service) pollTRONTransactions(
 					continue
 				}
 				if rtx.Type != "TransferContract" {
+					continue
+				}
+				// Skip transactions that happened before this payment was created
+				if rtx.Timestamp > 0 && rtx.Timestamp < txCreatedAtMs {
 					continue
 				}
 
@@ -821,6 +839,10 @@ func (s *Service) pollTRONTransactions(
 				if !strings.EqualFold(rtx.TokenAddress, tokenContract) {
 					continue
 				}
+				// Skip transactions that happened before this payment was created
+				if rtx.Timestamp > 0 && rtx.Timestamp < txCreatedAtMs {
+					continue
+				}
 
 				amount := new(big.Int)
 				amount.SetString(rtx.TokenAmount, 10)
@@ -863,99 +885,6 @@ func (s *Service) pollTRONTransactions(
 				}
 				break
 			}
-		}
-	}
-
-	return detected, failedIDs
-}
-
-// pollSOLTransactions checks SOL addresses for incoming payments
-// by comparing current balance with last known balance via Solana RPC.
-func (s *Service) pollSOLTransactions(
-	ctx context.Context,
-	isTest bool,
-	txs []*transaction.Transaction,
-	onDetected OnTransferDetected,
-) (int64, []int64) {
-	var detected int64
-	var failedIDs []int64
-
-	for _, tx := range txs {
-		addr := s.getRecipientAddress(ctx, tx)
-		if addr == "" {
-			continue
-		}
-
-		balance, err := s.solana.GetBalance(ctx, addr, isTest)
-		if err != nil {
-			s.logger.Error().Err(err).
-				Str("address", addr).
-				Int64("tx_id", tx.ID).
-				Msg("unable to get SOL balance")
-			failedIDs = append(failedIDs, tx.ID)
-			continue
-		}
-
-		cacheKey := addr + ":" + boolStr(isTest)
-
-		var lastBalance uint64
-		if last, ok := s.lastSOLBalance.Load(cacheKey); ok {
-			lastBalance = last.(uint64)
-		}
-
-		// Store current balance for next poll
-		s.lastSOLBalance.Store(cacheKey, balance)
-
-		if balance <= lastBalance {
-			continue
-		}
-
-		receivedLamports := balance - lastBalance
-
-		// Convert lamports to SOL amount (9 decimals)
-		cryptoAmount, err := money.NewFromBigInt(
-			money.Crypto,
-			tx.Currency.Ticker,
-			new(big.Int).SetUint64(receivedLamports),
-			tx.Currency.Decimals,
-		)
-		if err != nil {
-			s.logger.Error().Err(err).
-				Int64("tx_id", tx.ID).
-				Uint64("lamports", receivedLamports).
-				Msg("unable to parse SOL amount")
-			failedIDs = append(failedIDs, tx.ID)
-			continue
-		}
-
-		var wt *wallet.Wallet
-		if tx.RecipientWalletID != nil {
-			wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
-		}
-
-		d := DetectedTransfer{
-			PendingTx:     tx,
-			Wallet:        wt,
-			TxHash:        "",
-			SenderAddress: "",
-			Amount:        cryptoAmount,
-			Currency:      tx.Currency,
-			NetworkID:     tx.Currency.ChooseNetwork(isTest),
-		}
-
-		if err := onDetected(ctx, d); err != nil {
-			s.logger.Error().Err(err).
-				Int64("tx_id", tx.ID).
-				Str("address", addr).
-				Msg("failed to process detected SOL payment")
-			failedIDs = append(failedIDs, tx.ID)
-		} else {
-			detected++
-			s.logger.Info().
-				Int64("tx_id", tx.ID).
-				Str("address", addr).
-				Uint64("lamports", receivedLamports).
-				Msg("SOL incoming payment detected")
 		}
 	}
 

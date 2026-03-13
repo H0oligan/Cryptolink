@@ -13,7 +13,7 @@ type Handler struct {
 const (
 	paramWalletID   = "walletId"
 	paramNetworkID  = "networkId"
-	headerTatumHMAC = "x-payload-hash"
+	headerWebhookHMAC = "x-payload-hash"
 )
 
 func New(processingService *processing.Service, logger *zerolog.Logger) *Handler {

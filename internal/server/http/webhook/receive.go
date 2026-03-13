@@ -12,7 +12,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (h *Handler) ReceiveTatum(c echo.Context) error {
+// ReceiveWebhook handles incoming payment notification webhooks.
+// The route URL is kept at /api/webhook/v1/tatum/:networkId/:walletId for backwards
+// compatibility with the address watcher, but the handler is provider-agnostic.
+func (h *Handler) ReceiveWebhook(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 1. Parse request params
@@ -23,8 +26,8 @@ func (h *Handler) ReceiveTatum(c echo.Context) error {
 		return err
 	}
 
-	// 2. Verify signature
-	signature := c.Request().Header.Get(headerTatumHMAC)
+	// 2. Verify signature (currently a no-op; the internal watcher is trusted)
+	signature := c.Request().Header.Get(headerWebhookHMAC)
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		return err
@@ -40,7 +43,7 @@ func (h *Handler) ReceiveTatum(c echo.Context) error {
 	}
 
 	// 3. Parse request
-	var req processing.TatumWebhook
+	var req processing.IncomingWebhook
 	if err := json.Unmarshal(body, &req); err != nil {
 		return err
 	}
@@ -49,15 +52,15 @@ func (h *Handler) ReceiveTatum(c echo.Context) error {
 	if err := h.processing.ProcessIncomingWebhook(ctx, walletID, networkID, req); err != nil {
 		h.logger.Error().Err(err).
 			Str("wallet_id", walletID.String()).Interface("webhook", req).
-			Msg("unable to process tatum webhook")
+			Msg("unable to process incoming webhook")
 
-		return c.JSON(http.StatusBadRequest, "unable to process tatum webhook")
+		return c.JSON(http.StatusBadRequest, "unable to process incoming webhook")
 	}
 
 	h.logger.Info().
 		Str("wallet_id", walletID.String()).
 		Interface("webhook", req).
-		Msg("processed incoming tatum webhook")
+		Msg("processed incoming webhook")
 
 	return c.NoContent(http.StatusNoContent)
 }

@@ -4,101 +4,101 @@ import type {ThemeConfig} from "antd";
 export const darkTokens: ThemeConfig = {
     algorithm: theme.darkAlgorithm,
     token: {
-        // Brand
-        colorPrimary: "#818cf8",
+        // Brand — Matrix Neon (emerald on black)
+        colorPrimary: "#10b981",
         colorSuccess: "#10b981",
         colorWarning: "#f59e0b",
         colorError: "#ef4444",
-        colorInfo: "#818cf8",
+        colorInfo: "#10b981",
 
-        // Backgrounds
-        colorBgContainer: "#13131a",
-        colorBgElevated: "#1a1a2e",
-        colorBgLayout: "#0a0a0f",
-        colorBgSpotlight: "#1e1e30",
+        // Backgrounds — near-black
+        colorBgContainer: "#0a0a0a",
+        colorBgElevated: "#111111",
+        colorBgLayout: "#050505",
+        colorBgSpotlight: "#141414",
 
-        // Text
-        colorText: "rgba(255, 255, 255, 0.92)",
-        colorTextSecondary: "rgba(255, 255, 255, 0.65)",
-        colorTextTertiary: "rgba(255, 255, 255, 0.45)",
-        colorTextQuaternary: "rgba(255, 255, 255, 0.25)",
+        // Text — cool white with slight green tint
+        colorText: "#e2e8f0",
+        colorTextSecondary: "#94a3b8",
+        colorTextTertiary: "#64748b",
+        colorTextQuaternary: "#475569",
 
-        // Borders
-        colorBorder: "#2a2a3e",
-        colorBorderSecondary: "#1f1f33",
-        colorSplit: "rgba(255, 255, 255, 0.06)",
+        // Borders — subtle dark
+        colorBorder: "#1e1e1e",
+        colorBorderSecondary: "#151515",
+        colorSplit: "rgba(255, 255, 255, 0.04)",
 
         // Misc
         borderRadius: 8,
         wireframe: false,
 
-        // Link
-        colorLink: "#818cf8",
-        colorLinkHover: "#a5b4fc",
-        colorLinkActive: "#6366f1"
+        // Link — emerald
+        colorLink: "#10b981",
+        colorLinkHover: "#34d399",
+        colorLinkActive: "#059669"
     },
     components: {
         Layout: {
-            siderBg: "#0f0f1a",
-            headerBg: "#0f0f1a",
-            bodyBg: "#0a0a0f",
-            triggerBg: "#1a1a2e"
+            siderBg: "#070707",
+            headerBg: "#070707",
+            bodyBg: "#050505",
+            triggerBg: "#111111"
         },
         Menu: {
-            darkItemBg: "#0f0f1a",
-            darkItemSelectedBg: "rgba(129, 140, 248, 0.15)",
-            darkItemHoverBg: "rgba(129, 140, 248, 0.08)",
-            darkItemColor: "rgba(255, 255, 255, 0.65)",
-            darkItemSelectedColor: "#818cf8"
+            darkItemBg: "#070707",
+            darkItemSelectedBg: "rgba(16, 185, 129, 0.12)",
+            darkItemHoverBg: "rgba(16, 185, 129, 0.06)",
+            darkItemColor: "#94a3b8",
+            darkItemSelectedColor: "#10b981"
         },
         Table: {
-            headerBg: "#13131a",
-            headerColor: "rgba(255, 255, 255, 0.65)",
-            rowHoverBg: "rgba(129, 140, 248, 0.06)",
-            borderColor: "#2a2a3e"
+            headerBg: "#0a0a0a",
+            headerColor: "#94a3b8",
+            rowHoverBg: "rgba(16, 185, 129, 0.04)",
+            borderColor: "#1e1e1e"
         },
         Card: {
-            colorBgContainer: "#13131a",
-            colorBorderSecondary: "#2a2a3e"
+            colorBgContainer: "#0a0a0a",
+            colorBorderSecondary: "#1e1e1e"
         },
         Button: {
-            primaryShadow: "0 2px 8px rgba(129, 140, 248, 0.35)"
+            primaryShadow: "0 0 12px rgba(16, 185, 129, 0.4)"
         },
         Input: {
-            colorBgContainer: "#1a1a2e",
-            activeBorderColor: "#818cf8",
-            hoverBorderColor: "#6366f1"
+            colorBgContainer: "#0e0e0e",
+            activeBorderColor: "#10b981",
+            hoverBorderColor: "#059669"
         },
         Select: {
-            colorBgContainer: "#1a1a2e",
-            colorBgElevated: "#1a1a2e"
+            colorBgContainer: "#0e0e0e",
+            colorBgElevated: "#111111"
         },
         Modal: {
-            contentBg: "#13131a",
-            headerBg: "#13131a"
+            contentBg: "#0a0a0a",
+            headerBg: "#0a0a0a"
         },
         Drawer: {
-            colorBgElevated: "#13131a"
+            colorBgElevated: "#0a0a0a"
         },
         Notification: {
-            colorBgElevated: "#1a1a2e"
+            colorBgElevated: "#111111"
         },
         Descriptions: {
-            colorSplit: "#2a2a3e"
+            colorSplit: "#1e1e1e"
         },
         Progress: {
-            remainingColor: "#2a2a3e"
+            remainingColor: "#1e1e1e"
         },
         Tag: {
-            defaultBg: "rgba(129, 140, 248, 0.1)",
-            defaultColor: "#818cf8"
+            defaultBg: "rgba(16, 185, 129, 0.08)",
+            defaultColor: "#10b981"
         },
         Tabs: {
-            inkBarColor: "#818cf8",
-            itemSelectedColor: "#818cf8"
+            inkBarColor: "#10b981",
+            itemSelectedColor: "#10b981"
         },
         Statistic: {
-            colorTextDescription: "rgba(255, 255, 255, 0.45)"
+            colorTextDescription: "#64748b"
         }
     }
 };
@@ -106,89 +106,93 @@ export const darkTokens: ThemeConfig = {
 export const lightTokens: ThemeConfig = {
     algorithm: theme.defaultAlgorithm,
     token: {
-        colorPrimary: "#6366f1",
+        colorPrimary: "#059669",
         colorSuccess: "#10b981",
         colorWarning: "#f59e0b",
         colorError: "#ef4444",
-        colorInfo: "#6366f1",
+        colorInfo: "#059669",
 
         colorBgContainer: "#ffffff",
         colorBgElevated: "#ffffff",
-        colorBgLayout: "#f5f5f5",
+        colorBgLayout: "#f8fafc",
 
         colorText: "rgba(0, 0, 0, 0.88)",
         colorTextSecondary: "rgba(0, 0, 0, 0.65)",
         colorTextTertiary: "rgba(0, 0, 0, 0.45)",
 
-        colorBorder: "#d9d9d9",
-        colorBorderSecondary: "#f0f0f0",
+        colorBorder: "#e2e8f0",
+        colorBorderSecondary: "#f1f5f9",
 
         borderRadius: 8,
         wireframe: false,
 
-        colorLink: "#6366f1",
-        colorLinkHover: "#818cf8",
-        colorLinkActive: "#4f46e5"
+        colorLink: "#059669",
+        colorLinkHover: "#10b981",
+        colorLinkActive: "#047857"
     },
     components: {
         Layout: {
             siderBg: "#ffffff",
             headerBg: "#ffffff",
-            bodyBg: "#f5f5f5"
+            bodyBg: "#f8fafc"
         },
         Button: {
-            primaryShadow: "0 2px 4px rgba(99, 102, 241, 0.2)"
+            primaryShadow: "0 2px 4px rgba(5, 150, 105, 0.2)"
         }
     }
 };
 
 // CSS custom properties for SCSS files
 export const darkCSSVars: Record<string, string> = {
-    "--cl-bg-deepest": "#0a0a0f",
-    "--cl-bg-container": "#13131a",
-    "--cl-bg-elevated": "#1a1a2e",
-    "--cl-bg-spotlight": "#1e1e30",
-    "--cl-bg-hover": "rgba(129, 140, 248, 0.06)",
-    "--cl-text-primary": "rgba(255, 255, 255, 0.92)",
-    "--cl-text-secondary": "rgba(255, 255, 255, 0.65)",
-    "--cl-text-tertiary": "rgba(255, 255, 255, 0.45)",
-    "--cl-border": "#2a2a3e",
-    "--cl-border-secondary": "#1f1f33",
-    "--cl-accent-primary": "#818cf8",
-    "--cl-accent-secondary": "#10b981",
-    "--cl-accent-success": "#49D1AC",
+    "--cl-bg-deepest": "#050505",
+    "--cl-bg-container": "#0a0a0a",
+    "--cl-bg-elevated": "#111111",
+    "--cl-bg-spotlight": "#141414",
+    "--cl-bg-hover": "rgba(16, 185, 129, 0.04)",
+    "--cl-text-primary": "#e2e8f0",
+    "--cl-text-secondary": "#94a3b8",
+    "--cl-text-tertiary": "#64748b",
+    "--cl-border": "#1e1e1e",
+    "--cl-border-secondary": "#151515",
+    "--cl-accent-primary": "#10b981",
+    "--cl-accent-secondary": "#6366f1",
+    "--cl-accent-success": "#10b981",
     "--cl-accent-warning": "#f59e0b",
     "--cl-accent-error": "#ef4444",
-    "--cl-logo-bg": "#1a1a2e",
-    "--cl-logo-text": "rgba(255, 255, 255, 0.92)",
-    "--cl-mask-bg": "rgba(10, 10, 15, 0.7)",
-    "--cl-code-bg": "#1a1a2e",
-    "--cl-shadow-glow": "0 0 20px rgba(129, 140, 248, 0.1)",
-    "--cl-card-border-glow": "0 0 0 1px rgba(129, 140, 248, 0.12)",
-    "--cl-monospace": "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
+    "--cl-logo-bg": "#111111",
+    "--cl-logo-text": "#e2e8f0",
+    "--cl-mask-bg": "rgba(5, 5, 5, 0.8)",
+    "--cl-code-bg": "#0e0e0e",
+    "--cl-shadow-glow": "0 0 20px rgba(16, 185, 129, 0.08)",
+    "--cl-card-border-glow": "0 0 0 1px rgba(16, 185, 129, 0.08)",
+    "--cl-monospace": "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    "--cl-neon-glow": "0 0 20px rgba(16, 185, 129, 0.3), 0 0 40px rgba(16, 185, 129, 0.1)",
+    "--cl-neon-glow-subtle": "0 0 10px rgba(16, 185, 129, 0.15)"
 };
 
 export const lightCSSVars: Record<string, string> = {
-    "--cl-bg-deepest": "#f5f5f5",
+    "--cl-bg-deepest": "#f8fafc",
     "--cl-bg-container": "#ffffff",
     "--cl-bg-elevated": "#ffffff",
-    "--cl-bg-spotlight": "#fafafa",
-    "--cl-bg-hover": "rgba(99, 102, 241, 0.04)",
+    "--cl-bg-spotlight": "#f1f5f9",
+    "--cl-bg-hover": "rgba(5, 150, 105, 0.04)",
     "--cl-text-primary": "rgba(0, 0, 0, 0.88)",
     "--cl-text-secondary": "rgba(0, 0, 0, 0.65)",
     "--cl-text-tertiary": "rgba(0, 0, 0, 0.45)",
-    "--cl-border": "#d9d9d9",
-    "--cl-border-secondary": "#f0f0f0",
-    "--cl-accent-primary": "#6366f1",
-    "--cl-accent-secondary": "#10b981",
-    "--cl-accent-success": "#49D1AC",
+    "--cl-border": "#e2e8f0",
+    "--cl-border-secondary": "#f1f5f9",
+    "--cl-accent-primary": "#059669",
+    "--cl-accent-secondary": "#6366f1",
+    "--cl-accent-success": "#10b981",
     "--cl-accent-warning": "#f59e0b",
     "--cl-accent-error": "#ef4444",
     "--cl-logo-bg": "#333333",
     "--cl-logo-text": "#333333",
     "--cl-mask-bg": "rgba(0, 0, 0, 0.05)",
-    "--cl-code-bg": "#f5f5f5",
+    "--cl-code-bg": "#f1f5f9",
     "--cl-shadow-glow": "none",
     "--cl-card-border-glow": "none",
-    "--cl-monospace": "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
+    "--cl-monospace": "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    "--cl-neon-glow": "none",
+    "--cl-neon-glow-subtle": "none"
 };

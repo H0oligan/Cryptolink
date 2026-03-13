@@ -275,8 +275,8 @@ func DefaultSetup(s *CurrencyResolver) error {
 		// test token might be absent
 		testTokenAddr := c["testTokenAddress"]
 
-		// Some token currencies from Tatum webhooks come with their ticker instead of contract address
-		// That's their mistake, but we still need to deal with
+		// Some token currencies may arrive with their ticker instead of contract address
+		// (e.g. "USDT_TRON" instead of the TRC-20 contract address)
 		aliases := parseAliases(c["aliases"])
 
 		minimalWithdrawal, err := parseUSD(c["minimal_withdrawal_amount_usd"])
@@ -326,10 +326,6 @@ func CreatePaymentLink(addr string, currency money.CryptoCurrency, amount money.
 		return ethPaymentLink(addr, currency, amount, isTest), nil
 	case kms.TRON:
 		return tronPaymentLink(addr, currency, amount, isTest), nil
-	case kms.SOL:
-		return solanaPaymentLink(addr, currency, amount, isTest), nil
-	case kms.XMR:
-		return moneroPaymentLink(addr, currency, amount, isTest), nil
 	}
 
 	return "", errors.Errorf("unable to create payment link for %s", currency.Blockchain)
@@ -367,20 +363,6 @@ func tronPaymentLink(addr string, _ money.CryptoCurrency, amount money.Money, _ 
 	return fmt.Sprintf("tron:%s?amount=%s", addr, amount.String())
 }
 
-// Solana payment link using solana: URI scheme
-func solanaPaymentLink(addr string, currency money.CryptoCurrency, amount money.Money, _ bool) string {
-	if currency.Type == money.Coin {
-		return fmt.Sprintf("solana:%s?amount=%s", addr, amount.String())
-	}
-	// SPL token transfer
-	return fmt.Sprintf("solana:%s?spl-token=%s&amount=%s", addr, currency.TokenContractAddress, amount.String())
-}
-
-// Monero payment link using monero: URI scheme
-func moneroPaymentLink(addr string, _ money.CryptoCurrency, amount money.Money, _ bool) string {
-	return fmt.Sprintf("monero:%s?tx_amount=%s", addr, amount.String())
-}
-
 var explorers = map[string]string{
 	"BTC/mainnet":        "https://blockchair.com/bitcoin/transaction/%s",
 	"BTC/testnet":        "https://blockchair.com/bitcoin/testnet/transaction/%s",
@@ -396,10 +378,6 @@ var explorers = map[string]string{
 	"ARBITRUM/421614":    "https://sepolia.arbiscan.io/tx/%s",
 	"AVAX/43114":         "https://snowtrace.io/tx/%s",
 	"AVAX/43113":         "https://testnet.snowtrace.io/tx/%s",
-	"SOL/mainnet-beta":   "https://explorer.solana.com/tx/%s",
-	"SOL/devnet":         "https://explorer.solana.com/tx/%s?cluster=devnet",
-	"XMR/mainnet":        "https://xmrchain.net/tx/%s",
-	"XMR/testnet":        "https://testnet.xmrchain.net/tx/%s",
 }
 
 func CreateExplorerTXLink(blockchain money.Blockchain, networkID, txID string) (string, error) {

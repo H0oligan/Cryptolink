@@ -84,7 +84,7 @@ const AdminPlansPage: React.FC = () => {
                     message: "Plan updated",
                     description: `Plan "${params.name}" has been updated.`,
                     placement: "bottomRight",
-                    icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                    icon: <CheckOutlined style={{color: "#10b981"}} />
                 });
             } else {
                 await adminProvider.createPlan(params);
@@ -92,7 +92,7 @@ const AdminPlansPage: React.FC = () => {
                     message: "Plan created",
                     description: `Plan "${params.name}" has been created.`,
                     placement: "bottomRight",
-                    icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                    icon: <CheckOutlined style={{color: "#10b981"}} />
                 });
             }
 

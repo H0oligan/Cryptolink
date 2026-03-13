@@ -15,6 +15,8 @@ const PaymentStatusLabel: React.FC<Props> = ({status}) => (
                     return <Tag color="orange">In Progress</Tag>;
                 case "success":
                     return <Tag color="green">Success</Tag>;
+                case "underpaid":
+                    return <Tag color="gold">Underpaid</Tag>;
                 default:
                     return <Tag color="red">Failed</Tag>;
             }

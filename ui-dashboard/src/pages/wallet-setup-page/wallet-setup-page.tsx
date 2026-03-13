@@ -816,10 +816,10 @@ const WalletSetupPage: React.FC = () => {
 
     const renderOverview = () => (
         <>
-            <Card style={{marginBottom: 24, borderLeft: "4px solid #6366f1"}}>
+            <Card style={{marginBottom: 24, borderLeft: "4px solid #10b981"}}>
                 <Space direction="vertical" size={8}>
                     <Space>
-                        <SafetyCertificateOutlined style={{fontSize: 20, color: "#6366f1"}} />
+                        <SafetyCertificateOutlined style={{fontSize: 20, color: "#10b981"}} />
                         <Title level={5} style={{margin: 0}}>HD Wallets — How it Works</Title>
                     </Space>
                     <Paragraph type="secondary" style={{margin: 0}}>

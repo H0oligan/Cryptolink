@@ -9,12 +9,12 @@ interface Props {
 
 const TimeLabel: React.FC<Props> = (props: Props) => {
     const formatInTimeZone = (tz: string) => {
-        return format(utcToZonedTime(parseISO(props.time), tz), "yyyy-MM-dd kk:mm", {timeZone: tz}) + " " + tz;
+        return format(utcToZonedTime(parseISO(props.time), tz), "yyyy-MM-dd HH:mm", {timeZone: tz}) + " " + tz;
     };
 
     return (
         <CollapseString
-            text={format(parseISO(props.time), "yyyy-MM-dd kk:mm")}
+            text={format(parseISO(props.time), "yyyy-MM-dd HH:mm")}
             popupText={formatInTimeZone("UTC")}
             collapseAt={20}
             withPopover

@@ -7,8 +7,8 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 )
 
-// ConvertorProxy represents proxy for real implementation of blockchain.Convertor that uses
-// fake tatum http server that can we mocked as well.
+// ConvertorProxy represents a proxy for the real implementation of blockchain.Convertor
+// that can be mocked in tests.
 type ConvertorProxy struct {
 	conv blockchain.Convertor
 }

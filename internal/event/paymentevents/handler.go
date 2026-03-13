@@ -53,7 +53,6 @@ func (h *Handler) Consumers() map[bus.Topic][]bus.Consumer {
 			h.ProcessPaymentStatusUpdate,
 			h.SendSuccessfulPaymentNotification,
 		},
-		bus.TopicWithdrawals: {h.ProcessWithdrawals},
 	}
 }
 
@@ -174,25 +173,6 @@ func (h *Handler) handleSubscriptionPayment(ctx context.Context, paymentID int64
 	h.logger.Info().
 		Int64("payment_id", paymentID).
 		Msg("subscription activated successfully from payment webhook")
-
-	return nil
-}
-
-func (h *Handler) ProcessWithdrawals(ctx context.Context, message bus.Message) error {
-	req, err := bus.Bind[bus.WithdrawalCreatedEvent](message)
-	if err != nil {
-		return err
-	}
-
-	h.logger.Info().
-		Int64("merchant_id", req.MerchantID).
-		Int64("payment_id", req.PaymentID).
-		Msg("incoming withdrawal request")
-
-	_, err = h.processing.BatchCreateWithdrawals(ctx, []int64{req.PaymentID})
-	if err != nil {
-		return errors.Wrap(err, "unable to process withdrawal creation")
-	}
 
 	return nil
 }

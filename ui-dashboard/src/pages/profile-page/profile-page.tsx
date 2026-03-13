@@ -35,7 +35,7 @@ const ProfilePage: React.FC = () => {
                 message: "Profile updated",
                 description: "Your profile has been updated successfully.",
                 placement: "bottomRight",
-                icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                icon: <CheckOutlined style={{color: "#10b981"}} />
             });
         } catch (e: any) {
             notificationApi.error({
@@ -69,7 +69,7 @@ const ProfilePage: React.FC = () => {
                 message: "Password changed",
                 description: "Your password has been changed successfully.",
                 placement: "bottomRight",
-                icon: <CheckOutlined style={{color: "#49D1AC"}} />
+                icon: <CheckOutlined style={{color: "#10b981"}} />
             });
         } catch (e: any) {
             notificationApi.error({

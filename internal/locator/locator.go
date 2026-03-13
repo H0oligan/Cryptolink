@@ -4,9 +4,7 @@ package locator
 import (
 	"context"
 	"sync"
-	"time"
 
-	"github.com/go-openapi/strfmt"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	"github.com/cryptolink/cryptolink/internal/bus"
 	"github.com/cryptolink/cryptolink/internal/config"
@@ -15,10 +13,8 @@ import (
 	"github.com/cryptolink/cryptolink/internal/lock"
 	"github.com/cryptolink/cryptolink/internal/log"
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
-	"github.com/cryptolink/cryptolink/internal/provider/monero"
 	"github.com/cryptolink/cryptolink/internal/provider/pricefeed"
 	"github.com/cryptolink/cryptolink/internal/provider/rpc"
-	"github.com/cryptolink/cryptolink/internal/provider/solana"
 	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
@@ -33,7 +29,6 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/cryptolink/cryptolink/internal/service/watcher"
 	"github.com/cryptolink/cryptolink/internal/service/xpub"
-	"github.com/cryptolink/cryptolink/pkg/api-kms/v1/client"
 	"github.com/cryptolink/cryptolink/pkg/graceful"
 	"github.com/rs/zerolog"
 )
@@ -57,12 +52,7 @@ type Locator struct {
 	rpcProvider       *rpc.Provider
 	priceFeedProvider *pricefeed.Provider
 	trongridProvider  *trongrid.Provider
-	solanaProvider    *solana.Provider
-	moneroProvider    *monero.Provider
 	bitcoinProvider   *bitcoin.Provider
-
-	// Clients
-	kmsClient *client.KMSInternalAPI
 
 	// Services
 	registryService      *registry.Service
@@ -170,58 +160,12 @@ func (loc *Locator) TrongridProvider() *trongrid.Provider {
 	return loc.trongridProvider
 }
 
-func (loc *Locator) SolanaProvider() *solana.Provider {
-	loc.init("provider.solana", func() {
-		cfg := solana.Config{
-			RPCEndpoint:       loc.config.Providers.Solana.RPCEndpoint,
-			DevnetRPCEndpoint: loc.config.Providers.Solana.DevnetRPCEndpoint,
-			APIKey:            loc.config.Providers.Solana.APIKey,
-			Timeout:           30 * time.Second,
-		}
-		loc.solanaProvider = solana.New(cfg, loc.logger)
-	})
-
-	return loc.solanaProvider
-}
-
-func (loc *Locator) MoneroProvider() *monero.Provider {
-	loc.init("provider.monero", func() {
-		cfg := monero.Config{
-			WalletRPCEndpoint:        loc.config.Providers.Monero.WalletRPCEndpoint,
-			TestnetWalletRPCEndpoint: loc.config.Providers.Monero.TestnetWalletRPCEndpoint,
-			RPCUsername:              loc.config.Providers.Monero.RPCUsername,
-			RPCPassword:              loc.config.Providers.Monero.RPCPassword,
-			Timeout:                  60 * time.Second,
-		}
-		loc.moneroProvider = monero.New(cfg, loc.logger)
-	})
-
-	return loc.moneroProvider
-}
-
 func (loc *Locator) BitcoinProvider() *bitcoin.Provider {
 	loc.init("provider.bitcoin", func() {
 		loc.bitcoinProvider = bitcoin.New(loc.config.Providers.Bitcoin, loc.logger)
 	})
 
 	return loc.bitcoinProvider
-}
-
-func (loc *Locator) KMSClient() *client.KMSInternalAPI {
-	loc.init("client.kms", func() {
-		kms := client.NewHTTPClientWithConfig(strfmt.Default, &client.TransportConfig{
-			Host:     loc.config.Providers.KmsClient.Host,
-			BasePath: loc.config.Providers.KmsClient.BasePath,
-			Schemes:  loc.config.Providers.KmsClient.Schemes,
-		})
-
-		// transport wrapper
-		kms.SetTransport(log.ClientTransport(kms.Transport))
-
-		loc.kmsClient = kms
-	})
-
-	return loc.kmsClient
 }
 
 func (loc *Locator) RegistryService() *registry.Service {
@@ -245,8 +189,6 @@ func (loc *Locator) BlockchainService() *blockchain.Service {
 				RPC:       loc.RPCProvider(),
 				PriceFeed: loc.PriceFeedProvider(),
 				Trongrid:  loc.TrongridProvider(),
-				Solana:    loc.SolanaProvider(),
-				Monero:    loc.MoneroProvider(),
 				Bitcoin:   loc.BitcoinProvider(),
 			},
 			loc.logger,
@@ -320,7 +262,7 @@ func (loc *Locator) PaymentService() *payment.Service {
 
 func (loc *Locator) WalletService() *wallet.Service {
 	loc.init("service.wallet", func() {
-		loc.walletService = wallet.New(loc.KMSClient().Wallet, loc.BlockchainService(), loc.Store(), loc.logger)
+		loc.walletService = wallet.New(loc.BlockchainService(), loc.Store(), loc.logger)
 	})
 
 	return loc.walletService
@@ -364,7 +306,6 @@ func (loc *Locator) WatcherService() *watcher.Service {
 			loc.config.Oxygen.Watcher,
 			loc.RPCProvider(),
 			loc.BitcoinProvider(),
-			loc.SolanaProvider(),
 			loc.TrongridProvider(),
 			loc.TransactionService(),
 			loc.WalletService(),
@@ -386,6 +327,7 @@ func (loc *Locator) ProcessingService() *processing.Service {
 			loc.XpubService(),
 			loc.EvmCollectorService(),
 			loc.EmailService(),
+			loc.SubscriptionService(),
 			loc.BlockchainService(),
 			loc.EventBus(),
 			loc.Locker(),

@@ -2,7 +2,7 @@ import "./payment-desc-card.scss";
 
 import * as React from "react";
 import {Descriptions, Tag, Button, Tooltip, Space, Modal, Input, notification} from "antd";
-import {CopyOutlined, LinkOutlined, CheckCircleOutlined} from "@ant-design/icons";
+import {CopyOutlined, LinkOutlined, CheckCircleOutlined, CloseCircleOutlined} from "@ant-design/icons";
 import bevis from "src/utils/bevis";
 import {Payment, CURRENCY_SYMBOL} from "src/types";
 import PaymentStatusLabel from "src/components/payment-status/payment-status";
@@ -59,7 +59,7 @@ const HashWithCopy = ({
     <Space>
         <span style={{fontFamily: "monospace", fontSize: 12}}>{truncateHash(value)}</span>
         <Tooltip title="Copy">
-            <CopyOutlined style={{cursor: "pointer", color: "#6366f1"}} onClick={onCopy} />
+            <CopyOutlined style={{cursor: "pointer", color: "#10b981"}} onClick={onCopy} />
         </Tooltip>
     </Space>
 );
@@ -70,6 +70,9 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc, onResolve
     const [resolveNotes, setResolveNotes] = React.useState("");
     const [resolveTxHash, setResolveTxHash] = React.useState("");
     const [resolving, setResolving] = React.useState(false);
+    const [declining, setDeclining] = React.useState(false);
+    const [declineOpen, setDeclineOpen] = React.useState(false);
+    const [declineNotes, setDeclineNotes] = React.useState("");
 
     React.useEffect(() => {
         if (!data) {
@@ -104,6 +107,32 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc, onResolve
             });
         } finally {
             setResolving(false);
+        }
+    };
+
+    const handleDecline = async () => {
+        if (!data || !merchantId) return;
+        setDeclining(true);
+        try {
+            await merchantProvider.declinePayment(merchantId, data.id, {
+                notes: declineNotes || undefined,
+            });
+            notification.success({
+                message: "Payment declined",
+                description: "Underpaid payment has been marked as failed.",
+                placement: "bottomRight",
+            });
+            setDeclineOpen(false);
+            setDeclineNotes("");
+            onResolved?.();
+        } catch (err: any) {
+            notification.error({
+                message: "Failed to decline payment",
+                description: err?.response?.data?.message || err?.message || "Unknown error",
+                placement: "bottomRight",
+            });
+        } finally {
+            setDeclining(false);
         }
     };
 
@@ -203,6 +232,32 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc, onResolve
                         )}
                     </Descriptions>
 
+                    {/* Underpaid: Accept or Decline */}
+                    {data.status === "underpaid" && data.type === "payment" && (
+                        <div style={{marginTop: 16, textAlign: "center"}}>
+                            <Space size="middle">
+                                <Button
+                                    type="primary"
+                                    icon={<CheckCircleOutlined />}
+                                    onClick={() => setResolveOpen(true)}
+                                >
+                                    Accept Payment
+                                </Button>
+                                <Button
+                                    danger
+                                    icon={<CloseCircleOutlined />}
+                                    onClick={() => setDeclineOpen(true)}
+                                >
+                                    Decline Payment
+                                </Button>
+                            </Space>
+                            <div style={{marginTop: 8, fontSize: 12, opacity: 0.7}}>
+                                Customer sent less than the required amount. Funds are already in your wallet.
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Failed: Resolve */}
                     {data.status === "failed" && data.type === "payment" && (
                         <div style={{marginTop: 16, textAlign: "center"}}>
                             <Button
@@ -215,19 +270,21 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc, onResolve
                         </div>
                     )}
 
+                    {/* Resolve / Accept modal */}
                     <Modal
-                        title="Resolve Payment"
+                        title={data.status === "underpaid" ? "Accept Underpaid Payment" : "Resolve Payment"}
                         open={resolveOpen}
                         destroyOnClose
                         onCancel={() => setResolveOpen(false)}
                         onOk={handleResolve}
-                        okText="Confirm Resolution"
+                        okText={data.status === "underpaid" ? "Accept Payment" : "Confirm Resolution"}
                         confirmLoading={resolving}
                     >
                         <p style={{marginBottom: 16}}>
-                            This will mark the payment as <strong>successful</strong> and trigger
-                            the webhook notification. Use this when you have manually verified
-                            the customer's payment.
+                            {data.status === "underpaid"
+                                ? <>This will mark the underpaid payment as <strong>successful</strong>. The partial amount is already in your wallet.</>
+                                : <>This will mark the payment as <strong>successful</strong> and trigger the webhook notification. Use this when you have manually verified the customer's payment.</>
+                            }
                         </p>
                         <div style={{marginBottom: 12}}>
                             <label style={{display: "block", marginBottom: 4, fontWeight: 500}}>
@@ -244,9 +301,38 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc, onResolve
                                 Notes (optional)
                             </label>
                             <Input.TextArea
-                                placeholder="e.g. Customer confirmed payment via email"
+                                placeholder="e.g. Customer confirmed partial payment is acceptable"
                                 value={resolveNotes}
                                 onChange={(e) => setResolveNotes(e.target.value)}
+                                rows={3}
+                            />
+                        </div>
+                    </Modal>
+
+                    {/* Decline modal */}
+                    <Modal
+                        title="Decline Underpaid Payment"
+                        open={declineOpen}
+                        destroyOnClose
+                        onCancel={() => setDeclineOpen(false)}
+                        onOk={handleDecline}
+                        okText="Decline Payment"
+                        okButtonProps={{danger: true}}
+                        confirmLoading={declining}
+                    >
+                        <p style={{marginBottom: 16}}>
+                            This will mark the payment as <strong>failed</strong>. The partial amount
+                            already received remains in your wallet — the system does not handle refunds
+                            for underpayments.
+                        </p>
+                        <div>
+                            <label style={{display: "block", marginBottom: 4, fontWeight: 500}}>
+                                Notes (optional)
+                            </label>
+                            <Input.TextArea
+                                placeholder="e.g. Customer will be refunded manually"
+                                value={declineNotes}
+                                onChange={(e) => setDeclineNotes(e.target.value)}
                                 rows={3}
                             />
                         </div>

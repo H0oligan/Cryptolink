@@ -30,7 +30,7 @@ func NewPriceFeedMock(logger *zerolog.Logger) *PriceFeedMock {
 	}
 }
 
-// SetupRates configures a mock exchange rate. This matches the old TatumMock.SetupRates signature.
+// SetupRates configures a mock exchange rate for testing.
 func (m *PriceFeedMock) SetupRates(from string, to money.FiatCurrency, rate float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

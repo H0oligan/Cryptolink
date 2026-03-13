@@ -70,9 +70,9 @@
 }
 
 [data-theme="dark"] .login-page {
-    background: linear-gradient(135deg, #0a0a0f 0%, #0f0f2e 50%, #0a0a0f 100%);
+    background: radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.06) 0%, #050505 70%);
 
     &__card {
-        box-shadow: 0 0 40px rgba(129, 140, 248, 0.08), 0 0 0 1px rgba(129, 140, 248, 0.12);
+        box-shadow: 0 0 40px rgba(16, 185, 129, 0.06), 0 0 0 1px rgba(16, 185, 129, 0.1);
     }
 }
