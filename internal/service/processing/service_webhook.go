@@ -295,6 +295,9 @@ func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64
 
 	networkName := string(currency.Blockchain)
 
+	// Fetch payer email from payment's linked customer
+	customerEmail, _ := s.emailService.GetCustomerEmail(ctx, tx.EntityID)
+
 	params := email.PaymentReceivedParams{
 		MerchantEmail:    merchantEmail,
 		MerchantName:     mt.Name,
@@ -307,6 +310,7 @@ func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64
 		ExplorerLink:     explorerLink,
 		Network:          networkName,
 		ReceivedAt:       tx.CreatedAt,
+		CustomerEmail:    customerEmail,
 	}
 
 	s.emailService.SendPaymentReceived(ctx, params)

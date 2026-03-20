@@ -246,6 +246,7 @@ type PaymentReceivedParams struct {
 	ExplorerLink     string
 	Network          string // e.g. "Ethereum"
 	ReceivedAt       time.Time
+	CustomerEmail    string // payer email (optional, from invoice)
 }
 
 // SendPaymentReceived sends a payment received notification to the merchant.
@@ -372,6 +373,45 @@ func (s *Service) SendCustomerPaymentConfirmation(ctx context.Context, params Cu
 	}
 }
 
+// SendVerificationEmail sends a verification email to a newly registered user
+func (s *Service) SendVerificationEmail(ctx context.Context, toEmail, name, token string) {
+	verifyURL := "https://cryptolink.cc/api/dashboard/v1/auth/verify-email?token=" + token
+
+	body := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="background:#0f172a;padding:24px;border-radius:8px 8px 0 0;">
+    <h1 style="color:#fff;margin:0;font-size:20px;">CryptoLink</h1>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+    <h2 style="color:#10b981;margin-top:0;">Verify Your Email</h2>
+    <p>Hello <strong>%s</strong>,</p>
+    <p>Welcome to CryptoLink! Please verify your email address to start accepting crypto payments.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="%s" style="display:inline-block;background:#10b981;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">Verify Email Address</a>
+    </div>
+    <p style="color:#64748b;font-size:14px;">Or copy and paste this link into your browser:</p>
+    <p style="word-break:break-all;color:#10b981;font-size:13px;">%s</p>
+    <p style="color:#64748b;font-size:14px;">This link expires in 24 hours.</p>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+    <p style="color:#94a3b8;font-size:12px;">If you did not create a CryptoLink account, you can safely ignore this email.</p>
+  </div>
+</body>
+</html>`, name, verifyURL, verifyURL)
+
+	if err := s.SendEmail(ctx, SendEmailParams{
+		To:       toEmail,
+		Subject:  "[CryptoLink] Verify your email address",
+		Body:     body,
+		Template: "email_verification",
+	}); err != nil {
+		s.logger.Warn().Err(err).
+			Str("to", toEmail).
+			Msg("unable to send verification email")
+	}
+}
+
 func renderCustomerPaymentConfirmTemplate(params CustomerPaymentConfirmParams) string {
 	shortTx := params.TxHash
 	if len(shortTx) > 20 {
@@ -448,7 +488,8 @@ func renderPaymentReceivedTemplate(params PaymentReceivedParams) string {
       <p style="margin:4px 0;color:#64748b;">≈ $%s USD</p>
     </div>
     <table style="width:100%%;border-collapse:collapse;font-size:14px;">
-      <tr><td style="padding:6px 0;color:#64748b;width:40%%;">Network</td><td style="padding:6px 0;font-weight:500;">%s</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;width:40%%;">Customer Email</td><td style="padding:6px 0;">%s</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">Network</td><td style="padding:6px 0;font-weight:500;">%s</td></tr>
       <tr><td style="padding:6px 0;color:#64748b;">From</td><td style="padding:6px 0;font-family:monospace;font-size:12px;">%s</td></tr>
       <tr><td style="padding:6px 0;color:#64748b;">To (your wallet)</td><td style="padding:6px 0;font-family:monospace;font-size:12px;">%s</td></tr>
       <tr><td style="padding:6px 0;color:#64748b;">Transaction</td><td style="padding:6px 0;font-family:monospace;font-size:12px;">%s</td></tr>
@@ -464,6 +505,7 @@ func renderPaymentReceivedTemplate(params PaymentReceivedParams) string {
 		params.Network,
 		params.Amount, params.Ticker,
 		params.USDAmount,
+		params.CustomerEmail,
 		params.Network,
 		shortSender,
 		params.RecipientAddress,
