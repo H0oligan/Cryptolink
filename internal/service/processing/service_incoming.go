@@ -391,6 +391,9 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 			factAmount = tx.FactAmount.String()
 		}
 
+		// Fetch payer email (best-effort)
+		customerEmail, _ := s.emailService.GetCustomerEmail(ctx, pt.ID)
+
 		s.emailService.SendPaymentReceived(ctx, email.PaymentReceivedParams{
 			MerchantEmail:    merchantEmail,
 			MerchantName:     mt.Name,
@@ -403,6 +406,7 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 			ExplorerLink:     explorerLink,
 			Network:          tx.Currency.BlockchainName,
 			ReceivedAt:       tx.CreatedAt,
+			CustomerEmail:    customerEmail,
 		})
 	}
 
