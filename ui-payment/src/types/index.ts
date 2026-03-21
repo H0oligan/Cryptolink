@@ -34,6 +34,7 @@ type PaymentAction = "redirect" | "showMessage";
 interface PaymentInfo {
     amount: string;
     amountFormatted: string;
+    factAmountFormatted?: string;
     recipientAddress: string;
     status: PaymentStatus;
     successUrl?: string;

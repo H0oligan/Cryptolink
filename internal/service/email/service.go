@@ -270,6 +270,67 @@ func (s *Service) SendPaymentReceived(ctx context.Context, params PaymentReceive
 	}
 }
 
+// UnderpaidParams contains data for an underpaid payment notification.
+type UnderpaidParams struct {
+	MerchantEmail string
+	MerchantName  string
+	PaymentID     string // public UUID
+	AmountExpected string // e.g. "127.30"
+	AmountReceived string // e.g. "100.00"
+	Ticker        string // e.g. "USDT"
+	FiatSymbol    string
+	FiatCode      string
+	FiatAmount    string // e.g. "110.00"
+	Network       string
+}
+
+// SendUnderpaidNotification notifies the merchant about an underpaid payment.
+func (s *Service) SendUnderpaidNotification(ctx context.Context, params UnderpaidParams) {
+	subject := fmt.Sprintf("[CryptoLink] Underpaid: received %s of %s %s required", params.AmountReceived, params.AmountExpected, params.Ticker)
+
+	body := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="background:#0f172a;padding:24px;border-radius:8px 8px 0 0;">
+    <h1 style="color:#fff;margin:0;font-size:20px;">CryptoLink</h1>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+    <h2 style="color:#faad14;margin-top:0;">Underpaid Payment</h2>
+    <p>Hello <strong>%s</strong>, a customer sent less crypto than required.</p>
+    <div style="background:#fffbe6;border:1px solid #ffe58f;padding:16px;border-radius:8px;margin:16px 0;">
+      <p style="margin:4px 0;"><strong>Invoice:</strong> %s%s %s</p>
+      <p style="margin:4px 0;"><strong>Required:</strong> %s %s</p>
+      <p style="margin:4px 0;color:#faad14;font-weight:700;font-size:18px;">Received: %s %s</p>
+      <p style="margin:4px 0;"><strong>Network:</strong> %s</p>
+    </div>
+    <p>You can <strong>accept</strong> the partial payment or <strong>decline</strong> it from your dashboard.</p>
+    <a href="https://cryptolink.cc/merchants/payments" style="display:inline-block;background:#10b981;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">View in Dashboard</a>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+    <p style="color:#94a3b8;font-size:12px;">This is an automated notification from CryptoLink.</p>
+  </div>
+</body>
+</html>`,
+		params.MerchantName,
+		params.FiatSymbol, params.FiatAmount, params.FiatCode,
+		params.AmountExpected, params.Ticker,
+		params.AmountReceived, params.Ticker,
+		params.Network,
+	)
+
+	if err := s.SendEmail(ctx, SendEmailParams{
+		To:       params.MerchantEmail,
+		Subject:  subject,
+		Body:     body,
+		Template: "payment_underpaid",
+	}); err != nil {
+		s.logger.Warn().Err(err).
+			Str("merchant_email", params.MerchantEmail).
+			Str("payment_id", params.PaymentID).
+			Msg("unable to send underpaid notification email")
+	}
+}
+
 // GetMerchantEmail returns the email of the user who created the given merchant.
 func (s *Service) GetMerchantEmail(ctx context.Context, merchantID int64) (string, error) {
 	var email string

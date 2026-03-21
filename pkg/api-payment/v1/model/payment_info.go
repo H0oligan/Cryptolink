@@ -30,6 +30,9 @@ type PaymentInfo struct {
 	// Required: true
 	AmountFormatted string `json:"amountFormatted"`
 
+	// Actual amount received (for underpaid payments). Empty if not yet received.
+	FactAmountFormatted string `json:"factAmountFormatted,omitempty"`
+
 	// Expiration duration in minutes
 	// Example: 20
 	// Required: true
@@ -177,7 +180,7 @@ var paymentInfoTypeStatusPropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["pending","inProgress","success"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["pending","inProgress","success","underpaid","failed"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
