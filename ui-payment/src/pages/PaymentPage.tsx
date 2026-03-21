@@ -137,6 +137,12 @@ const PaymentPage: React.FC = () => {
                     payment
                 }
             });
+        } else if (payment.paymentInfo?.status === "underpaid") {
+            navigate(`/underpaid/${payment.id}`, {
+                state: {
+                    payment
+                }
+            });
         } else if (payment.isLocked && payment.paymentInfo?.status === "pending") {
             setTimeout(updatePayment, 2000);
         } else if (

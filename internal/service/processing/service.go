@@ -121,6 +121,9 @@ type PaymentInfo struct {
 	Amount          string
 	AmountFormatted string
 
+	// FactAmountFormatted is what the customer actually sent (set for underpaid/completed payments).
+	FactAmountFormatted string
+
 	ExpiresAt             time.Time
 	ExpirationDurationMin int64
 
@@ -181,13 +184,19 @@ func (s *Service) GetDetailedPayment(ctx context.Context, merchantID, paymentID 
 			return nil, err
 		}
 
+		factAmountFormatted := ""
+		if tx.FactAmount != nil {
+			factAmountFormatted = tx.FactAmount.String()
+		}
+
 		result.PaymentInfo = &PaymentInfo{
 			Status:           pt.PublicStatus(),
 			PaymentLink:      paymentLink,
 			RecipientAddress: tx.RecipientAddress,
 
-			Amount:          tx.Amount.StringRaw(),
-			AmountFormatted: tx.Amount.String(),
+			Amount:              tx.Amount.StringRaw(),
+			AmountFormatted:     tx.Amount.String(),
+			FactAmountFormatted: factAmountFormatted,
 
 			ExpiresAt:             expiresAt,
 			ExpirationDurationMin: pt.ExpirationDurationMin(),

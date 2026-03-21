@@ -2,6 +2,7 @@ package processing
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -163,29 +164,30 @@ func (s *Service) determineIncomingStatus(ctx context.Context, tx *transaction.T
 		return nil
 	}
 
-	// If amount is less than expected we can tolerate $0.01 round error
-	oneCent, err := money.USD.MakeAmount("1")
+	// If amount is less than expected we can tolerate $0.10 round error.
+	// Raw "10" = 10 cents = $0.10 (fiat uses 2 decimal places).
+	tenCents, err := money.USD.MakeAmount("10")
 	if err != nil {
 		return err
 	}
 
-	conv, err := s.blockchain.FiatToCrypto(ctx, oneCent, tx.Currency)
+	conv, err := s.blockchain.FiatToCrypto(ctx, tenCents, tx.Currency)
 	if err != nil {
 		return err
 	}
 
-	amountWithOneCent, err := input.Amount.Add(conv.To)
+	amountWithTolerance, err := input.Amount.Add(conv.To)
 	if err != nil {
 		return err
 	}
 
-	if amountWithOneCent.GreaterThanOrEqual(tx.Amount) {
+	if amountWithTolerance.GreaterThanOrEqual(tx.Amount) {
 		tx.Status = transaction.StatusInProgress
 		return nil
 	}
 
-	// Even when adding $0.01 in crypto to input.Amount it's still less than required.
-	// In that case let's mark tx as inProgressInvalid
+	// Even when adding $0.10 in crypto to input.Amount it's still less than required.
+	// Mark tx as inProgressInvalid — will become "underpaid" after confirmation.
 	tx.Status = transaction.StatusInProgressInvalid
 	tx.MetaData[transaction.MetaErrorReason] = "incoming tx amount is less than expected"
 
@@ -354,7 +356,49 @@ func (s *Service) confirmIncomingTransaction(
 		go s.sendConfirmationEmails(context.Background(), tx, pt)
 	}
 
+	// Send underpaid notification to merchant
+	if setPaymentStatus == payment.StatusUnderpaid && s.emailService != nil {
+		go s.sendUnderpaidEmail(context.Background(), tx, pt)
+	}
+
 	return nil
+}
+
+// sendUnderpaidEmail notifies the merchant that a payment was underpaid.
+func (s *Service) sendUnderpaidEmail(ctx context.Context, tx *transaction.Transaction, pt *payment.Payment) {
+	mt, err := s.merchants.GetByID(ctx, tx.MerchantID, false)
+	if err != nil {
+		s.logger.Warn().Err(err).Int64("merchant_id", tx.MerchantID).Msg("unable to get merchant for underpaid email")
+		return
+	}
+
+	merchantEmail, err := s.emailService.GetMerchantEmail(ctx, tx.MerchantID)
+	if err != nil || merchantEmail == "" {
+		return
+	}
+
+	fiatCode := mt.Settings().FiatCurrency()
+	fiatSymbol := money.FiatSymbol(money.FiatCurrency(fiatCode))
+
+	factAmount := "0"
+	if tx.FactAmount != nil {
+		factAmount = tx.FactAmount.String()
+	}
+
+	fiatPrice, _ := pt.Price.FiatToFloat64()
+
+	s.emailService.SendUnderpaidNotification(ctx, email.UnderpaidParams{
+		MerchantEmail:  merchantEmail,
+		MerchantName:   mt.Name,
+		PaymentID:      pt.PublicID.String(),
+		AmountExpected: tx.Amount.String(),
+		AmountReceived: factAmount,
+		Ticker:         tx.Currency.Ticker,
+		FiatSymbol:     fiatSymbol,
+		FiatCode:       fiatCode,
+		FiatAmount:     fmt.Sprintf("%.2f", fiatPrice),
+		Network:        tx.Currency.BlockchainName,
+	})
 }
 
 // sendConfirmationEmails sends payment notification emails to the merchant and customer.
@@ -526,6 +570,11 @@ func (s *Service) BatchExpirePayments(ctx context.Context, paymentsIDs []int64) 
 	return err
 }
 
+// gracePeriod is the extra time a locked payment (with a pending transaction) gets
+// after its nominal expiration. This covers late sends — the watcher keeps polling
+// the blockchain address during this window.
+const gracePeriod = 30 * time.Minute
+
 func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 	pt, err := s.payments.GetByID(ctx, payment.MerchantIDWildcard, paymentID)
 	if err != nil {
@@ -540,15 +589,28 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 		return errors.Errorf("invalid payment status %q", pt.Status)
 	}
 
-	// 1. Cancel if tx exists
+	// 1. Check if tx exists
 	tx, err := s.transactions.GetLatestByPaymentID(ctx, pt.ID)
 	switch {
 	case errors.Is(err, transaction.ErrNotFound):
-		// that's expected, do nothing
+		// no transaction yet — nothing to wait for
 	case err != nil:
 		return errors.Wrap(err, "unable to get transaction")
 	}
 
+	// 2. Grace period: if a pending transaction exists (customer selected crypto but hasn't
+	// paid yet or is paying late), extend the expiry by 30 minutes to catch late payments.
+	if tx != nil && tx.Status == transaction.StatusPending && pt.Status == payment.StatusLocked {
+		if pt.ExpiresAt != nil && time.Since(*pt.ExpiresAt) < gracePeriod {
+			s.logger.Info().
+				Int64("payment_id", paymentID).
+				Time("expires_at", *pt.ExpiresAt).
+				Msg("payment in grace period — skipping expiration, watcher still monitoring")
+			return nil
+		}
+	}
+
+	// 3. Cancel transaction if exists
 	if tx != nil && tx.Status != transaction.StatusCancelled {
 		errCancel := s.transactions.Cancel(ctx, tx, transaction.StatusCancelled, "payment expired", nil)
 		if errCancel != nil {
@@ -556,7 +618,7 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 		}
 	}
 
-	// 2. Cancel payment itself
+	// 4. Cancel payment itself
 	if errFail := s.payments.Fail(ctx, pt); errFail != nil {
 		return errors.Wrap(errFail, "unable to expire payment")
 	}

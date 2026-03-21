@@ -6,6 +6,7 @@ import {useMount} from "react-use";
 import {Routes, Route, useNavigate, useLocation} from "react-router-dom";
 import SuccessPage from "src/pages/SuccessPage";
 import PaymentPage from "src/pages/PaymentPage";
+import UnderpaidPage from "src/pages/UnderpaidPage";
 import NotFoundPage from "src/pages/NotFoundPage";
 import ErrorPage from "src/pages/ErrorPage";
 import SupportPage from "src/pages/SupportPage";
@@ -93,6 +94,7 @@ const App: React.FC = () => {
                                 <Routes>
                                     <Route path="not-found/:id" element={<NotFoundPage />} />
                                     <Route path="success/:id" element={<SuccessPage />} />
+                                    <Route path="underpaid/:id" element={<UnderpaidPage />} />
                                     <Route path="pay/:id" element={<PaymentPage />} />
                                     <Route path="error/:id" element={<ErrorPage />} />
                                     <Route path="support" element={<SupportPage />} />
