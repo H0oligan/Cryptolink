@@ -78,6 +78,24 @@ func (q *Queries) DeactivateXpubWallet(ctx context.Context, arg DeactivateXpubWa
 	return err
 }
 
+const deleteDerivedAddressesByWalletID = `-- name: DeleteDerivedAddressesByWalletID :exec
+DELETE FROM derived_addresses WHERE xpub_wallet_id = $1
+`
+
+func (q *Queries) DeleteDerivedAddressesByWalletID(ctx context.Context, walletID int64) error {
+	_, err := q.db.Exec(ctx, deleteDerivedAddressesByWalletID, walletID)
+	return err
+}
+
+const hardDeleteXpubWallet = `-- name: HardDeleteXpubWallet :exec
+DELETE FROM xpub_wallets WHERE id = $1
+`
+
+func (q *Queries) HardDeleteXpubWallet(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, hardDeleteXpubWallet, id)
+	return err
+}
+
 const getXpubWalletByID = `-- name: GetXpubWalletByID :one
 SELECT id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active FROM xpub_wallets WHERE id = $1 LIMIT 1
 `
@@ -248,7 +266,7 @@ func (q *Queries) GetXpubWalletByMerchantAndBlockchainAny(ctx context.Context, a
 
 const reactivateXpubWallet = `
 UPDATE xpub_wallets
-SET xpub = $2, derivation_path = $3, is_active = true, last_derived_index = 0, updated_at = $4
+SET xpub = $2, derivation_path = $3, is_active = true, last_derived_index = -1, updated_at = $4
 WHERE id = $1
 RETURNING id, uuid, merchant_id, blockchain, xpub, derivation_path, created_at, updated_at, last_derived_index, is_active
 `

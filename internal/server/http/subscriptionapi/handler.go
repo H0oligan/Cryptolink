@@ -6,8 +6,12 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"encoding/csv"
+	"fmt"
+
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
+	"github.com/cryptolink/cryptolink/internal/service/contact"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/cryptolink/cryptolink/internal/service/subscription"
@@ -23,6 +27,7 @@ type Handler struct {
 	paymentService      *payment.Service
 	merchantService     *merchant.Service
 	userService         *user.Service
+	contactService      *contact.Service
 	logger              *zerolog.Logger
 	adminMerchantID     int64 // Admin merchant ID for receiving subscription payments
 }
@@ -32,6 +37,7 @@ func New(
 	paymentService *payment.Service,
 	merchantService *merchant.Service,
 	userService *user.Service,
+	contactService *contact.Service,
 	adminMerchantID int64,
 	logger *zerolog.Logger,
 ) *Handler {
@@ -42,6 +48,7 @@ func New(
 		paymentService:      paymentService,
 		merchantService:     merchantService,
 		userService:         userService,
+		contactService:      contactService,
 		logger:              &log,
 		adminMerchantID:     adminMerchantID,
 	}
@@ -676,4 +683,67 @@ func (h *Handler) ListAllUsers(c echo.Context) error {
 		"limit":   limit,
 		"offset":  offset,
 	})
+}
+
+// ListAllContacts returns paginated list of contacts for admin panel
+func (h *Handler) ListAllContacts(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+	search := c.QueryParam("search")
+
+	if limit <= 0 {
+		limit = 20
+	}
+
+	contacts, total, err := h.contactService.ListAllContacts(ctx, limit, offset, search)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to list contacts")
+		return common.ErrorResponse(c, "failed to list contacts")
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"results": contacts,
+		"total":   total,
+		"limit":   limit,
+		"offset":  offset,
+	})
+}
+
+// ExportContacts returns a CSV of all contacts
+func (h *Handler) ExportContacts(c echo.Context) error {
+	ctx := c.Request().Context()
+	marketingOnly := c.QueryParam("marketing_only") == "true"
+
+	contacts, err := h.contactService.ExportContacts(ctx, marketingOnly)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to export contacts")
+		return common.ErrorResponse(c, "failed to export contacts")
+	}
+
+	c.Response().Header().Set("Content-Type", "text/csv")
+	c.Response().Header().Set("Content-Disposition", "attachment; filename=contacts.csv")
+
+	writer := csv.NewWriter(c.Response().Writer)
+	defer writer.Flush()
+
+	// Write header
+	writer.Write([]string{"Email", "Marketing Consent", "Terms Accepted", "Source Merchant", "Created At"})
+
+	for _, contact := range contacts {
+		termsAt := ""
+		if contact.TermsAcceptedAt != nil {
+			termsAt = *contact.TermsAcceptedAt
+		}
+		writer.Write([]string{
+			contact.Email,
+			fmt.Sprintf("%t", contact.MarketingConsent),
+			termsAt,
+			contact.SourceMerchantName,
+			contact.CreatedAt,
+		})
+	}
+
+	return nil
 }

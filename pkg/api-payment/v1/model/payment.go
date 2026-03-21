@@ -56,6 +56,9 @@ type Payment struct {
 	// Example: 39.9
 	// Required: true
 	Price float64 `json:"price"`
+
+	// Merchant's volatility buffer fee percentage (0 if none)
+	FeePercent float64 `json:"feePercent,omitempty"`
 }
 
 // Validate validates this payment

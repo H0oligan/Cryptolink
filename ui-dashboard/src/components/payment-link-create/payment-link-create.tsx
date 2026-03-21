@@ -1,7 +1,9 @@
 import * as React from "react";
 import {v4 as uuidv4} from "uuid";
 import {Form, Input, Button, Space, Select, InputNumber, FormInstance} from "antd";
-import {PaymentLinkParams, CURRENCY, PaymentLinkAction} from "src/types";
+import {PaymentLinkParams, PaymentLinkAction} from "src/types";
+import {FIAT_CURRENCY_OPTIONS} from "src/utils/format-fiat";
+import useMerchantCurrency from "src/hooks/use-merchant-currency";
 import {sleep} from "src/utils";
 import LinkInput from "src/components/link-input/link-input";
 
@@ -16,6 +18,7 @@ const maxPrice = 10 ** 7;
 const linkPrefix = "https://";
 
 const PaymentLinkForm: React.FC<Props> = (props: Props) => {
+    const {currencyCode} = useMerchantCurrency();
     const [form] = Form.useForm<PaymentLinkParams>();
     const [linkAction, changeLinkAction] = React.useState<PaymentLinkAction>("showMessage");
 
@@ -61,10 +64,12 @@ const PaymentLinkForm: React.FC<Props> = (props: Props) => {
                 >
                     <InputNumber style={{width: "100%"}} precision={2} min={minPrice} max={maxPrice} />
                 </Form.Item>
-                <Form.Item name="currency" style={{width: 80, marginTop: "30px"}} initialValue="USD">
+                <Form.Item name="currency" style={{width: 160, marginTop: "30px"}} initialValue={currencyCode}>
                     <Select
-                        style={{width: 80}}
-                        options={CURRENCY.map((currency) => ({value: currency, label: currency}))}
+                        style={{width: 160}}
+                        showSearch
+                        optionFilterProp="label"
+                        options={FIAT_CURRENCY_OPTIONS}
                     />
                 </Form.Item>
             </Space>

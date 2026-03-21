@@ -37,13 +37,13 @@ const DropDown: React.FC<Props> = (props: Props) => {
             <button
                 type="button"
                 id="currency_list"
-                className={`relative h-12 flex props.items-center appearance-none bg-white bg-clip-padding bg-no-repeat border border-main-green-3 rounded-xl w-full py-3 px-4 ${
+                className={`relative h-12 flex props.items-center appearance-none bg-[#13131a] bg-clip-padding bg-no-repeat border border-[#2a2a3e] rounded-xl w-full py-3 px-4 ${
                     selectedItem.key !== "emptyValue" ? "pl-12" : ""
                 } text-sm focus:outline-none focus:shadow-none`}
                 onClick={() => setIsFocused(!isFocused)}
                 onBlur={checkOutsideClick}
             >
-                <span className="font-medium text-sm text-black">{selectedItem.displayName}</span>
+                <span className="font-medium text-sm text-white">{selectedItem.displayName}</span>
 
                 {selectedItem.key !== "emptyValue" && (
                     <Icon
@@ -59,7 +59,7 @@ const DropDown: React.FC<Props> = (props: Props) => {
                 {isFocused && (
                     <>
                         <Icon name="arrow_drop_down_up" className="absolute h-6 w-6 right-3 top-1/2 -translate-y-1/2" />
-                        <ul className="absolute top-14 left-1/2 -translate-x-1/2 z-50 max-h-96 overflow-auto scrollbar-thumb-gray-900 bg-white bg-clip-padding bg-no-repeat border border-main-green-3 rounded-xl w-full py-3 px-4">
+                        <ul className="absolute top-14 left-1/2 -translate-x-1/2 z-50 max-h-96 overflow-auto scrollbar-thumb-gray-900 bg-[#13131a] bg-clip-padding bg-no-repeat border border-[#2a2a3e] rounded-xl w-full py-3 px-4">
                             {props.items.map((child, idx) => (
                                 <li
                                     className={`flex h-12 props.items-center relative ${
@@ -72,7 +72,7 @@ const DropDown: React.FC<Props> = (props: Props) => {
                                     key={child.key}
                                     onClick={() => setSelectedItem(child)}
                                 >
-                                    <span className="font-medium text-left">{child.displayName}</span>
+                                    <span className="font-medium text-left text-white">{child.displayName}</span>
                                     {props.items[idx].key !== "emptyValue" && (
                                         <Icon
                                             name={props.getIconName(child.value)}

@@ -2,7 +2,9 @@ package user
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"net/mail"
 	"strings"
 	"time"
@@ -32,17 +34,35 @@ type Service struct {
 }
 
 type User struct {
-	ID              int64
-	Name            string
-	Email           string
-	UUID            uuid.UUID
-	GoogleID        *string
-	ProfileImageURL *string
-	IsSuperAdmin    bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	DeletedAt       *time.Time
-	Settings        []byte
+	ID               int64
+	Name             string
+	Email            string
+	UUID             uuid.UUID
+	GoogleID         *string
+	ProfileImageURL  *string
+	IsSuperAdmin     bool
+	CompanyName      string
+	Address          string
+	Website          string
+	Phone            string
+	EmailVerified    bool
+	MarketingConsent bool
+	TermsAcceptedAt  *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
+	Settings         []byte
+}
+
+type RegisterParams struct {
+	Email            string
+	Password         string
+	Name             string
+	CompanyName      string
+	Address          string
+	Website          string
+	Phone            string
+	MarketingConsent bool
 }
 
 var (
@@ -115,17 +135,17 @@ func (s *Service) GetByEmailWithPasswordCheck(ctx context.Context, email, passwo
 }
 
 // Register registers user via email. If user already exists, return User and ErrAlreadyExists
-func (s *Service) Register(ctx context.Context, email, pass, name string) (*User, error) {
-	if err := validateEmail(email); err != nil {
+func (s *Service) Register(ctx context.Context, params RegisterParams) (*User, error) {
+	if err := validateEmail(params.Email); err != nil {
 		return nil, err
 	}
 
-	if len(pass) < 8 {
+	if len(params.Password) < 8 {
 		return nil, errors.New("password should have minimum length of 8")
 	}
 
 	// check if exists
-	u, err := s.GetByEmail(ctx, email)
+	u, err := s.GetByEmail(ctx, params.Email)
 	switch {
 	case err == nil:
 		return u, ErrAlreadyExists
@@ -135,28 +155,42 @@ func (s *Service) Register(ctx context.Context, email, pass, name string) (*User
 		return nil, err
 	}
 
-	hashedPass, err := hashPass(pass)
+	hashedPass, err := hashPass(params.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	displayName := strings.TrimSpace(name)
+	displayName := strings.TrimSpace(params.Name)
 	if displayName == "" {
-		displayName = email[:strings.IndexByte(email, '@')]
+		displayName = params.Email[:strings.IndexByte(params.Email, '@')]
 	}
 
+	now := time.Now()
+
+	var termsAcceptedAt sql.NullTime
+	termsAcceptedAt = sql.NullTime{Time: now, Valid: true}
+
 	entry, err := s.store.CreateUser(ctx, repository.CreateUserParams{
-		Name:            displayName,
-		Email:           email,
-		Password:        repository.StringToNullable(hashedPass),
-		Uuid:            uuid.New(),
-		GoogleID:        sql.NullString{},
-		ProfileImageUrl: sql.NullString{},
-		IsSuperAdmin:    sql.NullBool{},
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-		DeletedAt:       sql.NullTime{},
-		Settings:        pgtype.JSONB{Status: pgtype.Null},
+		Name:             displayName,
+		Email:            params.Email,
+		Password:         repository.StringToNullable(hashedPass),
+		Uuid:             uuid.New(),
+		GoogleID:         sql.NullString{},
+		ProfileImageUrl:  sql.NullString{},
+		IsSuperAdmin:     sql.NullBool{},
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		DeletedAt:        sql.NullTime{},
+		Settings:         pgtype.JSONB{Status: pgtype.Null},
+		CompanyName:      repository.StringToNullable(params.CompanyName),
+		Address:          repository.StringToNullable(params.Address),
+		Website:          repository.StringToNullable(params.Website),
+		Phone:            repository.StringToNullable(params.Phone),
+		EmailVerified:    sql.NullBool{Bool: false, Valid: true},
+		VerificationToken:        sql.NullString{},
+		VerificationTokenExpires: sql.NullTime{},
+		MarketingConsent:         sql.NullBool{Bool: params.MarketingConsent, Valid: true},
+		TermsAcceptedAt:          termsAcceptedAt,
 	})
 	if err != nil {
 		return nil, err
@@ -166,6 +200,48 @@ func (s *Service) Register(ctx context.Context, email, pass, name string) (*User
 	if err = s.publisher.Publish(bus.TopicUserRegistered, event); err != nil {
 		s.logger.Error().Err(err).Msg("unable to publish event")
 	}
+
+	return entryToUser(entry)
+}
+
+// GenerateVerificationToken creates a crypto-random token for email verification
+func (s *Service) GenerateVerificationToken(ctx context.Context, userID int64) (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", errors.Wrap(err, "failed to generate random token")
+	}
+
+	token := hex.EncodeToString(b)
+	expires := time.Now().Add(24 * time.Hour)
+
+	err := s.store.SetVerificationToken(ctx, userID,
+		sql.NullString{String: token, Valid: true},
+		sql.NullTime{Time: expires, Valid: true},
+	)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to save verification token")
+	}
+
+	return token, nil
+}
+
+// VerifyEmail validates the token and marks the user's email as verified
+func (s *Service) VerifyEmail(ctx context.Context, token string) (*User, error) {
+	entry, err := s.store.GetUserByVerificationToken(ctx, token)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, errors.New("invalid or expired verification token")
+	case err != nil:
+		return nil, errors.Wrap(err, "failed to look up verification token")
+	}
+
+	if err := s.store.UpdateEmailVerified(ctx, entry.ID); err != nil {
+		return nil, errors.Wrap(err, "failed to verify email")
+	}
+
+	entry.EmailVerified = sql.NullBool{Bool: true, Valid: true}
+	entry.VerificationToken = sql.NullString{}
+	entry.VerificationTokenExpires = sql.NullTime{}
 
 	return entryToUser(entry)
 }
@@ -195,19 +271,29 @@ func (s *Service) UpdatePassword(ctx context.Context, id int64, pass string) (*U
 	return entryToUser(entry)
 }
 
-// UpdateProfile updates user name and/or email
-func (s *Service) UpdateProfile(ctx context.Context, id int64, name, email string) (*User, error) {
+// UpdateProfileParams contains fields for updating a user's profile.
+type UpdateProfileParams struct {
+	Name        string
+	Email       string
+	CompanyName string
+	Address     string
+	Website     string
+	Phone       string
+}
+
+// UpdateProfile updates user profile fields.
+func (s *Service) UpdateProfile(ctx context.Context, id int64, params UpdateProfileParams) (*User, error) {
 	existing, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	newName := strings.TrimSpace(name)
+	newName := strings.TrimSpace(params.Name)
 	if newName == "" {
 		newName = existing.Name
 	}
 
-	newEmail := strings.TrimSpace(email)
+	newEmail := strings.TrimSpace(params.Email)
 	if newEmail == "" {
 		newEmail = existing.Email
 	} else {
@@ -223,6 +309,10 @@ func (s *Service) UpdateProfile(ctx context.Context, id int64, name, email strin
 		GoogleID:        sql.NullString{},
 		UpdatedAt:       time.Now(),
 		SetGoogleID:     false,
+		CompanyName:     sql.NullString{String: params.CompanyName, Valid: true},
+		Address:         sql.NullString{String: params.Address, Valid: true},
+		Website:         sql.NullString{String: params.Website, Valid: true},
+		Phone:           sql.NullString{String: params.Phone, Valid: true},
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to update user")
@@ -262,18 +352,40 @@ func entryToUser(entry repository.User) (*User, error) {
 		isSuperAdmin = entry.IsSuperAdmin.Bool
 	}
 
+	emailVerified := false
+	if entry.EmailVerified.Valid {
+		emailVerified = entry.EmailVerified.Bool
+	}
+
+	marketingConsent := false
+	if entry.MarketingConsent.Valid {
+		marketingConsent = entry.MarketingConsent.Bool
+	}
+
+	var termsAcceptedAt *time.Time
+	if entry.TermsAcceptedAt.Valid {
+		termsAcceptedAt = &entry.TermsAcceptedAt.Time
+	}
+
 	return &User{
-		ID:              entry.ID,
-		Name:            entry.Name,
-		Email:           entry.Email,
-		UUID:            entry.Uuid,
-		GoogleID:        repository.NullableStringToPointer(entry.GoogleID),
-		ProfileImageURL: repository.NullableStringToPointer(entry.ProfileImageUrl),
-		IsSuperAdmin:    isSuperAdmin,
-		CreatedAt:       entry.CreatedAt,
-		UpdatedAt:       entry.UpdatedAt,
-		DeletedAt:       nil,
-		Settings:        nil,
+		ID:               entry.ID,
+		Name:             entry.Name,
+		Email:            entry.Email,
+		UUID:             entry.Uuid,
+		GoogleID:         repository.NullableStringToPointer(entry.GoogleID),
+		ProfileImageURL:  repository.NullableStringToPointer(entry.ProfileImageUrl),
+		IsSuperAdmin:     isSuperAdmin,
+		CompanyName:      entry.CompanyName.String,
+		Address:          entry.Address.String,
+		Website:          entry.Website.String,
+		Phone:            entry.Phone.String,
+		EmailVerified:    emailVerified,
+		MarketingConsent: marketingConsent,
+		TermsAcceptedAt:  termsAcceptedAt,
+		CreatedAt:        entry.CreatedAt,
+		UpdatedAt:        entry.UpdatedAt,
+		DeletedAt:        nil,
+		Settings:         nil,
 	}, nil
 }
 

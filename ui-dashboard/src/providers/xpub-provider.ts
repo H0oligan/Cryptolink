@@ -21,7 +21,7 @@ export interface DerivedAddress {
 export interface CreateXpubWalletRequest {
     blockchain: string;
     xpub: string;
-    derivationPath: string;
+    derivationPath?: string;
 }
 
 const xpubProvider = {

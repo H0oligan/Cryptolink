@@ -86,6 +86,16 @@ export interface SystemStats {
     monthly_revenue: string;
 }
 
+export interface AdminContact {
+    id: number;
+    uuid: string;
+    email: string;
+    marketing_consent: boolean;
+    terms_accepted_at: string | null;
+    source_merchant_name: string;
+    created_at: string;
+}
+
 export interface CollectorFactoryConfig {
     blockchain: string;
     implementationAddress: string;
@@ -200,6 +210,22 @@ const adminProvider = {
         factoryAddress: string;
     }): Promise<CollectorFactoryConfig> {
         const response = await apiRequest.post(withApiPath("/admin/collector-factories"), data);
+        return response.data;
+    },
+
+    // Contacts
+    async listContacts(limit?: number, offset?: number, search?: string): Promise<PaginatedResponse<AdminContact>> {
+        const response = await apiRequest.get(withApiPath("/admin/contacts"), {
+            params: {limit: limit || 20, offset: offset || 0, ...(search ? {search} : {})}
+        });
+        return response.data;
+    },
+
+    async exportContacts(marketingOnly?: boolean): Promise<Blob> {
+        const response = await apiRequest.get(withApiPath("/admin/contacts/export"), {
+            params: marketingOnly ? {marketing_only: true} : {},
+            responseType: "blob"
+        });
         return response.data;
     }
 };

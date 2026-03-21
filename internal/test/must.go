@@ -49,7 +49,10 @@ func (m *Must) CreateUser(t *testing.T, params auth.GoogleUser) (*user.User, str
 
 // CreateUserViaEmail creates user with email auth and api token.
 func (m *Must) CreateUserViaEmail(t *testing.T, email, pass string) (*user.User, string) {
-	person, err := m.tc.Services.Users.Register(m.tc.Context, email, pass, "")
+	person, err := m.tc.Services.Users.Register(m.tc.Context, user.RegisterParams{
+		Email:    email,
+		Password: pass,
+	})
 	require.NoError(t, err)
 
 	return person, m.CreateUserToken(t, person)

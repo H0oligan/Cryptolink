@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
+	"github.com/cryptolink/cryptolink/internal/service/contact"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/cryptolink/cryptolink/internal/service/processing"
@@ -22,6 +23,7 @@ type Handler struct {
 	merchants  *merchant.Service
 	blockchain BlockchainService
 	processing *processing.Service
+	contacts   *contact.Service
 	logger     *zerolog.Logger
 }
 
@@ -30,6 +32,7 @@ func New(
 	merchants *merchant.Service,
 	blockchainService BlockchainService,
 	core *processing.Service,
+	contacts *contact.Service,
 	logger *zerolog.Logger,
 ) *Handler {
 	log := logger.With().Str("channel", "payment_api").Logger()
@@ -39,6 +42,7 @@ func New(
 		merchants:  merchants,
 		blockchain: blockchainService,
 		processing: core,
+		contacts:   contacts,
 		logger:     &log,
 	}
 }

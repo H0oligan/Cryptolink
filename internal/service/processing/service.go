@@ -258,20 +258,20 @@ func (s *Service) SetPaymentMethod(ctx context.Context, p *payment.Payment, tick
 		switch {
 		case errors.Is(err, transaction.ErrNotFound):
 			// case 1. no transaction yet -> create
-			method, errReturn = s.createIncomingTransaction(ctx, p, currency)
+			method, errReturn = s.createIncomingTransaction(ctx, p, mt, currency)
 		case err != nil:
 			// case 2. unknown error
 			errReturn = errors.Wrap(err, "unable to get latest payment by id")
 		case tx.Status == transaction.StatusCancelled:
 			// case 1*. transaction was canceled, but BE had error while changing payment method earlier.
 			// This can happen when for example currency provider returns error when fetching currency rates.
-			method, errReturn = s.createIncomingTransaction(ctx, p, currency)
+			method, errReturn = s.createIncomingTransaction(ctx, p, mt, currency)
 		case tx.Currency.Ticker == currency.Ticker && tx.Currency.NetworkID == currency.NetworkID:
 			// case 3. no changes, do nothing
 			method = payment.MakeMethod(tx, currency)
 		default:
 			// case 4. ticker has changed. Change pending transaction.
-			method, errReturn = s.changePaymentMethod(ctx, p, tx, currency)
+			method, errReturn = s.changePaymentMethod(ctx, p, mt, tx, currency)
 		}
 
 		return nil
@@ -308,6 +308,7 @@ func (s *Service) getPaymentMethod(ctx context.Context, mt *merchant.Merchant, t
 func (s *Service) createIncomingTransaction(
 	ctx context.Context,
 	pt *payment.Payment,
+	mt *merchant.Merchant,
 	currency money.CryptoCurrency,
 ) (*payment.Method, error) {
 	// 1. Calculate service fee in crypto and USD price.
@@ -317,6 +318,22 @@ func (s *Service) createIncomingTransaction(
 	}
 
 	cryptoAmount := conv.To
+
+	// Apply merchant's volatility buffer (fee markup) to the crypto amount.
+	// This increases the crypto amount the customer must send so the merchant
+	// receives the full invoice value even with minor price swings.
+	if mt != nil {
+		feePercent := mt.Settings().GlobalFeePercent()
+		if feePercent > 0 {
+			multiplier := 1.0 + (feePercent / 100.0)
+			cryptoAmount, err = cryptoAmount.MultiplyFloat64(multiplier)
+			if err != nil {
+				s.logger.Warn().Err(err).Float64("fee_percent", feePercent).Msg("unable to apply merchant fee markup")
+				// Fall back to original amount — don't block payment
+				cryptoAmount = conv.To
+			}
+		}
+	}
 
 	var cryptoServiceFee money.Money
 	if s.config.DefaultServiceFee > 0 {
@@ -465,6 +482,7 @@ func (s *Service) createTransactionWithCollectorAddress(
 func (s *Service) changePaymentMethod(
 	ctx context.Context,
 	p *payment.Payment,
+	mt *merchant.Merchant,
 	tx *transaction.Transaction,
 	currency money.CryptoCurrency,
 ) (*payment.Method, error) {
@@ -478,7 +496,7 @@ func (s *Service) changePaymentMethod(
 		return nil, errors.Wrap(err, "unable to mark transaction as canceled")
 	}
 
-	return s.createIncomingTransaction(ctx, p, currency)
+	return s.createIncomingTransaction(ctx, p, mt, currency)
 }
 
 // ensureXpubAddressSubscription is a no-op. The internal address watcher handles

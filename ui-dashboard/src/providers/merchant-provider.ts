@@ -106,6 +106,23 @@ const merchantProvider = {
     async getCustomerDetails(merchantId: string, customerId: string): Promise<Customer> {
         const response = await apiRequest.get(withApiPath(`/merchant/${merchantId}/customer/${customerId}`));
         return response.data;
+    },
+
+    async getFeeSettings(merchantId: string): Promise<{preferredCurrency: string; globalFeePercentage: string}> {
+        const response = await apiRequest.get(withApiPath(`/merchant/${merchantId}/fee-settings`));
+        return response.data;
+    },
+
+    async updateFeeSettings(
+        merchantId: string,
+        params: {preferredCurrency: string; globalFeePercentage: string; perCurrencyFees?: Record<string, string>}
+    ): Promise<void> {
+        await apiRequest.put(withApiPath(`/merchant/${merchantId}/fee-settings`), params);
+    },
+
+    async listFiatCurrencies(): Promise<{currencies: Array<{code: string; symbol: string; name: string}>}> {
+        const response = await apiRequest.get(withApiPath("/fiat-currencies"));
+        return response.data;
     }
 };
 

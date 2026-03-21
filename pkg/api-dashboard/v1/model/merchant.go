@@ -28,6 +28,12 @@ type Merchant struct {
 	// Example: My Store
 	Name string `json:"name,omitempty"`
 
+	// Merchant's preferred fiat currency code (e.g. "USD", "EUR", "GBP")
+	FiatCurrency string `json:"fiatCurrency,omitempty"`
+
+	// Fiat currency symbol (e.g. "$", "€", "£")
+	FiatCurrencySymbol string `json:"fiatCurrencySymbol,omitempty"`
+
 	// supported payment methods
 	SupportedPaymentMethods []*SupportedPaymentMethod `json:"supportedPaymentMethods"`
 

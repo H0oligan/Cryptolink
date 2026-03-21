@@ -31,6 +31,24 @@ type LoginRequest struct {
 
 	// Name (optional, used during registration)
 	Name string `json:"name,omitempty"`
+
+	// CompanyName (optional, used during registration)
+	CompanyName string `json:"companyName,omitempty"`
+
+	// Address (optional, used during registration)
+	Address string `json:"address,omitempty"`
+
+	// Website (optional, used during registration)
+	Website string `json:"website,omitempty"`
+
+	// Phone (optional, used during registration)
+	Phone string `json:"phone,omitempty"`
+
+	// MarketingConsent (optional, GDPR marketing opt-in)
+	MarketingConsent bool `json:"marketingConsent,omitempty"`
+
+	// TermsAccepted (required for registration)
+	TermsAccepted bool `json:"termsAccepted,omitempty"`
 }
 
 // Validate validates this login request

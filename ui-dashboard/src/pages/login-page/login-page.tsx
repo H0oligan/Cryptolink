@@ -3,7 +3,7 @@ import "./login-page.scss";
 import * as React from "react";
 import {AxiosError} from "axios";
 import {useNavigate, useLocation, useSearchParams} from "react-router-dom";
-import {Button, Typography, Form, Input, notification} from "antd";
+import {Button, Typography, Form, Input, Checkbox, Divider, notification} from "antd";
 import {GoogleOutlined, CheckOutlined} from "@ant-design/icons";
 const logoImg = "/logo.svg";
 import bevis from "src/utils/bevis";
@@ -49,7 +49,7 @@ const LoginPage: React.FC = () => {
 
             if (isRegisterMode) {
                 await authProvider.register(values);
-                openNotification("Welcome!", "Your account has been created successfully");
+                openNotification("Welcome!", "Your account has been created. Please check your email to verify your address.");
             } else {
                 await authProvider.login(values);
                 openNotification("Welcome back!", "");
@@ -200,6 +200,64 @@ const LoginPage: React.FC = () => {
                                         >
                                             <Input.Password placeholder="Confirm Password" size="large" />
                                         </Form.Item>
+                                    )}
+                                    {isRegisterMode && (
+                                        <>
+                                            <Divider style={{margin: "8px 0 16px", borderColor: "var(--cl-border)"}}>
+                                                <Typography.Text type="secondary" style={{fontSize: 12}}>
+                                                    Business Information (optional)
+                                                </Typography.Text>
+                                            </Divider>
+                                            <Form.Item name="companyName">
+                                                <Input placeholder="Company / Organization" size="large" />
+                                            </Form.Item>
+                                            <Form.Item name="address">
+                                                <Input placeholder="Business Address" size="large" />
+                                            </Form.Item>
+                                            <Form.Item name="website">
+                                                <Input placeholder="https://example.com" size="large" />
+                                            </Form.Item>
+                                            <Form.Item name="phone">
+                                                <Input placeholder="+1 234 567 890" size="large" />
+                                            </Form.Item>
+                                            <Divider style={{margin: "8px 0 16px", borderColor: "var(--cl-border)"}} />
+                                            <Form.Item
+                                                name="marketingConsent"
+                                                valuePropName="checked"
+                                                style={{marginBottom: 8}}
+                                            >
+                                                <Checkbox>
+                                                    <Typography.Text style={{fontSize: 13}}>
+                                                        I agree to receive product updates and marketing communications from CryptoLink
+                                                    </Typography.Text>
+                                                </Checkbox>
+                                            </Form.Item>
+                                            <Form.Item
+                                                name="termsAccepted"
+                                                valuePropName="checked"
+                                                rules={[
+                                                    {
+                                                        validator: (_, value) =>
+                                                            value
+                                                                ? Promise.resolve()
+                                                                : Promise.reject(new Error("You must accept the Terms of Service"))
+                                                    }
+                                                ]}
+                                            >
+                                                <Checkbox>
+                                                    <Typography.Text style={{fontSize: 13}}>
+                                                        I accept the{" "}
+                                                        <a href="https://cryptolink.cc/terms" target="_blank" rel="noopener noreferrer" style={{color: "#10b981"}}>
+                                                            Terms of Service
+                                                        </a>{" "}
+                                                        and{" "}
+                                                        <a href="https://cryptolink.cc/privacy" target="_blank" rel="noopener noreferrer" style={{color: "#10b981"}}>
+                                                            Privacy Policy
+                                                        </a>
+                                                    </Typography.Text>
+                                                </Checkbox>
+                                            </Form.Item>
+                                        </>
                                     )}
                                     <Button
                                         disabled={isFormSubmitting}

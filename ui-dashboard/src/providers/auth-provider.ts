@@ -36,13 +36,17 @@ const authProvider = {
         return response.data;
     },
 
-    async updateProfile(data: {name?: string; email?: string}): Promise<User> {
+    async updateProfile(data: {name?: string; email?: string; companyName?: string; address?: string; website?: string; phone?: string}): Promise<User> {
         const response = await apiRequest.put(withApiPath(`/auth/profile`), data);
         return response.data;
     },
 
     async updatePassword(data: {currentPassword: string; newPassword: string}): Promise<void> {
         await apiRequest.put(withApiPath(`/auth/password`), data);
+    },
+
+    async resendVerification(): Promise<void> {
+        await apiRequest.post(withApiPath(`/auth/resend-verification`));
     }
 };
 

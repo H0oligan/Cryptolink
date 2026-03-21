@@ -1,3 +1,5 @@
+import {FIAT_CURRENCIES} from "src/utils/format-fiat";
+
 interface MerchantBase {
     name: string;
     website: string;
@@ -6,6 +8,8 @@ interface MerchantBase {
 interface Merchant extends MerchantBase {
     id: string;
     settings: string;
+    fiatCurrency: string;
+    fiatCurrencySymbol: string;
     webhookSettings: WebhookSettings;
     supportedPaymentMethods: PaymentMethod[];
 }
@@ -61,6 +65,12 @@ interface User {
     profileImageUrl: string;
     uuid: string;
     isSuperAdmin: boolean;
+    companyName?: string;
+    address?: string;
+    website?: string;
+    phone?: string;
+    emailVerified?: boolean;
+    marketingConsent?: boolean;
 }
 
 interface AuthProvider {
@@ -71,6 +81,12 @@ interface UserCreateForm {
     email: string;
     password: string;
     name?: string;
+    companyName?: string;
+    address?: string;
+    website?: string;
+    phone?: string;
+    marketingConsent?: boolean;
+    termsAccepted?: boolean;
 }
 
 interface MerchantBalance {
@@ -92,29 +108,24 @@ interface Withdrawal {
     balanceId: string;
 }
 
-const CURRENCY = ["USD", "EUR"] as const;
+const CURRENCY = [
+    "USD", "EUR", "GBP", "CAD", "AUD", "CHF", "JPY", "CNY", "INR", "BRL",
+    "MXN", "KRW", "SGD", "HKD", "SEK", "NOK", "DKK", "PLN", "CZK", "TRY",
+    "ZAR", "NZD", "THB", "AED", "SAR", "RUB"
+] as const;
 type Currency = typeof CURRENCY[number];
 type CurrencyWithFiat = Currency | BlockchainTicker;
 
-const CURRENCY_SYMBOL: Record<CurrencyWithFiat, string> = {
-    USD: "$",
-    EUR: "€",
-    ETH: "",
-    ETH_USDT: "",
-    ETH_USDC: "",
-    MATIC: "",
-    MATIC_USDT: "",
-    MATIC_USDC: "",
-    TRON: "",
-    TRON_USDT: "",
-    BNB: "",
-    BSC_USDT: "",
-    ARB: "",
-    ARBITRUM_USDT: "",
-    ARBITRUM_USDC: "",
-    AVAX: "",
-    AVAX_USDT: "",
-    AVAX_USDC: ""
+// Currency symbols are data-driven from src/utils/format-fiat.ts (FIAT_CURRENCIES).
+// This map is kept for backward compatibility with components that import it.
+const CURRENCY_SYMBOL: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(FIAT_CURRENCIES).map(([k, v]) => [k, v.symbol])),
+    ETH: "", ETH_USDT: "", ETH_USDC: "",
+    MATIC: "", MATIC_USDT: "", MATIC_USDC: "",
+    TRON: "", TRON_USDT: "",
+    BNB: "", BSC_USDT: "",
+    ARB: "", ARBITRUM_USDT: "", ARBITRUM_USDC: "",
+    AVAX: "", AVAX_USDT: "", AVAX_USDC: ""
 };
 
 type PaymentType = "payment" | "withdrawal";

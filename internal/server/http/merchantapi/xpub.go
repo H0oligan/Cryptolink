@@ -11,11 +11,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-// XpubWalletRequest represents the request to create an xpub wallet
+// XpubWalletRequest represents the request to create an xpub wallet.
+// Accepts xpub, ypub, or zpub keys. DerivationPath is optional — auto-detected from key format.
 type XpubWalletRequest struct {
 	Blockchain     string `json:"blockchain" validate:"required"`
 	Xpub           string `json:"xpub" validate:"required"`
-	DerivationPath string `json:"derivationPath" validate:"required"`
+	DerivationPath string `json:"derivationPath"` // optional — auto-detected from key version bytes
 }
 
 // XpubWalletResponse represents an xpub wallet response
@@ -48,8 +49,8 @@ func (h *Handler) CreateXpubWallet(c echo.Context) error {
 	}
 
 	// Basic validation
-	if req.Blockchain == "" || req.Xpub == "" || req.DerivationPath == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "blockchain, xpub, and derivationPath are required"})
+	if req.Blockchain == "" || req.Xpub == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "blockchain and extended public key are required"})
 	}
 
 	wallet, err := h.xpubService.CreateXpubWallet(ctx, merchant.ID, req.Blockchain, req.Xpub, req.DerivationPath)
@@ -57,7 +58,7 @@ func (h *Handler) CreateXpubWallet(c echo.Context) error {
 	case errors.Is(err, xpub.ErrAlreadyExists):
 		return common.ValidationErrorItemResponse(c, "blockchain", "Xpub wallet already exists for this blockchain")
 	case errors.Is(err, xpub.ErrInvalidXpub):
-		return common.ValidationErrorItemResponse(c, "xpub", "Invalid xpub format")
+		return common.ValidationErrorItemResponse(c, "xpub", "Invalid extended key format. Accepted: xpub, ypub, zpub")
 	case err != nil:
 		return errors.Wrap(err, "unable to create xpub wallet")
 	}

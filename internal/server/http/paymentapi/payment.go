@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/strfmt"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -42,6 +43,8 @@ func (h *Handler) GetPayment(c echo.Context) error {
 		return err
 	}
 
+	feePercent := detailedPayment.Merchant.Settings().GlobalFeePercent()
+
 	response := &model.Payment{
 		ID:           detailedPayment.Payment.PublicID.String(),
 		Currency:     detailedPayment.Payment.Price.Ticker(),
@@ -49,6 +52,7 @@ func (h *Handler) GetPayment(c echo.Context) error {
 		IsLocked:     !detailedPayment.Payment.IsEditable(),
 		MerchantName: detailedPayment.Merchant.Name,
 		Description:  detailedPayment.Payment.Description,
+		FeePercent:   feePercent,
 	}
 
 	if detailedPayment.Customer != nil {
@@ -66,7 +70,7 @@ func (h *Handler) GetPayment(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-// CreateCustomer upserts customer for the payment.
+// CreateCustomer upserts customer for the payment and records contact consent.
 func (h *Handler) CreateCustomer(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -75,11 +79,17 @@ func (h *Handler) CreateCustomer(c echo.Context) error {
 		return nil
 	}
 
+	// GDPR: terms must be accepted
+	if !req.TermsAccepted {
+		return common.ValidationErrorItemResponse(c, "termsAccepted", "You must accept the Terms of Service")
+	}
+
 	p, err := middleware.ResolvePayment(c)
 	if err != nil {
 		return err
 	}
 
+	// Existing flow: assign customer to payment (per-merchant, unchanged)
 	person, err := h.payments.AssignCustomerByEmail(ctx, p, req.Email)
 
 	switch {
@@ -94,6 +104,13 @@ func (h *Handler) CreateCustomer(c echo.Context) error {
 			Msg("unable to assign customer by email")
 
 		return common.ErrorResponse(c, common.StatusInternalError)
+	}
+
+	// New: upsert into global contacts table for CryptoLink-level consent
+	if h.contacts != nil {
+		if _, err := h.contacts.ResolveContact(ctx, req.Email, p.MerchantID, req.MarketingConsent, req.TermsAccepted); err != nil {
+			h.logger.Warn().Err(err).Str("email", req.Email).Msg("failed to upsert contact consent")
+		}
 	}
 
 	return c.JSON(http.StatusCreated, customerToResponse(person))
@@ -211,6 +228,28 @@ func (h *Handler) GetExchangeRate(c echo.Context) error {
 		return common.ValidationErrorResponse(c, "invalid fiat currency")
 	}
 
+	cryptoAmount := conv.To
+
+	// Apply merchant's volatility buffer fee if a paymentId is provided.
+	// This inflates the displayed crypto amount so it matches what the transaction will require.
+	paymentIDStr := c.QueryParam("paymentId")
+	if paymentIDStr != "" {
+		paymentUUID, parseErr := uuid.Parse(paymentIDStr)
+		pt, ptErr := h.payments.GetByPublicID(c.Request().Context(), paymentUUID)
+		if parseErr == nil && ptErr == nil && pt != nil {
+			mt, mtErr := h.merchants.GetByID(c.Request().Context(), pt.MerchantID, false)
+			if mtErr == nil && mt != nil {
+				feePercent := mt.Settings().GlobalFeePercent()
+				if feePercent > 0 {
+					multiplier := 1.0 + (feePercent / 100.0)
+					if adjusted, adjErr := cryptoAmount.MultiplyFloat64(multiplier); adjErr == nil {
+						cryptoAmount = adjusted
+					}
+				}
+			}
+		}
+	}
+
 	fiatAmount, _ := conv.From.FiatToFloat64()
 	crypto, _ := h.blockchain.GetCurrencyByTicker(to)
 
@@ -218,8 +257,8 @@ func (h *Handler) GetExchangeRate(c echo.Context) error {
 		FiatCurrency: conv.From.Ticker(),
 		FiatAmount:   fiatAmount,
 
-		CryptoCurrency: conv.To.Ticker(),
-		CryptoAmount:   conv.To.String(),
+		CryptoCurrency: cryptoAmount.Ticker(),
+		CryptoAmount:   cryptoAmount.String(),
 		Network:        crypto.BlockchainName,
 		DisplayName:    crypto.DisplayName(),
 

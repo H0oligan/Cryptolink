@@ -90,7 +90,7 @@ var createPaymentRequestTypeCurrencyPropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["USD","EUR"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["USD","EUR","GBP","CAD","AUD","CHF","JPY","CNY","INR","BRL","MXN","KRW","SGD","HKD","SEK","NOK","DKK","PLN","CZK","TRY","ZAR","NZD","THB","AED","SAR","RUB"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {

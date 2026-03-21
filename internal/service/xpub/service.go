@@ -1,6 +1,7 @@
 package xpub
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -58,10 +59,69 @@ type DerivedAddress struct {
 var (
 	ErrNotFound         = errors.New("xpub wallet not found")
 	ErrAlreadyExists    = errors.New("xpub wallet already exists for this blockchain")
-	ErrInvalidXpub      = errors.New("invalid xpub format")
+	ErrInvalidXpub      = errors.New("invalid extended key format")
 	ErrDerivationFailed = errors.New("failed to derive address")
 	ErrAddressNotFound  = errors.New("derived address not found")
 )
+
+// Extended key version bytes (SLIP-0132)
+// Maps 4-byte version prefix → {target xpub version, address format, derivation path}
+type keyVersionInfo struct {
+	targetVersion []byte // xpub or tpub version bytes (what go-hdwallet accepts)
+	derivPath     string // auto-detected BIP derivation path
+}
+
+var knownVersionBytes = map[uint32]keyVersionInfo{
+	// Mainnet
+	0x0488B21E: {targetVersion: []byte{0x04, 0x88, 0xB2, 0x1E}, derivPath: "m/44'/0'/0'"},  // xpub → BIP44 P2PKH
+	0x049D7CB2: {targetVersion: []byte{0x04, 0x88, 0xB2, 0x1E}, derivPath: "m/49'/0'/0'"},  // ypub → BIP49 P2SH-SegWit
+	0x04B24746: {targetVersion: []byte{0x04, 0x88, 0xB2, 0x1E}, derivPath: "m/84'/0'/0'"},  // zpub → BIP84 Native SegWit
+	// Testnet
+	0x043587CF: {targetVersion: []byte{0x04, 0x35, 0x87, 0xCF}, derivPath: "m/44'/1'/0'"},  // tpub
+	0x044A5262: {targetVersion: []byte{0x04, 0x35, 0x87, 0xCF}, derivPath: "m/49'/1'/0'"},  // upub
+	0x045F1CF6: {targetVersion: []byte{0x04, 0x35, 0x87, 0xCF}, derivPath: "m/84'/1'/0'"},  // vpub
+}
+
+// convertToXpub converts any extended public key (xpub/ypub/zpub/tpub/upub/vpub) to xpub/tpub format
+// that go-hdwallet can parse. Returns the converted key and the auto-detected derivation path.
+func convertToXpub(key string) (string, string, error) {
+	decoded := base58.Decode(key)
+	if len(decoded) != 82 {
+		return "", "", errors.New("invalid extended key length")
+	}
+
+	// Verify checksum (last 4 bytes = first 4 bytes of double-SHA256 of payload)
+	payload := decoded[:78]
+	checksum := decoded[78:]
+	computedChecksum := doubleSha256(payload)[:4]
+	if !bytes.Equal(checksum, computedChecksum) {
+		return "", "", errors.New("invalid checksum")
+	}
+
+	// Read 4-byte version prefix
+	version := uint32(payload[0])<<24 | uint32(payload[1])<<16 | uint32(payload[2])<<8 | uint32(payload[3])
+
+	info, ok := knownVersionBytes[version]
+	if !ok {
+		return "", "", fmt.Errorf("unrecognized extended key prefix: %08x", version)
+	}
+
+	// If already xpub/tpub format, return as-is
+	if bytes.Equal(payload[:4], info.targetVersion) {
+		return key, info.derivPath, nil
+	}
+
+	// Swap version bytes to xpub/tpub format
+	newPayload := make([]byte, 78)
+	copy(newPayload, info.targetVersion)
+	copy(newPayload[4:], payload[4:])
+
+	// Recompute checksum
+	newChecksum := doubleSha256(newPayload)[:4]
+	converted := base58.Encode(append(newPayload, newChecksum...))
+
+	return converted, info.derivPath, nil
+}
 
 func New(store repository.Storage, logger *zerolog.Logger) *Service {
 	log := logger.With().Str("channel", "xpub_service").Logger()
@@ -73,57 +133,52 @@ func New(store repository.Storage, logger *zerolog.Logger) *Service {
 }
 
 // CreateXpubWallet creates a new xpub wallet for a merchant.
-// If a deactivated wallet exists for this blockchain, it reactivates it with the new xpub.
+// Accepts xpub, ypub, or zpub keys — converts to xpub internally.
+// Auto-detects derivation path from key version bytes (SLIP-0132).
+// If a deactivated wallet exists for this blockchain, it reactivates it with the new key.
 func (s *Service) CreateXpubWallet(ctx context.Context, merchantID int64, blockchain, xpubKey, derivationPath string) (*XpubWallet, error) {
-	// Validate xpub format
-	if !s.validateXpub(xpubKey) {
+	// Convert zpub/ypub to xpub format and auto-detect derivation path
+	convertedKey, autoPath, err := convertToXpub(xpubKey)
+	if err != nil {
 		return nil, ErrInvalidXpub
 	}
 
-	// Check if an active wallet already exists for this merchant/blockchain
-	_, err := s.store.GetXpubWalletByMerchantAndBlockchain(ctx, repository.GetXpubWalletByMerchantAndBlockchainParams{
+	// Validate with go-hdwallet (checks curve point, checksum, etc.)
+	if _, err := hdwallet.StringWallet(convertedKey); err != nil {
+		return nil, ErrInvalidXpub
+	}
+
+	// Use auto-detected path from version bytes. If merchant provided a path that
+	// matches the detected format (same BIP number), use theirs. Otherwise use auto.
+	finalPath := autoPath
+	if derivationPath != "" && pathMatchesFormat(derivationPath, autoPath) {
+		finalPath = derivationPath
+	}
+
+	// Check if a wallet already exists for this merchant/blockchain
+	existing, err := s.store.GetXpubWalletByMerchantAndBlockchain(ctx, repository.GetXpubWalletByMerchantAndBlockchainParams{
 		MerchantID: merchantID,
 		Blockchain: blockchain,
 	})
-	if err == nil {
+	if err == nil && existing.ID > 0 {
 		return nil, ErrAlreadyExists
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
 	now := time.Now()
 
-	// Check if a deactivated wallet exists (unique constraint on merchant_id + blockchain).
-	// If so, reactivate it with the new xpub instead of inserting a new row.
-	existingEntry, findErr := s.store.GetXpubWalletByMerchantAndBlockchainAny(ctx, repository.GetXpubWalletByMerchantAndBlockchainParams{
-		MerchantID: merchantID,
-		Blockchain: blockchain,
-	})
-	if findErr == nil {
-		// Deactivated wallet found — reactivate with new xpub
-		reactivated, reErr := s.store.ReactivateXpubWallet(ctx, repository.ReactivateXpubWalletParams{
-			ID:             existingEntry.ID,
-			Xpub:           xpubKey,
-			DerivationPath: derivationPath,
-			UpdatedAt:      now,
-		})
-		if reErr != nil {
-			return nil, reErr
-		}
-		return entryToXpubWallet(reactivated), nil
-	}
-
-	// No existing wallet at all — create new
+	// Create new wallet
 	entry, err := s.store.CreateXpubWallet(ctx, repository.CreateXpubWalletParams{
 		Uuid:             uuid.New(),
 		MerchantID:       merchantID,
 		Blockchain:       blockchain,
-		Xpub:             xpubKey,
-		DerivationPath:   derivationPath,
+		Xpub:             convertedKey,
+		DerivationPath:   finalPath,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-		LastDerivedIndex: sql.NullInt32{Int32: 0, Valid: true},
+		LastDerivedIndex: sql.NullInt32{Int32: -1, Valid: true},
 		IsActive:         sql.NullBool{Bool: true, Valid: true},
 	})
 	if err != nil {
@@ -131,6 +186,17 @@ func (s *Service) CreateXpubWallet(ctx context.Context, merchantID int64, blockc
 	}
 
 	return entryToXpubWallet(entry), nil
+}
+
+// pathMatchesFormat checks if a merchant-provided derivation path is consistent
+// with the auto-detected path (same BIP number: 44, 49, or 84)
+func pathMatchesFormat(providedPath, autoPath string) bool {
+	for _, bip := range []string{"44'", "49'", "84'"} {
+		if strings.Contains(autoPath, bip) {
+			return strings.Contains(providedPath, bip)
+		}
+	}
+	return false
 }
 
 // GetByID gets xpub wallet by ID
@@ -201,8 +267,8 @@ func (s *Service) DeriveAddress(ctx context.Context, walletID int64) (*DerivedAd
 		return nil, err
 	}
 
-	// Get next index
-	lastIndex := int32(0)
+	// Get next index (LastDerivedIndex starts at -1, so first address = index 0)
+	lastIndex := int32(-1)
 	if w.LastDerivedIndex.Valid {
 		lastIndex = w.LastDerivedIndex.Int32
 	}
@@ -289,7 +355,7 @@ func (s *Service) ListDerivedAddresses(ctx context.Context, walletID int64) ([]*
 	return addresses, nil
 }
 
-// DeactivateWallet deactivates an xpub wallet (soft delete)
+// DeactivateWallet permanently deletes an xpub wallet and all its derived addresses.
 func (s *Service) DeactivateWallet(ctx context.Context, walletUUID uuid.UUID, merchantID int64) error {
 	entry, err := s.store.GetXpubWalletByUUID(ctx, walletUUID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -304,10 +370,17 @@ func (s *Service) DeactivateWallet(ctx context.Context, walletUUID uuid.UUID, me
 		return ErrNotFound
 	}
 
-	return s.store.DeactivateXpubWallet(ctx, repository.DeactivateXpubWalletParams{
-		ID:        entry.ID,
-		UpdatedAt: time.Now(),
-	})
+	// Delete all derived addresses first (FK constraint)
+	if err := s.store.DeleteDerivedAddressesByWalletID(ctx, entry.ID); err != nil {
+		return errors.Wrap(err, "failed to delete derived addresses")
+	}
+
+	// Hard delete the wallet row
+	if err := s.store.HardDeleteXpubWallet(ctx, entry.ID); err != nil {
+		return errors.Wrap(err, "failed to delete xpub wallet")
+	}
+
+	return nil
 }
 
 // MarkAddressAsUsed marks an address as used by a payment
@@ -353,26 +426,28 @@ func (s *Service) GetAddressByAddress(ctx context.Context, blockchain, address s
 	return entryToDerivedAddress(entry), nil
 }
 
-// validateXpub validates the xpub format
-func (s *Service) validateXpub(xpub string) bool {
-	// Basic validation - xpub should start with "xpub" for Bitcoin mainnet
-	// or other prefixes for different networks
-	if len(xpub) < 111 {
-		return false
-	}
-
-	// Try to parse it
-	_, err := hdwallet.StringWallet(xpub)
-	return err == nil
-}
-
 // deriveAddressFromXpub derives an address from xpub at given index.
 // derivationPath is used to determine the address format for Bitcoin (P2PKH, P2SH-SegWit, or bech32).
+//
+// Most wallets (Exodus, Ledger, Trezor) export the xpub at account level (depth 3),
+// e.g. m/84'/0'/0'. BIP44/49/84 standard requires two more levels: chain (0=receive, 1=change)
+// and address index. So for a depth-3 xpub, we derive: xpub / 0 (receive chain) / index.
+// If the xpub is already at chain level (depth 4), we derive: xpub / index directly.
 func (s *Service) deriveAddressFromXpub(xpub, blockchain, derivationPath string, index int) (string, string, error) {
 	// Parse xpub
 	key, err := hdwallet.StringWallet(xpub)
 	if err != nil {
 		return "", "", errors.Wrap(err, "failed to parse xpub")
+	}
+
+	// If xpub is at account level (depth 3), first derive the receive chain (child 0)
+	// before deriving the address index. This matches BIP44/49/84 standard:
+	// account_xpub / 0 (receive) / address_index
+	if key.Depth == 3 {
+		key, err = key.Child(0) // receive chain
+		if err != nil {
+			return "", "", errors.Wrap(err, "failed to derive receive chain from account xpub")
+		}
 	}
 
 	// Derive child key at index

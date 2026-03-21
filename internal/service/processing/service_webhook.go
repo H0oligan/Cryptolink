@@ -298,6 +298,9 @@ func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64
 	// Fetch payer email from payment's linked customer
 	customerEmail, _ := s.emailService.GetCustomerEmail(ctx, tx.EntityID)
 
+	fiatCode := mt.Settings().FiatCurrency()
+	fiatSymbol := money.FiatSymbol(money.FiatCurrency(fiatCode))
+
 	params := email.PaymentReceivedParams{
 		MerchantEmail:    merchantEmail,
 		MerchantName:     mt.Name,
@@ -305,6 +308,8 @@ func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64
 		Amount:           wh.Amount,
 		Ticker:           currency.Ticker,
 		USDAmount:        tx.USDAmount.String(),
+		FiatSymbol:       fiatSymbol,
+		FiatCode:         fiatCode,
 		SenderAddress:    wh.Sender,
 		RecipientAddress: wh.Address,
 		ExplorerLink:     explorerLink,

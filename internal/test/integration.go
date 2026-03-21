@@ -181,13 +181,14 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 		&logger,
 	)
 
-	dashboardAuthHandler := merchantauth.NewHandler(googleAuthService, usersService, nil, &logger)
+	dashboardAuthHandler := merchantauth.NewHandler(googleAuthService, usersService, nil, nil, &logger)
 
 	paymentAPIHandler := paymentapi.New(
 		paymentsService,
 		merchantsService,
 		blockchainService,
 		processingService,
+		nil, // contactService (not needed in tests)
 		&logger,
 	)
 
