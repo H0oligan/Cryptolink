@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -361,8 +362,7 @@ func isStablecoin(ticker string) bool {
 }
 
 func isFiat(ticker string) bool {
-	fiats := map[string]bool{"USD": true, "EUR": true, "GBP": true, "CZK": true}
-	return fiats[strings.ToUpper(ticker)]
+	return money.IsFiatCurrency(strings.ToUpper(ticker))
 }
 
 func (c *rateCache) get(key string) (ExchangeRate, bool) {

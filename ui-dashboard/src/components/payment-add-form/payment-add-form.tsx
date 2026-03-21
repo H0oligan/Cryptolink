@@ -1,7 +1,9 @@
 import * as React from "react";
 import {v4 as uuidv4} from "uuid";
 import {Form, Input, Button, Space, Select, InputNumber, Checkbox, Typography, FormInstance} from "antd";
-import {PaymentParams, CURRENCY} from "src/types";
+import {PaymentParams} from "src/types";
+import {FIAT_CURRENCY_OPTIONS} from "src/utils/format-fiat";
+import useMerchantCurrency from "src/hooks/use-merchant-currency";
 import {sleep} from "src/utils";
 import LinkInput from "src/components/link-input/link-input";
 
@@ -14,6 +16,7 @@ interface Props {
 const linkPrefix = "https://";
 
 const PaymentForm: React.FC<Props> = (props: Props) => {
+    const {currencyCode} = useMerchantCurrency();
     const [form] = Form.useForm<PaymentParams>();
 
     const onSubmit = async (values: PaymentParams) => {
@@ -62,12 +65,14 @@ const PaymentForm: React.FC<Props> = (props: Props) => {
                     name="currency"
                     required
                     rules={[{required: true, message: "Field is required"}]}
-                    style={{width: 80, marginTop: "30px"}}
-                    initialValue="USD"
+                    style={{width: 160, marginTop: "30px"}}
+                    initialValue={currencyCode}
                 >
                     <Select
-                        style={{width: 80}}
-                        options={CURRENCY.map((currency) => ({value: currency, label: currency}))}
+                        style={{width: 160}}
+                        showSearch
+                        optionFilterProp="label"
+                        options={FIAT_CURRENCY_OPTIONS}
                     />
                 </Form.Item>
             </Space>

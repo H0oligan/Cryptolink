@@ -23,6 +23,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/email"
 	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
 	"github.com/cryptolink/cryptolink/internal/service/registry"
+	"github.com/cryptolink/cryptolink/internal/service/contact"
 	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
 	"github.com/cryptolink/cryptolink/internal/service/user"
@@ -71,6 +72,7 @@ type Locator struct {
 	watcherService       *watcher.Service
 	subscriptionService  *subscription.Service
 	emailService         *email.Service
+	contactService       *contact.Service
 	jobLogger            *log.JobLogger
 }
 
@@ -298,6 +300,14 @@ func (loc *Locator) EmailService() *email.Service {
 	})
 
 	return loc.emailService
+}
+
+func (loc *Locator) ContactService() *contact.Service {
+	loc.init("service.contact", func() {
+		loc.contactService = contact.New(loc.DB().Pool, loc.logger)
+	})
+
+	return loc.contactService
 }
 
 func (loc *Locator) WatcherService() *watcher.Service {

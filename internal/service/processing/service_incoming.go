@@ -367,6 +367,10 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 		return
 	}
 
+	// Resolve merchant's fiat currency for email display
+	fiatCode := mt.Settings().FiatCurrency()
+	fiatSymbol := money.FiatSymbol(money.FiatCurrency(fiatCode))
+
 	merchantEmail, err := s.emailService.GetMerchantEmail(ctx, tx.MerchantID)
 	if err != nil || merchantEmail == "" {
 		s.logger.Warn().Err(err).Int64("merchant_id", tx.MerchantID).Msg("no merchant email found for payment notification")
@@ -401,6 +405,8 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 			Amount:           factAmount,
 			Ticker:           tx.Currency.Ticker,
 			USDAmount:        tx.USDAmount.String(),
+			FiatSymbol:       fiatSymbol,
+			FiatCode:         fiatCode,
 			SenderAddress:    senderAddr,
 			RecipientAddress: tx.RecipientAddress,
 			ExplorerLink:     explorerLink,
@@ -438,6 +444,8 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 		Amount:        factAmount,
 		Ticker:        tx.Currency.Ticker,
 		USDAmount:     tx.USDAmount.String(),
+		FiatSymbol:    fiatSymbol,
+		FiatCode:      fiatCode,
 		TxHash:        txHash,
 		ExplorerLink:  explorerLink,
 		Network:       tx.Currency.BlockchainName,

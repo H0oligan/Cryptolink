@@ -240,7 +240,9 @@ type PaymentReceivedParams struct {
 	TxHash           string
 	Amount           string // e.g. "1.234"
 	Ticker           string // e.g. "ETH"
-	USDAmount        string // e.g. "2345.67"
+	USDAmount        string // e.g. "2345.67" (fiat equivalent, in merchant's chosen currency)
+	FiatSymbol       string // e.g. "$", "€", "£" — from merchant settings
+	FiatCode         string // e.g. "USD", "EUR", "GBP" — from merchant settings
 	SenderAddress    string
 	RecipientAddress string
 	ExplorerLink     string
@@ -347,7 +349,9 @@ type CustomerPaymentConfirmParams struct {
 	MerchantName     string
 	Amount           string
 	Ticker           string
-	USDAmount        string
+	USDAmount        string // fiat equivalent in merchant's chosen currency
+	FiatSymbol       string // e.g. "$", "€", "£"
+	FiatCode         string // e.g. "USD", "EUR", "GBP"
 	TxHash           string
 	ExplorerLink     string
 	Network          string
@@ -435,7 +439,7 @@ func renderCustomerPaymentConfirmTemplate(params CustomerPaymentConfirmParams) s
     <p>Your payment to <strong>%s</strong> has been confirmed on the <strong>%s</strong> network.</p>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:8px;margin:16px 0;">
       <p style="margin:4px 0;font-size:24px;font-weight:700;color:#059669;">%s %s</p>
-      <p style="margin:4px 0;color:#64748b;">≈ $%s USD</p>
+      <p style="margin:4px 0;color:#64748b;">≈ %s%s %s</p>
     </div>
     <table style="width:100%%;border-collapse:collapse;font-size:14px;">
       <tr><td style="padding:6px 0;color:#64748b;width:40%%;">Transaction</td><td style="padding:6px 0;font-family:monospace;font-size:12px;">%s</td></tr>
@@ -450,7 +454,7 @@ func renderCustomerPaymentConfirmTemplate(params CustomerPaymentConfirmParams) s
 		params.MerchantName,
 		params.Network,
 		params.Amount, params.Ticker,
-		params.USDAmount,
+		params.FiatSymbol, params.USDAmount, params.FiatCode,
 		shortTx,
 		params.ReceivedAt.Format("2006-01-02 15:04:05 UTC"),
 		explorerBtn,
@@ -485,7 +489,7 @@ func renderPaymentReceivedTemplate(params PaymentReceivedParams) string {
     <p>Hello <strong>%s</strong>, you just received a payment on <strong>%s</strong>.</p>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:8px;margin:16px 0;">
       <p style="margin:4px 0;font-size:24px;font-weight:700;color:#059669;">%s %s</p>
-      <p style="margin:4px 0;color:#64748b;">≈ $%s USD</p>
+      <p style="margin:4px 0;color:#64748b;">≈ %s%s %s</p>
     </div>
     <table style="width:100%%;border-collapse:collapse;font-size:14px;">
       <tr><td style="padding:6px 0;color:#64748b;width:40%%;">Customer Email</td><td style="padding:6px 0;">%s</td></tr>
@@ -504,7 +508,7 @@ func renderPaymentReceivedTemplate(params PaymentReceivedParams) string {
 		params.MerchantName,
 		params.Network,
 		params.Amount, params.Ticker,
-		params.USDAmount,
+		params.FiatSymbol, params.USDAmount, params.FiatCode,
 		params.CustomerEmail,
 		params.Network,
 		shortSender,

@@ -3,6 +3,7 @@ package http
 import (
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	mw "github.com/labstack/echo/v4/middleware"
@@ -61,11 +62,17 @@ func WithDashboardAPI(
 			authGroup.POST("/register", authHandler.PostRegister)
 		}
 
+		// email verification routes (always available)
+		authGroup.GET("/verify-email", authHandler.VerifyEmail)
+		authGroup.POST("/resend-verification", authHandler.ResendVerification, guardsUsersMW)
+
 		// google auth routes
 		if enableGoogleAuth {
 			authGroup.GET("/redirect", authHandler.GetRedirect)
 			authGroup.GET("/callback", authHandler.GetCallback)
 		}
+
+		dashboardAPI.GET("/fiat-currencies", handler.ListFiatCurrencies)
 
 		dashboardAPI.GET("/merchant", handler.ListMerchants, guardsUsersMW)
 		dashboardAPI.POST("/merchant", handler.CreateMerchant, guardsUsersMW)
@@ -118,6 +125,10 @@ func WithDashboardAPI(
 		// Currency
 		merchantGroup.GET("/currency-convert", handler.GetCurrencyConvert)
 
+		// Fee & fiat currency settings
+		merchantGroup.GET("/fee-settings", handler.GetFeeSettings)
+		merchantGroup.PUT("/fee-settings", handler.UpdateFeeSettings)
+
 		// Subscription routes
 		dashboardAPI.GET("/subscription/plans", subscriptionHandler.ListPlans)
 
@@ -150,6 +161,10 @@ func WithDashboardAPI(
 		adminGroup.POST("/email/send", emailHandler.SendEmail)
 		adminGroup.POST("/email/test", emailHandler.TestEmail)
 		adminGroup.GET("/email/log", emailHandler.GetLogs)
+
+		// Admin contacts routes
+		adminGroup.GET("/contacts", subscriptionHandler.ListAllContacts)
+		adminGroup.GET("/contacts/export", subscriptionHandler.ExportContacts)
 
 		// Admin collector factory routes
 		adminGroup.GET("/collector-factories", handler.ListCollectorFactories)
@@ -285,10 +300,26 @@ func WithEmbeddedFrontend(dashboardUI, paymentsUI fs.FS) Opt {
 }
 
 func spaRouter(e *echo.Echo, prefix string, files fs.FS) {
-	e.Group(prefix, mw.StaticWithConfig(mw.StaticConfig{
+	e.Group(prefix, noCacheHTML(), mw.StaticWithConfig(mw.StaticConfig{
 		Root:       "/",
 		Index:      "index.html",
 		HTML5:      true,
 		Filesystem: http.FS(files),
 	}))
+}
+
+// noCacheHTML prevents Cloudflare and browsers from caching HTML responses
+// so that new SPA builds are picked up immediately. JS/CSS assets have
+// content-hashed filenames and can be cached indefinitely.
+func noCacheHTML() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			err := next(c)
+			ct := c.Response().Header().Get("Content-Type")
+			if strings.Contains(ct, "text/html") {
+				c.Response().Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			}
+			return err
+		}
+	}
 }

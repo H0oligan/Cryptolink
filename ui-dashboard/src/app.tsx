@@ -8,9 +8,10 @@ import {ProLayout, RouteContext, RouteContextType} from "@ant-design/pro-compone
 import {
     EditOutlined, LogoutOutlined, LinkOutlined, CheckOutlined, UserOutlined,
     DashboardOutlined, CreditCardOutlined, WalletOutlined,
-    TeamOutlined, CrownOutlined, SettingOutlined, BookOutlined, ShopOutlined
+    TeamOutlined, CrownOutlined, SettingOutlined, BookOutlined, ShopOutlined,
+    WarningOutlined, DollarOutlined
 } from "@ant-design/icons";
-import {Select, Divider, Button, Avatar, Space, Dropdown, MenuProps, notification, FormInstance} from "antd";
+import {Select, Divider, Button, Avatar, Space, Dropdown, MenuProps, notification, FormInstance, Alert} from "antd";
 import {usePostHog} from "posthog-js/react";
 import bevis from "src/utils/bevis";
 const logoImg = "/logo.svg";
@@ -33,6 +34,7 @@ import PaymentLinksPage from "src/pages/payment-links-page/payments-links-page";
 import WalletSetupPage from "src/pages/wallet-setup-page/wallet-setup-page";
 import ProfilePage from "src/pages/profile-page/profile-page";
 import SubscriptionPage from "src/pages/subscription-page/subscription-page";
+import CurrenciesPage from "src/pages/currencies-page/currencies-page";
 import useSharedPosthogStatus from "src/hooks/use-posthog-status";
 import {toggled} from "./providers/toggles";
 import ThemeToggle from "src/theme/theme-toggle";
@@ -51,6 +53,7 @@ const defaultMenus: MenuItem[] = [
     {path: "/balance", name: "Balance", icon: <WalletOutlined />},
     {path: "/customers", name: "Customers", icon: <TeamOutlined />},
     {path: "/subscription", name: "Subscription", icon: <CrownOutlined />},
+    {path: "/currencies", name: "Currencies & Fees", icon: <DollarOutlined />},
     {path: "/wallet-setup", name: "Wallet Setup", icon: <WalletOutlined />},
     {path: "/settings", name: "Settings", icon: <SettingOutlined />},
     {path: "https://cryptolink.cc/doc/", name: "Documentation", icon: <BookOutlined />}
@@ -96,6 +99,28 @@ const App: React.FC = () => {
     const [isSupportFormOpen, setIsSupportFormOpen] = React.useState<boolean>(false);
     const [isFormSubmitting, setIsFormSubmitting] = React.useState<boolean>(false);
     const [isLoading, setIsLoading] = React.useState<boolean>(true);
+    const [resendingVerification, setResendingVerification] = React.useState(false);
+
+    const handleResendVerification = async () => {
+        try {
+            setResendingVerification(true);
+            await authProvider.resendVerification();
+            notificationApi.success({
+                message: "Verification email sent",
+                description: "Please check your inbox",
+                placement: "bottomRight",
+                icon: <CheckOutlined style={{color: "#10b981"}} />
+            });
+        } catch (e) {
+            notificationApi.error({
+                message: "Failed to send verification email",
+                description: "Please try again later",
+                placement: "bottomRight"
+            });
+        } finally {
+            setResendingVerification(false);
+        }
+    };
 
     const loadUserInfo = async () => {
         let newMerchantId = merchantId;
@@ -408,6 +433,28 @@ const App: React.FC = () => {
                             headerTitleRender={() => null}
                         >
                             {notificationElement}
+                            {user && user.emailVerified === false && (
+                                <Alert
+                                    type="warning"
+                                    showIcon
+                                    icon={<WarningOutlined />}
+                                    style={{marginBottom: 16}}
+                                    message={
+                                        <span>
+                                            Please verify your email address. Check your inbox or{" "}
+                                            <Button
+                                                type="link"
+                                                size="small"
+                                                loading={resendingVerification}
+                                                onClick={handleResendVerification}
+                                                style={{padding: 0, height: "auto"}}
+                                            >
+                                                Resend verification email
+                                            </Button>
+                                        </span>
+                                    }
+                                />
+                            )}
                             <Routes>
                                 <Route path="settings" element={<SettingsPage />} />
                                 <Route path="payments" element={<PaymentsPage />} />
@@ -417,6 +464,7 @@ const App: React.FC = () => {
                                 <Route path="customers" element={<CustomersPage />} />
                                 <Route path="wallet-setup" element={<WalletSetupPage />} />
                                 <Route path="subscription" element={<SubscriptionPage />} />
+                                <Route path="currencies" element={<CurrenciesPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                                 <Route path="*" element={"not found"} />
                             </Routes>

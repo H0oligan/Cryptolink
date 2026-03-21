@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -53,12 +54,36 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	}
 
-	person, err := h.users.Register(ctx, req.Email.String(), req.Password, req.Name)
+	// GDPR: terms must be accepted
+	if !req.TermsAccepted {
+		return common.ValidationErrorItemResponse(c, "termsAccepted", "You must accept the Terms of Service")
+	}
+
+	person, err := h.users.Register(ctx, user.RegisterParams{
+		Email:            req.Email.String(),
+		Password:         req.Password,
+		Name:             req.Name,
+		CompanyName:      req.CompanyName,
+		Address:          req.Address,
+		Website:          req.Website,
+		Phone:            req.Phone,
+		MarketingConsent: req.MarketingConsent,
+	})
 	switch {
 	case errors.Is(err, user.ErrAlreadyExists):
 		return common.ValidationErrorItemResponse(c, "email", "User with this email already exists")
 	case err != nil:
 		return errors.Wrap(err, "unable to register user")
+	}
+
+	// Generate verification token and send email (best-effort)
+	if h.emailService != nil {
+		token, err := h.users.GenerateVerificationToken(ctx, person.ID)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("failed to generate verification token")
+		} else {
+			go h.emailService.SendVerificationEmail(context.Background(), person.Email, person.Name, token)
+		}
 	}
 
 	// Auto-login after registration

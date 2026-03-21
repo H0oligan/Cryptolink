@@ -21,7 +21,11 @@ interface Customer {
     id: string;
 }
 
-const CURRENCY = ["USD", "EUR"] as const;
+const CURRENCY = [
+    "USD", "EUR", "GBP", "CAD", "AUD", "CHF", "JPY", "CNY", "INR", "BRL",
+    "MXN", "KRW", "SGD", "HKD", "SEK", "NOK", "DKK", "PLN", "CZK", "TRY",
+    "ZAR", "NZD", "THB", "AED", "SAR", "RUB"
+] as const;
 type Currency = typeof CURRENCY[number];
 
 type PaymentStatus = "pending" | "inProgress" | "success" | "failed" | "underpaid";
@@ -50,6 +54,7 @@ interface Payment {
     paymentInfo?: PaymentInfo;
     paymentMethod?: PaymentMethod;
     price: number;
+    feePercent?: number;
 }
 
 interface PaymentLink {

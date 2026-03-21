@@ -7,7 +7,7 @@ import {useMount} from "react-use";
 import {ProLayout, RouteContext, RouteContextType} from "@ant-design/pro-components";
 import {
     LogoutOutlined, DashboardOutlined, ArrowLeftOutlined, UserOutlined,
-    ShopOutlined, CrownOutlined, MailOutlined, AlertOutlined, ThunderboltOutlined
+    ShopOutlined, CrownOutlined, MailOutlined, AlertOutlined, ThunderboltOutlined, TeamOutlined
 } from "@ant-design/icons";
 import {Avatar, Space, Dropdown, MenuProps} from "antd";
 import bevis from "src/utils/bevis";
@@ -22,6 +22,7 @@ import AdminUsersPage from "src/pages/admin/users-page/users-page";
 import AdminEmailPage from "src/pages/admin/email-page/email-page";
 import AdminPaymentsPage from "src/pages/admin/payments-page/payments-page";
 import AdminContractsPage from "src/pages/admin/contracts-page/contracts-page";
+import AdminContactsPage from "src/pages/admin/contacts-page/contacts-page";
 import ThemeToggle from "src/theme/theme-toggle";
 import {useTheme} from "src/theme/theme-context";
 
@@ -40,6 +41,7 @@ const adminMenus: MenuItem[] = [
     {path: "/email", name: "Email", icon: <MailOutlined />},
     {path: "/payments", name: "Payments Support", icon: <AlertOutlined />},
     {path: "/contracts", name: "Contracts", icon: <ThunderboltOutlined />},
+    {path: "/contacts", name: "Contacts", icon: <TeamOutlined />},
 ];
 
 const b = bevis("app");
@@ -66,8 +68,8 @@ const AdminApp: React.FC = () => {
 
         try {
             const u = await authProvider.getMe();
-            if (!u.isSuperAdmin) {
-                // Regular merchant — redirect to merchant panel
+            if (u && !u.isSuperAdmin) {
+                // Non-admin user trying to access admin panel — redirect to merchant panel
                 window.location.href = "/merchants/payments";
                 return;
             }
@@ -132,10 +134,10 @@ const AdminApp: React.FC = () => {
 
     return (
         <Routes>
-            {/* Login route: redirect to dashboard if already authenticated */}
+            {/* Login route: redirect to dashboard if already authenticated as super admin */}
             <Route
                 path="login"
-                element={user && !isLoading ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+                element={user && user.isSuperAdmin && !isLoading ? <Navigate to="/dashboard" replace /> : <LoginPage />}
             />
 
             <Route
@@ -199,11 +201,12 @@ const AdminApp: React.FC = () => {
                         {/* Don't render inner routes while loading — prevents premature redirects */}
                         {!isLoading && (
                             <Routes>
-                                {/* Unauthenticated: redirect all to login */}
+                                {/* Unauthenticated or non-admin: redirect to appropriate location */}
                                 {!user && <Route path="*" element={<Navigate to="/login" replace />} />}
+                                {user && !user.isSuperAdmin && <Route path="*" element={<Navigate to="/login" replace />} />}
 
                                 {/* Authenticated super admin routes */}
-                                {user && (
+                                {user && user.isSuperAdmin && (
                                     <>
                                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
                                         <Route path="dashboard" element={<AdminDashboardPage />} />
@@ -213,6 +216,7 @@ const AdminApp: React.FC = () => {
                                         <Route path="email" element={<AdminEmailPage />} />
                                         <Route path="payments" element={<AdminPaymentsPage />} />
                                         <Route path="contracts" element={<AdminContractsPage />} />
+                                        <Route path="contacts" element={<AdminContactsPage />} />
                                         <Route path="*" element="not found" />
                                     </>
                                 )}

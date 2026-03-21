@@ -111,7 +111,7 @@ func (s *Service) getTransactionReceipt(
 	isTest bool,
 ) (*TransactionReceipt, error) {
 	const (
-		btcConfirmations      = 6
+		btcConfirmations      = 2
 		ethConfirmations      = 12
 		maticConfirmations    = 30
 		bscConfirmations      = 15

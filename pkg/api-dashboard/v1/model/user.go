@@ -35,6 +35,24 @@ type User struct {
 
 	// is super admin
 	IsSuperAdmin bool `json:"isSuperAdmin"`
+
+	// company / organization name
+	CompanyName string `json:"companyName,omitempty"`
+
+	// business address
+	Address string `json:"address,omitempty"`
+
+	// website URL
+	Website string `json:"website,omitempty"`
+
+	// phone number
+	Phone string `json:"phone,omitempty"`
+
+	// whether email has been verified
+	EmailVerified bool `json:"emailVerified"`
+
+	// marketing consent opt-in
+	MarketingConsent bool `json:"marketingConsent"`
 }
 
 // Validate validates this user

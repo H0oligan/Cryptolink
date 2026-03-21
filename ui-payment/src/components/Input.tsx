@@ -21,13 +21,11 @@ const Input = <T extends Dictionary, K extends keyof T>(props: Props<T, K>): JSX
 
     return (
         <div
-            className={`relative flex items-center justify-center ${
-                props.hasConvertedResult ? "mb-[4.25rem] sm:mb-32" : "mb-28 sm:mb-44"
-            }`}
+            className={`relative flex items-center justify-center mb-4`}
         >
             <input
-                className={`h-12 border border-main-green-3 appearance-none border rounded-xl
-                    w-full py-3 px-4 leading-tight font-medium
+                className={`h-12 border border-[#2a2a3e] appearance-none rounded-xl
+                    w-full py-3 px-4 leading-tight font-medium bg-[#13131a] text-white placeholder-[#94a3b8]
                     focus:outline-none focus:shadow-outline
                     ${error ? "border-main-error" : ""} ${!error && props.curValue ? "border-main-green-1" : ""}
                 `}

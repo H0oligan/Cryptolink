@@ -33,7 +33,10 @@ import {
     ThunderboltOutlined,
     LoadingOutlined,
     LinkOutlined,
-    WarningOutlined
+    WarningOutlined,
+    QuestionCircleOutlined,
+    CopyOutlined,
+    CloseCircleOutlined
 } from "@ant-design/icons";
 import bevis from "src/utils/bevis";
 import xpubProvider, {XpubWallet} from "src/providers/xpub-provider";
@@ -49,15 +52,20 @@ const {Title, Text, Paragraph} = Typography;
 
 // xpub-only blockchains — BTC only (TRON uses collector address approach)
 const XPUB_BLOCKCHAINS = [
-    {value: "BTC",  label: "Bitcoin", path: "m/84'/0'/0'/0",   color: "#F7931A"},
+    {value: "BTC",  label: "Bitcoin", path: "m/84'/0'/0'",   color: "#F7931A"},
 ];
 
-// BTC address format options
-const BTC_ADDRESS_FORMATS = [
-    {value: "m/84'/0'/0'/0", label: "Native SegWit (Bech32) — bc1q addresses (recommended)"},
-    {value: "m/49'/0'/0'/0", label: "SegWit (P2SH-SegWit) — 3-prefix addresses"},
-    {value: "m/44'/0'/0'/0", label: "Legacy (P2PKH) — 1-prefix addresses"},
-];
+// Detect key format from prefix (SLIP-0132 version bytes)
+function detectKeyFormat(key: string): {format: string; label: string; path: string} | null {
+    const trimmed = key.trim();
+    if (trimmed.startsWith("zpub")) return {format: "p2wpkh", label: "Native SegWit (zpub) — bc1q addresses", path: "m/84'/0'/0'"};
+    if (trimmed.startsWith("ypub")) return {format: "p2sh-segwit", label: "SegWit (ypub) — 3-prefix addresses", path: "m/49'/0'/0'"};
+    if (trimmed.startsWith("xpub")) return {format: "p2pkh", label: "Legacy (xpub) — 1-prefix addresses", path: "m/44'/0'/0'"};
+    if (trimmed.startsWith("vpub")) return {format: "p2wpkh", label: "Native SegWit Testnet (vpub)", path: "m/84'/1'/0'"};
+    if (trimmed.startsWith("upub")) return {format: "p2sh-segwit", label: "SegWit Testnet (upub)", path: "m/49'/1'/0'"};
+    if (trimmed.startsWith("tpub")) return {format: "p2pkh", label: "Legacy Testnet (tpub)", path: "m/44'/1'/0'"};
+    return null;
+}
 
 // ============================================================
 // EVM Collector Panel — automated MetaMask deploy
@@ -665,10 +673,11 @@ const WalletSetupPage: React.FC = () => {
     const [api, contextHolder] = notification.useNotification();
     const {merchantId} = useSharedMerchantId();
 
-    const [mode, setMode] = React.useState<"overview" | "import" | "detail">("overview");
+    const [mode, setMode] = React.useState<"overview" | "import" | "verify" | "detail">("overview");
     const [selectedBlockchain, setSelectedBlockchain] = React.useState<string>("");
     const [importXpub, setImportXpub] = React.useState<string>("");
     const [importPath, setImportPath] = React.useState<string>("");
+    const [detectedFormat, setDetectedFormat] = React.useState<{format: string; label: string; path: string} | null>(null);
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [existingWallets, setExistingWallets] = React.useState<XpubWallet[]>([]);
     const [collectors, setCollectors] = React.useState<EvmCollector[]>([]);
@@ -677,6 +686,12 @@ const WalletSetupPage: React.FC = () => {
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [firstAddress, setFirstAddress] = React.useState<string>("");
     const [loadingAddress, setLoadingAddress] = React.useState(false);
+
+    // Verify mode state
+    const [verifyWallet, setVerifyWallet] = React.useState<XpubWallet | null>(null);
+    const [verifyAddress, setVerifyAddress] = React.useState<string>("");
+    const [verifyLoading, setVerifyLoading] = React.useState(false);
+    const [showMismatchHelp, setShowMismatchHelp] = React.useState(false);
 
     const loadData = async () => {
         if (!merchantId) return;
@@ -783,17 +798,37 @@ const WalletSetupPage: React.FC = () => {
         try {
             await xpubProvider.createXpubWallet(merchantId, {
                 blockchain: selectedBlockchain,
-                xpub: importXpub,
-                derivationPath: importPath || blockchain?.path || "",
+                xpub: importXpub.trim(),
+                ...(importPath ? {derivationPath: importPath} : {}),
             });
-            api.success({
-                message: "Wallet imported!",
-                description: `${blockchain?.label} wallet has been configured`,
-                placement: "bottomRight",
-            });
+
+            // Refresh wallet list and find the new wallet
             const wallets = await xpubProvider.listXpubWallets(merchantId);
             setExistingWallets(wallets || []);
-            resetState();
+            const newWallet = (wallets || []).find((w) => w.blockchain === selectedBlockchain);
+
+            if (newWallet) {
+                // Transition to verify mode
+                setVerifyWallet(newWallet);
+                setMode("verify");
+                setVerifyLoading(true);
+                setShowMismatchHelp(false);
+                try {
+                    const derived = await xpubProvider.deriveAddress(merchantId, newWallet.uuid);
+                    setVerifyAddress(derived.address);
+                } catch {
+                    setVerifyAddress("");
+                } finally {
+                    setVerifyLoading(false);
+                }
+            } else {
+                api.success({
+                    message: "Wallet imported!",
+                    description: `${blockchain?.label} wallet has been configured`,
+                    placement: "bottomRight",
+                });
+                resetState();
+            }
         } catch (error: any) {
             api.error({
                 message: "Failed to import wallet",
@@ -810,8 +845,13 @@ const WalletSetupPage: React.FC = () => {
         setSelectedBlockchain("");
         setImportXpub("");
         setImportPath("");
+        setDetectedFormat(null);
         setSelectedWallet(null);
         setFirstAddress("");
+        setVerifyWallet(null);
+        setVerifyAddress("");
+        setVerifyLoading(false);
+        setShowMismatchHelp(false);
     };
 
     const renderOverview = () => (
@@ -823,14 +863,14 @@ const WalletSetupPage: React.FC = () => {
                         <Title level={5} style={{margin: 0}}>HD Wallets — How it Works</Title>
                     </Space>
                     <Paragraph type="secondary" style={{margin: 0}}>
-                        CryptoLink uses <strong>HD wallets (BIP32/BIP44)</strong> so customers pay directly to
-                        your wallet. We only store your <strong>extended public key (xpub)</strong> to derive
+                        CryptoLink uses <strong>HD wallets (BIP32/BIP84)</strong> so customers pay directly to
+                        your wallet. We store your <strong>extended public key (xpub/zpub)</strong> to derive
                         unique payment addresses. Your private keys never leave your device.
                     </Paragraph>
                     <Space size={16} wrap>
                         <Tag icon={<LockOutlined />} color="green">Private keys stay local</Tag>
                         <Tag icon={<WalletOutlined />} color="blue">Direct-to-wallet payments</Tag>
-                        <Tag color="default">Import xpub only — no key generation</Tag>
+                        <Tag color="default">Import xpub/zpub — no key generation</Tag>
                     </Space>
                 </Space>
             </Card>
@@ -885,7 +925,7 @@ const WalletSetupPage: React.FC = () => {
                 icon={<ImportOutlined />}
                 onClick={() => setMode("import")}
             >
-                Import Existing xpub
+                Import Extended Public Key
             </Button>
         </>
     );
@@ -972,23 +1012,24 @@ const WalletSetupPage: React.FC = () => {
         <Card className={b("step-card")}>
             <Space style={{marginBottom: 16}}>
                 <Button icon={<ArrowLeftOutlined />} onClick={resetState}>Back</Button>
-                <Title level={4} style={{margin: 0}}>Import Extended Public Key (xpub)</Title>
+                <Title level={4} style={{margin: 0}}>Import Extended Public Key</Title>
             </Space>
             <Paragraph type="secondary">
-                Import your HD wallet's xpub key. This is useful if you manage your keys with a hardware
-                wallet (Ledger, Trezor) or another wallet software. Your private keys never leave your device.
+                Import your HD wallet's extended public key (xpub, ypub, or zpub). Works with hardware
+                wallets (Ledger, Trezor), Exodus, Electrum, and any BIP32/BIP84 compatible wallet.
+                Your private keys never leave your device.
             </Paragraph>
 
             <Alert
-                message="Need help extracting your xpub?"
+                message="Need help extracting your key?"
                 description={
                     <span>
                         Download our{" "}
                         <a href="/xpub-extractor.html" download="xpub-extractor.html" style={{fontWeight: "bold"}}>
-                            Offline Xpub Extractor Tool
+                            Offline Key Extractor Tool
                         </a>{" "}
                         — a single HTML file you run locally on your computer. It converts your seed phrase into
-                        an xpub entirely offline. Your seed phrase never leaves your machine.
+                        an extended public key entirely offline. Your seed phrase never leaves your machine.
                     </span>
                 }
                 type="info"
@@ -1006,47 +1047,58 @@ const WalletSetupPage: React.FC = () => {
                     onChange={(v) => {
                         setSelectedBlockchain(v);
                         const bc = XPUB_BLOCKCHAINS.find((c) => c.value === v);
-                        setImportPath(bc?.path || "");
+                        if (!detectedFormat) {
+                            setImportPath(bc?.path || "");
+                        }
                     }}
                     size="large"
                 />
             </div>
 
-            {selectedBlockchain === "BTC" && (
-                <div style={{marginBottom: 16}}>
-                    <Text strong>Bitcoin Address Format</Text>
-                    <Select
-                        style={{width: "100%", marginTop: 4}}
-                        value={importPath}
-                        options={BTC_ADDRESS_FORMATS}
-                        onChange={(v) => setImportPath(v)}
-                        size="large"
-                    />
-                    <Text type="secondary" style={{fontSize: 12, display: "block", marginTop: 4}}>
-                        Choose the format matching your wallet. Most modern wallets (Ledger, Trezor, Electrum) default to Native SegWit.
-                    </Text>
-                </div>
-            )}
-
             <div style={{marginBottom: 16}}>
-                <Text strong>Extended Public Key (xpub)</Text>
+                <Text strong>Extended Public Key (xpub / ypub / zpub)</Text>
                 <Input.TextArea
                     rows={3}
-                    placeholder="xpub6CatW..."
+                    placeholder="zpub6rFR7y4Q2A... or xpub6CatW... or ypub6X..."
                     value={importXpub}
-                    onChange={(e) => setImportXpub(e.target.value)}
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        setImportXpub(val);
+                        const detected = detectKeyFormat(val);
+                        setDetectedFormat(detected);
+                        if (detected) {
+                            setImportPath(detected.path);
+                        }
+                    }}
                     style={{marginTop: 4, fontFamily: "monospace"}}
                 />
+                {detectedFormat && (
+                    <div style={{marginTop: 8}}>
+                        <Tag color="green" style={{fontSize: 13, padding: "2px 10px"}}>
+                            Detected: {detectedFormat.label}
+                        </Tag>
+                    </div>
+                )}
+                <Text type="secondary" style={{fontSize: 12, display: "block", marginTop: 4}}>
+                    Paste the key exported from your wallet. The address format (SegWit, Legacy) is auto-detected
+                    from the key prefix. zpub = Native SegWit (recommended), ypub = SegWit, xpub = Legacy.
+                </Text>
             </div>
 
             <div style={{marginBottom: 16}}>
-                <Text strong>Derivation Path</Text>
+                <Text strong>Derivation Path <Text type="secondary" style={{fontWeight: 400}}>(auto-detected)</Text></Text>
                 <Input
                     value={importPath}
                     onChange={(e) => setImportPath(e.target.value)}
-                    placeholder="m/44'/0'/0'/0"
+                    placeholder="m/84'/0'/0'"
+                    disabled={!!detectedFormat}
                     style={{marginTop: 4, fontFamily: "monospace"}}
                 />
+                {detectedFormat && (
+                    <Text type="secondary" style={{fontSize: 12, display: "block", marginTop: 4}}>
+                        Path auto-detected from key format.
+                    </Text>
+                )}
             </div>
 
             <Space>
@@ -1060,8 +1112,261 @@ const WalletSetupPage: React.FC = () => {
                 </Button>
                 <Button onClick={resetState}>Cancel</Button>
             </Space>
+
+            <Divider />
+
+            {/* Educational section — Hardware Wallet Guide */}
+            <details style={{cursor: "pointer"}}>
+                <summary style={{fontWeight: 600, color: "var(--cl-text-primary)", marginBottom: 12}}>
+                    <QuestionCircleOutlined style={{marginRight: 8}} />
+                    How to export your extended public key (per wallet)
+                </summary>
+                <div style={{padding: "12px 0 0 8px"}}>
+                    <Space direction="vertical" size={12} style={{width: "100%"}}>
+                        <Card size="small" style={{borderLeft: "3px solid #F7931A"}}>
+                            <Text strong>Exodus</Text>
+                            <br />
+                            <Text type="secondary">
+                                Settings &rarr; Developer Menu &rarr; Export xpub for Bitcoin.
+                                Exodus exports all three formats (xpub, ypub, zpub). Use the <strong>zpub</strong> for
+                                Native SegWit (bc1q addresses, recommended).
+                            </Text>
+                        </Card>
+                        <Card size="small" style={{borderLeft: "3px solid #3B99FC"}}>
+                            <Text strong>Electrum</Text>
+                            <br />
+                            <Text type="secondary">
+                                Wallet &rarr; Information &rarr; Master Public Key.
+                                Electrum exports <strong>zpub</strong> for Native SegWit wallets (default).
+                            </Text>
+                        </Card>
+                        <Card size="small" style={{borderLeft: "3px solid #41B883"}}>
+                            <Text strong>Ledger (via Ledger Live)</Text>
+                            <br />
+                            <Text type="secondary">
+                                Account &rarr; Wrench icon &rarr; Advanced &rarr; Extended Public Key.
+                                Ledger Live exports as <strong>xpub</strong> regardless of address format.
+                                CryptoLink will detect it as Legacy (1-prefix). If you use Native SegWit (bc1q),
+                                export via Electrum or Sparrow instead to get a <strong>zpub</strong>.
+                            </Text>
+                        </Card>
+                        <Card size="small" style={{borderLeft: "3px solid #1A9B2D"}}>
+                            <Text strong>Trezor (via Trezor Suite)</Text>
+                            <br />
+                            <Text type="secondary">
+                                Account &rarr; Show Public Key. Trezor Suite correctly exports <strong>zpub</strong> for
+                                Native SegWit accounts.
+                            </Text>
+                        </Card>
+                        <Card size="small" style={{borderLeft: "3px solid #E74C3C"}}>
+                            <Text strong>Coldcard</Text>
+                            <br />
+                            <Text type="secondary">
+                                Settings &rarr; Advanced &rarr; Export &rarr; XPUB.
+                                Coldcard uses correct SLIP-0132 prefixes (zpub for BIP84).
+                            </Text>
+                        </Card>
+                        <Card size="small" style={{borderLeft: "3px solid #10b981"}}>
+                            <Text strong>CryptoLink Offline Extractor</Text>
+                            <br />
+                            <Text type="secondary">
+                                Download <a href="/xpub-extractor.html" target="_blank" rel="noopener noreferrer">xpub-extractor.html</a>,
+                                disconnect from internet, enter your seed phrase. Outputs zpub (BIP84) or ypub (BIP49).
+                                Your seed phrase never leaves your computer.
+                            </Text>
+                        </Card>
+                    </Space>
+
+                    <Alert
+                        message="Which format should I use?"
+                        description={
+                            <>
+                                <strong>zpub</strong> (Native SegWit / bc1q addresses) is recommended. It has the lowest
+                                transaction fees and is the default in modern wallets. If your wallet only exports <strong>xpub</strong>,
+                                CryptoLink will treat it as Legacy (1-prefix addresses). After import, verify that the generated
+                                address matches your wallet.
+                            </>
+                        }
+                        type="info"
+                        showIcon
+                        style={{marginTop: 16}}
+                    />
+                </div>
+            </details>
         </Card>
     );
+
+    const renderVerifyMode = () => {
+        if (!verifyWallet) return null;
+        const chain = XPUB_BLOCKCHAINS.find((c) => c.value === verifyWallet.blockchain);
+
+        const handleVerifyDelete = async () => {
+            if (!merchantId || !verifyWallet) return;
+            try {
+                await xpubProvider.deleteXpubWallet(merchantId, verifyWallet.uuid);
+                const wallets = await xpubProvider.listXpubWallets(merchantId);
+                setExistingWallets(wallets || []);
+                setVerifyWallet(null);
+                setVerifyAddress("");
+                setShowMismatchHelp(false);
+                setMode("import");
+                api.info({message: "Wallet removed. Please re-import with the correct key format.", placement: "bottomRight"});
+            } catch {
+                api.error({message: "Failed to delete wallet", placement: "bottomRight"});
+            }
+        };
+
+        return (
+            <Card>
+                <Space style={{marginBottom: 24}} align="center">
+                    <SafetyCertificateOutlined style={{fontSize: 24, color: "#10b981"}} />
+                    <Title level={4} style={{margin: 0}}>Verify Your Wallet</Title>
+                </Space>
+
+                <Alert
+                    message="Wallet imported successfully"
+                    description={`Your ${chain?.label || "Bitcoin"} extended public key has been saved. Now verify the address below matches your wallet software.`}
+                    type="success"
+                    showIcon
+                    style={{marginBottom: 24}}
+                />
+
+                {verifyLoading ? (
+                    <div style={{textAlign: "center", padding: "40px 0"}}>
+                        <Spin size="large" />
+                        <div style={{marginTop: 16}}>
+                            <Text type="secondary">Deriving your first receive address...</Text>
+                        </div>
+                    </div>
+                ) : verifyAddress ? (
+                    <>
+                        <div style={{
+                            background: "var(--cl-bg-container, #0a0a0a)",
+                            border: "2px solid #10b981",
+                            borderRadius: 8,
+                            padding: "20px 24px",
+                            textAlign: "center",
+                            marginBottom: 24,
+                            boxShadow: "0 0 20px rgba(16,185,129,0.15)",
+                        }}>
+                            <Text type="secondary" style={{display: "block", marginBottom: 8, fontSize: 12, textTransform: "uppercase", letterSpacing: 1}}>
+                                First Receive Address (index 0)
+                            </Text>
+                            <Text
+                                copyable
+                                style={{
+                                    fontFamily: "monospace",
+                                    fontSize: 15,
+                                    wordBreak: "break-all",
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                {verifyAddress}
+                            </Text>
+                        </div>
+
+                        <Alert
+                            message="How to verify"
+                            description={
+                                <>
+                                    Open your wallet software (Exodus, Electrum, Ledger Live, Trezor Suite, etc.)
+                                    and navigate to the <strong>first receive address</strong>.
+                                    It should <strong>exactly match</strong> the address shown above.
+                                    If it matches, your wallet is correctly configured and payments will go
+                                    directly to your wallet.
+                                </>
+                            }
+                            type="info"
+                            showIcon
+                            style={{marginBottom: 24}}
+                        />
+
+                        <Space direction="vertical" size={12} style={{width: "100%"}}>
+                            <Button
+                                type="primary"
+                                size="large"
+                                block
+                                icon={<CheckCircleOutlined />}
+                                onClick={() => {
+                                    api.success({message: "Wallet verified!", description: `${chain?.label} wallet is ready to receive payments.`, placement: "bottomRight"});
+                                    resetState();
+                                }}
+                            >
+                                Addresses Match — Done
+                            </Button>
+                            <Button
+                                size="large"
+                                block
+                                danger
+                                icon={<CloseCircleOutlined />}
+                                onClick={() => setShowMismatchHelp(true)}
+                            >
+                                Addresses Don&apos;t Match
+                            </Button>
+                        </Space>
+
+                        {showMismatchHelp && (
+                            <div style={{marginTop: 24}}>
+                                <Alert
+                                    message="Address mismatch — likely a key format issue"
+                                    description={
+                                        <Space direction="vertical" size={8}>
+                                            <Text>
+                                                This usually happens when your wallet exports an <strong>xpub</strong>-prefixed key
+                                                but your wallet actually uses <strong>Native SegWit (bc1q)</strong> addresses.
+                                                Some hardware wallets (notably <strong>Ledger Live</strong>) export all keys as <code>xpub</code>,
+                                                even for SegWit accounts.
+                                            </Text>
+                                            <Text>
+                                                <strong>Solution:</strong> Re-export your key as a <strong>zpub</strong> (for Native SegWit / bc1q)
+                                                or <strong>ypub</strong> (for SegWit / 3-prefix addresses). You can do this by:
+                                            </Text>
+                                            <ul style={{margin: "4px 0", paddingLeft: 20}}>
+                                                <li>Opening your Bitcoin wallet in <strong>Electrum</strong> or <strong>Sparrow Wallet</strong> (both export zpub correctly)</li>
+                                                <li>Using CryptoLink's <a href="/xpub-extractor.html" target="_blank" rel="noopener noreferrer">Offline Key Extractor</a> tool</li>
+                                                <li>Checking if your wallet software has a "show zpub" option in advanced settings</li>
+                                            </ul>
+                                            <Text type="secondary" style={{fontSize: 12}}>
+                                                Technical detail: CryptoLink uses the key's 4-byte version prefix (SLIP-0132) to determine the address
+                                                format. <code>zpub</code> = BIP84 (bc1q), <code>ypub</code> = BIP49 (3-prefix), <code>xpub</code> = BIP44 (1-prefix).
+                                            </Text>
+                                        </Space>
+                                    }
+                                    type="warning"
+                                    showIcon
+                                    style={{marginBottom: 16}}
+                                />
+                                <Space>
+                                    <Button
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={handleVerifyDelete}
+                                    >
+                                        Delete &amp; Re-import
+                                    </Button>
+                                    <Button onClick={() => {
+                                        api.info({message: "Wallet kept as-is", placement: "bottomRight"});
+                                        resetState();
+                                    }}>
+                                        Keep Anyway
+                                    </Button>
+                                </Space>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <Alert
+                        message="Could not derive verification address"
+                        description="The wallet was saved successfully but we couldn't derive a test address. You can verify later in the wallet details view."
+                        type="warning"
+                        showIcon
+                        action={<Button onClick={resetState}>Continue</Button>}
+                        style={{marginBottom: 16}}
+                    />
+                )}
+            </Card>
+        );
+    };
 
     if (loading) {
         return (
@@ -1086,6 +1391,7 @@ const WalletSetupPage: React.FC = () => {
                     {mode === "overview" && renderOverview()}
                     {mode === "detail" && renderDetailMode()}
                     {mode === "import" && renderImportMode()}
+                    {mode === "verify" && renderVerifyMode()}
                 </div>
             ),
         },

@@ -84,6 +84,7 @@ func (app *App) RunServer() {
 	dashboardAuthHandler := merchantauth.NewHandler(
 		app.services.GoogleAuth(),
 		app.services.UserService(),
+		app.services.EmailService(),
 		app.config.Oxygen.Auth.EnabledProviders(),
 		app.Logger(),
 	)
@@ -93,6 +94,7 @@ func (app *App) RunServer() {
 		app.services.MerchantService(),
 		app.services.BlockchainService(),
 		app.services.ProcessingService(),
+		app.services.ContactService(),
 		app.Logger(),
 	)
 
@@ -108,6 +110,7 @@ func (app *App) RunServer() {
 		app.services.PaymentService(),
 		app.services.MerchantService(),
 		app.services.UserService(),
+		app.services.ContactService(),
 		app.config.Oxygen.Subscription.AdminMerchantID,
 		app.Logger(),
 	)
@@ -170,7 +173,10 @@ func (app *App) RunServer() {
 			return nil
 		}
 
-		u, err := app.services.UserService().Register(ctx, cfg.FirstUserEmail, cfg.FirstUserPass, "")
+		u, err := app.services.UserService().Register(ctx, user.RegisterParams{
+			Email:    cfg.FirstUserEmail,
+			Password: cfg.FirstUserPass,
+		})
 		switch {
 		case errors.Is(err, user.ErrAlreadyExists):
 			app.Logger().Info().Msg("Skipped user registration from config: already exists")

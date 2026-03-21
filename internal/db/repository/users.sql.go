@@ -14,35 +14,64 @@ import (
 	"github.com/jackc/pgtype"
 )
 
+const userColumns = `id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin, company_name, address, website, phone, email_verified, verification_token, verification_token_expires, marketing_consent, terms_accepted_at`
+
+func scanUser(row interface{ Scan(...interface{}) error }, i *User) error {
+	return row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Uuid,
+		&i.GoogleID,
+		&i.ProfileImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Settings,
+		&i.Password,
+		&i.IsSuperAdmin,
+		&i.CompanyName,
+		&i.Address,
+		&i.Website,
+		&i.Phone,
+		&i.EmailVerified,
+		&i.VerificationToken,
+		&i.VerificationTokenExpires,
+		&i.MarketingConsent,
+		&i.TermsAcceptedAt,
+	)
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
-    name,
-    email,
-    password,
-    uuid,
-    google_id,
-    profile_image_url,
-    is_super_admin,
-    created_at,
-    updated_at,
-    deleted_at,
-    settings
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin
-`
+    name, email, password, uuid, google_id, profile_image_url,
+    is_super_admin, created_at, updated_at, deleted_at, settings,
+    company_name, address, website, phone, email_verified,
+    verification_token, verification_token_expires, marketing_consent, terms_accepted_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+RETURNING ` + userColumns
 
 type CreateUserParams struct {
-	Name            string
-	Email           string
-	Password        sql.NullString
-	Uuid            uuid.UUID
-	GoogleID        sql.NullString
-	ProfileImageUrl sql.NullString
-	IsSuperAdmin    sql.NullBool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	DeletedAt       sql.NullTime
-	Settings        pgtype.JSONB
+	Name                     string
+	Email                    string
+	Password                 sql.NullString
+	Uuid                     uuid.UUID
+	GoogleID                 sql.NullString
+	ProfileImageUrl          sql.NullString
+	IsSuperAdmin             sql.NullBool
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	DeletedAt                sql.NullTime
+	Settings                 pgtype.JSONB
+	CompanyName              sql.NullString
+	Address                  sql.NullString
+	Website                  sql.NullString
+	Phone                    sql.NullString
+	EmailVerified            sql.NullBool
+	VerificationToken        sql.NullString
+	VerificationTokenExpires sql.NullTime
+	MarketingConsent         sql.NullBool
+	TermsAcceptedAt          sql.NullTime
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -58,22 +87,18 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.UpdatedAt,
 		arg.DeletedAt,
 		arg.Settings,
+		arg.CompanyName,
+		arg.Address,
+		arg.Website,
+		arg.Phone,
+		arg.EmailVerified,
+		arg.VerificationToken,
+		arg.VerificationTokenExpires,
+		arg.MarketingConsent,
+		arg.TermsAcceptedAt,
 	)
 	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Email,
-		&i.Uuid,
-		&i.GoogleID,
-		&i.ProfileImageUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.Settings,
-		&i.Password,
-		&i.IsSuperAdmin,
-	)
+	err := scanUser(row, &i)
 	return i, err
 }
 
@@ -88,7 +113,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 }
 
 const getSuperAdmins = `-- name: GetSuperAdmins :many
-SELECT id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin FROM users
+SELECT ` + userColumns + ` FROM users
 WHERE is_super_admin = true
 AND deleted_at is null
 ORDER BY id ASC
@@ -103,20 +128,7 @@ func (q *Queries) GetSuperAdmins(ctx context.Context) ([]User, error) {
 	var items []User
 	for rows.Next() {
 		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Email,
-			&i.Uuid,
-			&i.GoogleID,
-			&i.ProfileImageUrl,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Settings,
-			&i.Password,
-			&i.IsSuperAdmin,
-		); err != nil {
+		if err := scanUser(rows, &i); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -128,82 +140,43 @@ func (q *Queries) GetSuperAdmins(ctx context.Context) ([]User, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin FROM users
+SELECT ` + userColumns + ` FROM users
 WHERE email = $1 LIMIT 1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Email,
-		&i.Uuid,
-		&i.GoogleID,
-		&i.ProfileImageUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.Settings,
-		&i.Password,
-		&i.IsSuperAdmin,
-	)
+	err := scanUser(row, &i)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin FROM users
+SELECT ` + userColumns + ` FROM users
 WHERE google_id = $1 LIMIT 1
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID sql.NullString) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByGoogleID, googleID)
 	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Email,
-		&i.Uuid,
-		&i.GoogleID,
-		&i.ProfileImageUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.Settings,
-		&i.Password,
-		&i.IsSuperAdmin,
-	)
+	err := scanUser(row, &i)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin FROM users
+SELECT ` + userColumns + ` FROM users
 WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Email,
-		&i.Uuid,
-		&i.GoogleID,
-		&i.ProfileImageUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.Settings,
-		&i.Password,
-		&i.IsSuperAdmin,
-	)
+	err := scanUser(row, &i)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin FROM users
+SELECT ` + userColumns + ` FROM users
 ORDER BY id desc
 `
 
@@ -216,20 +189,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	var items []User
 	for rows.Next() {
 		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Email,
-			&i.Uuid,
-			&i.GoogleID,
-			&i.ProfileImageUrl,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Settings,
-			&i.Password,
-			&i.IsSuperAdmin,
-		); err != nil {
+		if err := scanUser(rows, &i); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -256,10 +216,13 @@ UPDATE users
 SET name = $2,
     profile_image_url= $3,
     google_id = CASE WHEN $6::boolean THEN $4 ELSE users.google_id END,
-    updated_at = $5
+    updated_at = $5,
+    company_name = CASE WHEN $7::text IS NOT NULL THEN $7 ELSE users.company_name END,
+    address = CASE WHEN $8::text IS NOT NULL THEN $8 ELSE users.address END,
+    website = CASE WHEN $9::text IS NOT NULL THEN $9 ELSE users.website END,
+    phone = CASE WHEN $10::text IS NOT NULL THEN $10 ELSE users.phone END
 WHERE id = $1
-RETURNING id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin
-`
+RETURNING ` + userColumns
 
 type UpdateUserParams struct {
 	ID              int64
@@ -268,6 +231,10 @@ type UpdateUserParams struct {
 	GoogleID        sql.NullString
 	UpdatedAt       time.Time
 	SetGoogleID     bool
+	CompanyName     sql.NullString
+	Address         sql.NullString
+	Website         sql.NullString
+	Phone           sql.NullString
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -278,22 +245,13 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.GoogleID,
 		arg.UpdatedAt,
 		arg.SetGoogleID,
+		arg.CompanyName,
+		arg.Address,
+		arg.Website,
+		arg.Phone,
 	)
 	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Email,
-		&i.Uuid,
-		&i.GoogleID,
-		&i.ProfileImageUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.Settings,
-		&i.Password,
-		&i.IsSuperAdmin,
-	)
+	err := scanUser(row, &i)
 	return i, err
 }
 
@@ -302,8 +260,7 @@ UPDATE users
 SET password = $2,
     updated_at = $3
 WHERE id = $1
-RETURNING id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin
-`
+RETURNING ` + userColumns
 
 type UpdateUserPasswordParams struct {
 	ID        int64
@@ -314,19 +271,44 @@ type UpdateUserPasswordParams struct {
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUserPassword, arg.ID, arg.Password, arg.UpdatedAt)
 	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Email,
-		&i.Uuid,
-		&i.GoogleID,
-		&i.ProfileImageUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.Settings,
-		&i.Password,
-		&i.IsSuperAdmin,
-	)
+	err := scanUser(row, &i)
 	return i, err
+}
+
+// -- Email verification queries --
+
+const setVerificationToken = `-- name: SetVerificationToken :exec
+UPDATE users
+SET verification_token = $2, verification_token_expires = $3, updated_at = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) SetVerificationToken(ctx context.Context, id int64, token sql.NullString, expires sql.NullTime) error {
+	_, err := q.db.Exec(ctx, setVerificationToken, id, token, expires)
+	return err
+}
+
+const getUserByVerificationToken = `-- name: GetUserByVerificationToken :one
+SELECT ` + userColumns + ` FROM users
+WHERE verification_token = $1
+AND verification_token_expires > NOW()
+LIMIT 1
+`
+
+func (q *Queries) GetUserByVerificationToken(ctx context.Context, token string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByVerificationToken, token)
+	var i User
+	err := scanUser(row, &i)
+	return i, err
+}
+
+const updateEmailVerified = `-- name: UpdateEmailVerified :exec
+UPDATE users
+SET email_verified = true, verification_token = NULL, verification_token_expires = NULL, updated_at = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) UpdateEmailVerified(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, updateEmailVerified, id)
+	return err
 }

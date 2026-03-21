@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
@@ -100,6 +101,9 @@ func (h *Handler) GetMerchant(c echo.Context) error {
 		return err
 	}
 
+	fiatCurrency := mt.Settings().FiatCurrency()
+	fiatSymbol := money.FiatSymbol(money.FiatCurrency(fiatCurrency))
+
 	return c.JSON(http.StatusOK, &model.Merchant{
 		ID:      mt.UUID.String(),
 		Name:    mt.Name,
@@ -108,6 +112,8 @@ func (h *Handler) GetMerchant(c echo.Context) error {
 			Secret: mt.Settings().WebhookSignatureSecret(),
 			URL:    mt.Settings().WebhookURL(),
 		},
+		FiatCurrency:       fiatCurrency,
+		FiatCurrencySymbol: fiatSymbol,
 		SupportedPaymentMethods: util.MapSlice(methods, func(sc merchant.SupportedCurrency) *model.SupportedPaymentMethod {
 			return &model.SupportedPaymentMethod{
 				Blockchain:     sc.Currency.Blockchain.String(),

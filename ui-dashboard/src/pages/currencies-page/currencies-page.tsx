@@ -21,6 +21,7 @@ import {useMount} from "react-use";
 import useSharedMerchant from "src/hooks/use-merchant";
 import useSharedMerchantId from "src/hooks/use-merchant-id";
 import merchantProvider from "src/providers/merchant-provider";
+import {FIAT_CURRENCY_OPTIONS, fiatSymbol} from "src/utils/format-fiat";
 
 const {Title, Text, Paragraph} = Typography;
 
@@ -198,11 +199,10 @@ const CurrenciesPage: React.FC = () => {
                 <Select
                     value={preferredCurrency}
                     onChange={setPreferredCurrency}
-                    style={{width: 200}}
-                    options={[
-                        {label: "USD — US Dollar", value: "USD"},
-                        {label: "EUR — Euro", value: "EUR"}
-                    ]}
+                    style={{width: 320}}
+                    showSearch
+                    optionFilterProp="label"
+                    options={FIAT_CURRENCY_OPTIONS}
                 />
             </Card>
 
@@ -216,8 +216,8 @@ const CurrenciesPage: React.FC = () => {
                 </Title>
                 <Paragraph type="secondary">
                     Set a global markup percentage applied to all crypto payments. The customer sees{" "}
-                    <Text strong>$100</Text> on the payment page, but the crypto amount calculated equals{" "}
-                    <Text strong>$100 + fee%</Text>. This buffer covers crypto volatility and network conversion
+                    <Text strong>{fiatSymbol(preferredCurrency)}100</Text> on the payment page, but the crypto amount calculated equals{" "}
+                    <Text strong>{fiatSymbol(preferredCurrency)}100 + fee%</Text>. This buffer covers crypto volatility and network conversion
                     costs.
                 </Paragraph>
                 <Paragraph type="secondary" style={{fontStyle: "italic"}}>

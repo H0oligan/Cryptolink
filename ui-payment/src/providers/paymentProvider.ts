@@ -5,6 +5,7 @@ interface CurrencyConvertParams {
     fiatCurrency: string;
     fiatAmount: string;
     cryptoCurrency: string;
+    paymentId?: string;
 }
 
 const PAYMENT_BASE_PATH = "/api/payment/v1";
@@ -45,7 +46,7 @@ const paymentProvider = {
         return response.data;
     },
 
-    async setCustomer(paymentId: string, params: {email: string}): Promise<Customer> {
+    async setCustomer(paymentId: string, params: {email: string; marketingConsent: boolean; termsAccepted: boolean}): Promise<Customer> {
         const response = await apiRequest.post(PAYMENT_BASE_PATH + `/payment/${paymentId}/customer`, params);
         return response.data;
     },

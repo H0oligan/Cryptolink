@@ -29,7 +29,10 @@ func createUser(_ *cobra.Command, args []string) {
 		email, pass = args[0], args[1]
 	)
 
-	u, err := users.Register(ctx, email, pass, "")
+	u, err := users.Register(ctx, user.RegisterParams{
+		Email:    email,
+		Password: pass,
+	})
 
 	switch {
 	case errors.Is(err, user.ErrAlreadyExists):

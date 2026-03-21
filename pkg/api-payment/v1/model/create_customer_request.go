@@ -23,6 +23,12 @@ type CreateCustomerRequest struct {
 	// Example: me@you.com
 	// Required: true
 	Email string `json:"email"`
+
+	// MarketingConsent - opt-in for CryptoLink marketing (GDPR)
+	MarketingConsent bool `json:"marketingConsent"`
+
+	// TermsAccepted - must accept Terms of Service (GDPR required)
+	TermsAccepted bool `json:"termsAccepted"`
 }
 
 // Validate validates this create customer request

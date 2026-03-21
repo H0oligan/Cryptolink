@@ -214,18 +214,27 @@ type UsageTracking struct {
 }
 
 type User struct {
-	ID              int64
-	Name            string
-	Email           string
-	Uuid            uuid.UUID
-	GoogleID        sql.NullString
-	ProfileImageUrl sql.NullString
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	DeletedAt       sql.NullTime
-	Settings        pgtype.JSONB
-	Password        sql.NullString
-	IsSuperAdmin    sql.NullBool
+	ID                       int64
+	Name                     string
+	Email                    string
+	Uuid                     uuid.UUID
+	GoogleID                 sql.NullString
+	ProfileImageUrl          sql.NullString
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	DeletedAt                sql.NullTime
+	Settings                 pgtype.JSONB
+	Password                 sql.NullString
+	IsSuperAdmin             sql.NullBool
+	CompanyName              sql.NullString
+	Address                  sql.NullString
+	Website                  sql.NullString
+	Phone                    sql.NullString
+	EmailVerified            sql.NullBool
+	VerificationToken        sql.NullString
+	VerificationTokenExpires sql.NullTime
+	MarketingConsent         sql.NullBool
+	TermsAcceptedAt          sql.NullTime
 }
 
 type XpubWallet struct {

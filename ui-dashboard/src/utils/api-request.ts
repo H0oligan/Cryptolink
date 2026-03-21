@@ -13,6 +13,14 @@ const apiRequest = axios.create({
     withCredentials: true
 });
 
+// Block requests with null/undefined in the URL (e.g. /merchant/null/token)
+apiRequest.interceptors.request.use((config) => {
+    if (config.url && /\/null(\/|$)|\/undefined(\/|$)/.test(config.url)) {
+        return Promise.reject(new axios.Cancel("Blocked request with null/undefined in URL: " + config.url));
+    }
+    return config;
+});
+
 apiRequest.interceptors.response.use(undefined, async (error: AxiosError) => {
     if (!error.response) {
         return;

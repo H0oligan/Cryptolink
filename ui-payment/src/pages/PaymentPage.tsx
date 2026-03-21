@@ -13,13 +13,18 @@ import CopyButton from "src/components/CopyButton";
 import ProgressCircle from "src/components/ProgressCircle";
 import DropDown, {DropDownItem} from "src/components/DropDown";
 import renderConvertedResult from "src/utils/renderConvertedResult";
+import renderCurrency from "src/utils/renderCurrency";
 
 const schema = Yup.object({
-    email: Yup.string().email().required("Please fill an email")
+    email: Yup.string().email().required("Please fill an email"),
+    marketingConsent: Yup.boolean(),
+    termsAccepted: Yup.boolean().oneOf([true], "You must accept the Terms of Service")
 });
 
 interface EmailForm {
     email: string;
+    marketingConsent: boolean;
+    termsAccepted: boolean;
 }
 
 const PaymentPage: React.FC = () => {
@@ -50,7 +55,9 @@ const PaymentPage: React.FC = () => {
 
     const formikConfig = useFormik({
         initialValues: {
-            email: ""
+            email: "",
+            marketingConsent: false,
+            termsAccepted: false
         },
         onSubmit: async () => {
             if (!payment || !paymentMethod || !emailFilled || !currencyChosen) {
@@ -76,7 +83,8 @@ const PaymentPage: React.FC = () => {
             const response = await paymentProvider.currencyConvert({
                 fiatCurrency: payment.currency,
                 fiatAmount: String(payment.price),
-                cryptoCurrency: params.cryptoCurrency
+                cryptoCurrency: params.cryptoCurrency,
+                paymentId: payment.id
             });
 
             setConvertResult(response);
@@ -103,7 +111,7 @@ const PaymentPage: React.FC = () => {
         }
 
         if (payment.customer) {
-            formikConfig.resetForm({values: {email: payment.customer.email}});
+            formikConfig.resetForm({values: {email: payment.customer.email, marketingConsent: true, termsAccepted: true}});
             setEmailFilled(true);
         }
 
@@ -171,18 +179,14 @@ const PaymentPage: React.FC = () => {
         }
     };
 
-    const checkCustomer = async (e: React.FocusEvent<string, Element>, email: string) => {
-        formikConfig.handleBlur(e);
-
-        const error = formikConfig.errors["email"];
-
-        if (!payment?.id || !email || error) {
+    const submitCustomer = async (email: string, termsAccepted: boolean, marketingConsent: boolean) => {
+        if (!payment?.id || !email || !termsAccepted) {
             setEmailFilled(false);
             return;
         }
 
         try {
-            await paymentProvider.setCustomer(payment.id, {email});
+            await paymentProvider.setCustomer(payment.id, {email, marketingConsent, termsAccepted});
             setEmailFilled(true);
         } catch (error) {
             setEmailFilled(false);
@@ -190,20 +194,19 @@ const PaymentPage: React.FC = () => {
         }
     };
 
+    const checkCustomer = async (e: React.FocusEvent<string, Element>, email: string) => {
+        formikConfig.handleBlur(e);
+        const error = formikConfig.errors["email"];
+        if (error) {
+            setEmailFilled(false);
+            return;
+        }
+        await submitCustomer(email, formikConfig.values.termsAccepted, formikConfig.values.marketingConsent);
+    };
+
     const getPrice = () => {
         if (payment !== undefined) {
-            if (payment.currency === undefined || payment.price === undefined) {
-                return;
-            }
-
-            if (payment.currency === "USD") {
-                return `$${payment.price.toFixed(2)}`;
-            }
-            if (payment.currency === "EUR") {
-                return `€${payment.price.toFixed(2)}`;
-            }
-
-            return `${payment.price} ${payment.currency}`;
+            return renderCurrency(payment.currency, payment.price);
         }
     };
 
@@ -255,6 +258,7 @@ const PaymentPage: React.FC = () => {
     const submitButtonDisabled = Boolean(
         formikConfig.errors["email"] ||
             formikConfig.values.email === "" ||
+            !formikConfig.values.termsAccepted ||
             !paymentMethod ||
             !emailFilled ||
             !currencyChosen
@@ -331,6 +335,11 @@ const PaymentPage: React.FC = () => {
                         textToCopy={payment.paymentInfo.amountFormatted}
                         displayText={payment.paymentInfo.amountFormatted + " " + payment.paymentMethod.displayName}
                     />
+                    {payment.feePercent !== undefined && payment.feePercent > 0 && (
+                        <p className="text-center text-xs text-card-desc mt-2 opacity-70">
+                            Includes {payment.feePercent}% volatility fees set by merchant
+                        </p>
+                    )}
                 </>
             )}
 
@@ -376,18 +385,53 @@ const PaymentPage: React.FC = () => {
                             error={!!formikConfig.errors["email"]}
                             value={formikConfig.values.email}
                         />
-                        <span
-                            className={`block font-medium text-center ${
-                                convertResult ? "text-4xl text-[40px] mb-3" : "text-3xl mb-4"
-                            }`}
-                        >
+                        <div className="mb-4 px-1 space-y-2">
+                            <label className="flex items-start gap-2 cursor-pointer text-xs text-card-desc">
+                                <input
+                                    type="checkbox"
+                                    name="marketingConsent"
+                                    checked={formikConfig.values.marketingConsent}
+                                    onChange={formikConfig.handleChange}
+                                    className="mt-0.5 accent-[#10b981]"
+                                />
+                                <span>I agree to receive marketing communications from CryptoLink</span>
+                            </label>
+                            <label className="flex items-start gap-2 cursor-pointer text-xs text-card-desc">
+                                <input
+                                    type="checkbox"
+                                    name="termsAccepted"
+                                    checked={formikConfig.values.termsAccepted}
+                                    onChange={(e) => {
+                                        formikConfig.handleChange(e);
+                                        if (e.target.checked) {
+                                            const email = formikConfig.values.email;
+                                            if (email && !formikConfig.errors["email"]) {
+                                                submitCustomer(email, true, formikConfig.values.marketingConsent);
+                                            }
+                                        } else {
+                                            setEmailFilled(false);
+                                        }
+                                    }}
+                                    className="mt-0.5 accent-[#10b981]"
+                                />
+                                <span>
+                                    I accept the{" "}
+                                    <a href="https://cryptolink.cc/terms" target="_blank" rel="noopener noreferrer" className="text-[#10b981] hover:underline">
+                                        Terms of Service
+                                    </a>{" "}
+                                    and{" "}
+                                    <a href="https://cryptolink.cc/privacy" target="_blank" rel="noopener noreferrer" className="text-[#10b981] hover:underline">
+                                        Privacy Policy
+                                    </a>
+                                </span>
+                            </label>
+                            {formikConfig.touched.termsAccepted && formikConfig.errors.termsAccepted && (
+                                <p className="text-xs text-red-400 mt-1">{formikConfig.errors.termsAccepted}</p>
+                            )}
+                        </div>
+                        <span className="block font-medium text-center text-3xl mb-4">
                             {getPrice()}
                         </span>
-                        {convertResult && paymentMethod && (
-                            <span className="block font-medium text-center text-lg mb-4">
-                                {convertedResultRendered ? convertedResultRendered : "loading.."}
-                            </span>
-                        )}
                         <div className="mx-auto flex items-center justify-center">
                             <button
                                 className={`relative ${

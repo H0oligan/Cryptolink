@@ -33,6 +33,8 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateXpubWallet(ctx context.Context, arg CreateXpubWalletParams) (XpubWallet, error)
 	DeactivateXpubWallet(ctx context.Context, arg DeactivateXpubWalletParams) error
+	DeleteDerivedAddressesByWalletID(ctx context.Context, walletID int64) error
+	HardDeleteXpubWallet(ctx context.Context, id int64) error
 	DeleteAPITokenByID(ctx context.Context, id int64) error
 	DeleteAPITokenByToken(ctx context.Context, token string) error
 	DeletePaymentLinkByPublicID(ctx context.Context, arg DeletePaymentLinkByPublicIDParams) error
@@ -128,6 +130,9 @@ type Querier interface {
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error)
 	UpdateXpubWalletLastIndex(ctx context.Context, arg UpdateXpubWalletLastIndexParams) (XpubWallet, error)
+	SetVerificationToken(ctx context.Context, id int64, token sql.NullString, expires sql.NullTime) error
+	GetUserByVerificationToken(ctx context.Context, token string) (User, error)
+	UpdateEmailVerified(ctx context.Context, id int64) error
 	GetXpubWalletByMerchantAndBlockchainAny(ctx context.Context, arg GetXpubWalletByMerchantAndBlockchainParams) (XpubWallet, error)
 	ReactivateXpubWallet(ctx context.Context, arg ReactivateXpubWalletParams) (XpubWallet, error)
 }

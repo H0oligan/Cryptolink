@@ -760,10 +760,6 @@ func (s *Service) pollTRONTransactions(
 			continue
 		}
 
-		// Only match on-chain transactions that occurred AFTER the pending
-		// transaction was created, to avoid picking up old/test transfers.
-		txCreatedAtMs := tx.CreatedAt.UnixMilli()
-
 		if tx.Currency.Type == money.Coin {
 			// TRX native transfer — query recent native transactions
 			recentTxs, err := s.tron.GetAccountTransactions(ctx, addr, isTest, 10)
@@ -779,10 +775,6 @@ func (s *Service) pollTRONTransactions(
 					continue
 				}
 				if rtx.Type != "TransferContract" {
-					continue
-				}
-				// Skip transactions that happened before this payment was created
-				if rtx.Timestamp > 0 && rtx.Timestamp < txCreatedAtMs {
 					continue
 				}
 
@@ -837,10 +829,6 @@ func (s *Service) pollTRONTransactions(
 					continue
 				}
 				if !strings.EqualFold(rtx.TokenAddress, tokenContract) {
-					continue
-				}
-				// Skip transactions that happened before this payment was created
-				if rtx.Timestamp > 0 && rtx.Timestamp < txCreatedAtMs {
 					continue
 				}
 

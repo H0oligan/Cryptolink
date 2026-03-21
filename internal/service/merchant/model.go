@@ -2,6 +2,7 @@ package merchant
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ const (
 	PropertyWebhookURL      = "webhook.url"
 	PropertySignatureSecret = "webhook.secret"
 	PropertyPaymentMethods  = "payment.methods"
+	PropertyFiatCurrency    = "fiat.currency"
 )
 
 func (m *Merchant) Settings() Settings {
@@ -49,6 +51,28 @@ func (s Settings) PaymentMethods() []string {
 	}
 
 	return strings.Split(raw, ",")
+}
+
+// FiatCurrency returns the merchant's chosen billing fiat currency code. Defaults to "USD".
+func (s Settings) FiatCurrency() string {
+	if v := s[PropertyFiatCurrency]; v != "" {
+		return v
+	}
+	return "USD"
+}
+
+// GlobalFeePercent returns the merchant's volatility buffer fee as a float (e.g. 2.5 for 2.5%).
+// Returns 0 if not set or invalid.
+func (s Settings) GlobalFeePercent() float64 {
+	raw := s[Property("fee.global")]
+	if raw == "" {
+		return 0
+	}
+	val, err := strconv.ParseFloat(raw, 64)
+	if err != nil || val <= 0 || val > 100 {
+		return 0
+	}
+	return val
 }
 
 func (s Settings) toJSONB() pgtype.JSONB {

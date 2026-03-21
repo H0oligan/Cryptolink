@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sort"
 	"strings"
 
 	"github.com/cryptolink/cryptolink/internal/util"
@@ -13,13 +14,87 @@ import (
 // FIAT ------------------
 type FiatCurrency string
 
-const USD FiatCurrency = "USD"
-const EUR FiatCurrency = "EUR"
+const (
+	USD FiatCurrency = "USD"
+	EUR FiatCurrency = "EUR"
+	GBP FiatCurrency = "GBP"
+	CAD FiatCurrency = "CAD"
+	AUD FiatCurrency = "AUD"
+	CHF FiatCurrency = "CHF"
+	JPY FiatCurrency = "JPY"
+	CNY FiatCurrency = "CNY"
+	INR FiatCurrency = "INR"
+	BRL FiatCurrency = "BRL"
+	MXN FiatCurrency = "MXN"
+	KRW FiatCurrency = "KRW"
+	SGD FiatCurrency = "SGD"
+	HKD FiatCurrency = "HKD"
+	SEK FiatCurrency = "SEK"
+	NOK FiatCurrency = "NOK"
+	DKK FiatCurrency = "DKK"
+	PLN FiatCurrency = "PLN"
+	CZK FiatCurrency = "CZK"
+	TRY FiatCurrency = "TRY"
+	ZAR FiatCurrency = "ZAR"
+	NZD FiatCurrency = "NZD"
+	THB FiatCurrency = "THB"
+	AED FiatCurrency = "AED"
+	SAR FiatCurrency = "SAR"
+	RUB FiatCurrency = "RUB"
+)
+
+// FiatCurrencyInfo holds display metadata for a fiat currency.
+type FiatCurrencyInfo struct {
+	Code   FiatCurrency `json:"code"`
+	Symbol string       `json:"symbol"`
+	Name   string       `json:"name"`
+}
+
+// fiatCurrencyData is the single source of truth for all supported fiat currencies.
+var fiatCurrencyData = map[FiatCurrency]FiatCurrencyInfo{
+	USD: {Code: USD, Symbol: "$", Name: "US Dollar"},
+	EUR: {Code: EUR, Symbol: "€", Name: "Euro"},
+	GBP: {Code: GBP, Symbol: "£", Name: "British Pound"},
+	CAD: {Code: CAD, Symbol: "C$", Name: "Canadian Dollar"},
+	AUD: {Code: AUD, Symbol: "A$", Name: "Australian Dollar"},
+	CHF: {Code: CHF, Symbol: "Fr", Name: "Swiss Franc"},
+	JPY: {Code: JPY, Symbol: "¥", Name: "Japanese Yen"},
+	CNY: {Code: CNY, Symbol: "¥", Name: "Chinese Yuan"},
+	INR: {Code: INR, Symbol: "₹", Name: "Indian Rupee"},
+	BRL: {Code: BRL, Symbol: "R$", Name: "Brazilian Real"},
+	MXN: {Code: MXN, Symbol: "MX$", Name: "Mexican Peso"},
+	KRW: {Code: KRW, Symbol: "₩", Name: "Korean Won"},
+	SGD: {Code: SGD, Symbol: "S$", Name: "Singapore Dollar"},
+	HKD: {Code: HKD, Symbol: "HK$", Name: "Hong Kong Dollar"},
+	SEK: {Code: SEK, Symbol: "kr", Name: "Swedish Krona"},
+	NOK: {Code: NOK, Symbol: "kr", Name: "Norwegian Krone"},
+	DKK: {Code: DKK, Symbol: "kr", Name: "Danish Krone"},
+	PLN: {Code: PLN, Symbol: "zł", Name: "Polish Zloty"},
+	CZK: {Code: CZK, Symbol: "Kč", Name: "Czech Koruna"},
+	TRY: {Code: TRY, Symbol: "₺", Name: "Turkish Lira"},
+	ZAR: {Code: ZAR, Symbol: "R", Name: "South African Rand"},
+	NZD: {Code: NZD, Symbol: "NZ$", Name: "New Zealand Dollar"},
+	THB: {Code: THB, Symbol: "฿", Name: "Thai Baht"},
+	AED: {Code: AED, Symbol: "د.إ", Name: "UAE Dirham"},
+	SAR: {Code: SAR, Symbol: "﷼", Name: "Saudi Riyal"},
+	RUB: {Code: RUB, Symbol: "₽", Name: "Russian Ruble"},
+}
+
+// fiatCurrencies is the validation set derived from fiatCurrencyData.
+var fiatCurrencies map[FiatCurrency]struct{}
+
+func init() {
+	fiatCurrencies = make(map[FiatCurrency]struct{}, len(fiatCurrencyData))
+	for code := range fiatCurrencyData {
+		fiatCurrencies[code] = struct{}{}
+	}
+}
 
 const (
-	FiatDecimals = int64(2)
-	FiatMin      = float64(0.01)
-	FiatMax      = float64(10_000_000)
+	FiatDecimals    = int64(2)
+	FiatDecimalsJPY = int64(0)
+	FiatMin         = float64(0.01)
+	FiatMax         = float64(10_000_000)
 )
 
 var (
@@ -29,9 +104,36 @@ var (
 	ErrParse               = errors.New("unable to parse value")
 )
 
-var fiatCurrencies = map[FiatCurrency]struct{}{
-	USD: {},
-	EUR: {},
+// SupportedFiatCurrencies returns all supported fiat currencies sorted by code.
+func SupportedFiatCurrencies() []FiatCurrencyInfo {
+	result := make([]FiatCurrencyInfo, 0, len(fiatCurrencyData))
+	for _, info := range fiatCurrencyData {
+		result = append(result, info)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return string(result[i].Code) < string(result[j].Code)
+	})
+	return result
+}
+
+// FiatInfo returns the display info for a fiat currency. Returns empty info if not found.
+func FiatInfo(code FiatCurrency) (FiatCurrencyInfo, bool) {
+	info, ok := fiatCurrencyData[code]
+	return info, ok
+}
+
+// FiatSymbol returns the currency symbol for a fiat currency code (e.g. "$" for USD).
+func FiatSymbol(code FiatCurrency) string {
+	if info, ok := fiatCurrencyData[code]; ok {
+		return info.Symbol
+	}
+	return string(code)
+}
+
+// IsFiatCurrency returns true if the given string is a supported fiat currency.
+func IsFiatCurrency(s string) bool {
+	_, exists := fiatCurrencies[FiatCurrency(s)]
+	return exists
 }
 
 func (f FiatCurrency) String() string {
