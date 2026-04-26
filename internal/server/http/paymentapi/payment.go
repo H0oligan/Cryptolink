@@ -253,6 +253,11 @@ func (h *Handler) GetExchangeRate(c echo.Context) error {
 	fiatAmount, _ := conv.From.FiatToFloat64()
 	crypto, _ := h.blockchain.GetCurrencyByTicker(to)
 
+	// Truncate to display precision so the payment page shows clean amounts
+	if crypto.Decimals > 0 {
+		cryptoAmount = cryptoAmount.TruncateDecimals(crypto.MaxDisplayDecimals())
+	}
+
 	return c.JSON(http.StatusOK, &model.CurrencyExchangeRate{
 		FiatCurrency: conv.From.Ticker(),
 		FiatAmount:   fiatAmount,

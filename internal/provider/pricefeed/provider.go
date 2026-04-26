@@ -63,6 +63,7 @@ var binanceSymbols = map[string]string{
 	"MATIC":     "MATICUSDT",
 	"BNB":       "BNBUSDT",
 	"TRX":       "TRXUSDT",
+	"TRON":      "TRXUSDT", // currencies.json uses "TRON" as the native coin ticker
 	"AVAX":      "AVAXUSDT",
 	"USDT":      "USDTUSD",
 	"USDC":      "USDCUSDT",
@@ -84,6 +85,7 @@ var coinGeckoIDs = map[string]string{
 	"MATIC": "matic-network",
 	"BNB":   "binancecoin",
 	"TRX":   "tron",
+	"TRON":  "tron", // currencies.json uses "TRON" as the native coin ticker
 	"AVAX":  "avalanche-2",
 	"USDT":  "tether",
 	"USDC":  "usd-coin",
@@ -290,11 +292,22 @@ func (p *Provider) getCoinGeckoRate(ctx context.Context, selected, desired strin
 	}, nil
 }
 
+// binanceTickerAliases maps internal ticker names to their Binance symbol prefix.
+// currencies.json uses "TRON" for the native coin but Binance trades it as "TRX".
+var binanceTickerAliases = map[string]string{
+	"TRON": "TRX",
+}
+
 func resolveBinanceSymbol(selected, desired string) string {
 	// Resolve the base crypto ticker (e.g. "ETH_USDT" -> "USDT", "ETH" -> "ETH")
 	baseTicker := selected
 	if parts := strings.Split(selected, "_"); len(parts) == 2 {
 		baseTicker = parts[1] // e.g. "USDT" from "ETH_USDT"
+	}
+
+	// Normalize internal ticker names to Binance symbol prefixes (e.g. "TRON" → "TRX")
+	if alias, ok := binanceTickerAliases[baseTicker]; ok {
+		baseTicker = alias
 	}
 
 	// For non-USD fiat currencies (EUR, GBP, etc.), construct the pair directly.

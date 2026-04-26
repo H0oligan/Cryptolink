@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -301,13 +302,28 @@ func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64
 	fiatCode := mt.Settings().FiatCurrency()
 	fiatSymbol := money.FiatSymbol(money.FiatCurrency(fiatCode))
 
+	// Compute fee-inclusive fiat amount for the merchant email.
+	// The merchant should see the real value of crypto received (original price + fee markup).
+	merchantFiatStr := tx.USDAmount.String()
+	pt, ptErr := s.payments.GetByID(ctx, merchantID, tx.EntityID)
+	if ptErr == nil {
+		if fiatPrice, fiatErr := pt.Price.FiatToFloat64(); fiatErr == nil {
+			feePercent := mt.Settings().GlobalFeePercent()
+			if feePercent > 0 {
+				merchantFiatStr = fmt.Sprintf("%.2f", fiatPrice*(1+feePercent/100))
+			} else {
+				merchantFiatStr = fmt.Sprintf("%.2f", fiatPrice)
+			}
+		}
+	}
+
 	params := email.PaymentReceivedParams{
 		MerchantEmail:    merchantEmail,
 		MerchantName:     mt.Name,
 		TxHash:           wh.TransactionID,
 		Amount:           wh.Amount,
 		Ticker:           currency.Ticker,
-		USDAmount:        tx.USDAmount.String(),
+		USDAmount:        merchantFiatStr,
 		FiatSymbol:       fiatSymbol,
 		FiatCode:         fiatCode,
 		SenderAddress:    wh.Sender,

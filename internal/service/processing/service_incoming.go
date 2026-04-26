@@ -415,6 +415,21 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 	fiatCode := mt.Settings().FiatCurrency()
 	fiatSymbol := money.FiatSymbol(money.FiatCurrency(fiatCode))
 
+	// Compute fiat amounts for emails:
+	// - Merchant sees the REAL value received (invoice price + fee markup)
+	// - Customer sees the original invoice amount (no fees)
+	invoiceFiatStr := tx.USDAmount.String() // fallback
+	merchantFiatStr := tx.USDAmount.String()
+	if fiatPrice, fiatErr := pt.Price.FiatToFloat64(); fiatErr == nil {
+		invoiceFiatStr = fmt.Sprintf("%.2f", fiatPrice)
+		feePercent := mt.Settings().GlobalFeePercent()
+		if feePercent > 0 {
+			merchantFiatStr = fmt.Sprintf("%.2f", fiatPrice*(1+feePercent/100))
+		} else {
+			merchantFiatStr = invoiceFiatStr
+		}
+	}
+
 	merchantEmail, err := s.emailService.GetMerchantEmail(ctx, tx.MerchantID)
 	if err != nil || merchantEmail == "" {
 		s.logger.Warn().Err(err).Int64("merchant_id", tx.MerchantID).Msg("no merchant email found for payment notification")
@@ -448,7 +463,7 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 			TxHash:           txHash,
 			Amount:           factAmount,
 			Ticker:           tx.Currency.Ticker,
-			USDAmount:        tx.USDAmount.String(),
+			USDAmount:        merchantFiatStr,
 			FiatSymbol:       fiatSymbol,
 			FiatCode:         fiatCode,
 			SenderAddress:    senderAddr,
@@ -482,12 +497,13 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 		factAmount = tx.FactAmount.String()
 	}
 
+	// Customer email shows the original invoice amount (no fees)
 	s.emailService.SendCustomerPaymentConfirmation(ctx, email.CustomerPaymentConfirmParams{
 		CustomerEmail: customerEmail,
 		MerchantName:  mt.Name,
 		Amount:        factAmount,
 		Ticker:        tx.Currency.Ticker,
-		USDAmount:     tx.USDAmount.String(),
+		USDAmount:     invoiceFiatStr,
 		FiatSymbol:    fiatSymbol,
 		FiatCode:      fiatCode,
 		TxHash:        txHash,

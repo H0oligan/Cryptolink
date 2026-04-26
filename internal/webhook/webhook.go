@@ -54,7 +54,8 @@ func Send(ctx context.Context, destination, secret string, data any) error {
 		return errors.Wrap(ErrInvalidInput, err.Error())
 	}
 
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "CryptoLink-Webhook/1.0")
 	if errSign := SignRequest(req, body, secret); errSign != nil {
 		return errors.Wrap(ErrInvalidInput, errSign.Error())
 	}

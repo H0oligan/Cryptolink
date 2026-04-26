@@ -58,16 +58,16 @@ func DefaultConfig() Config {
 			Extra:    []string{"https://eth.llamarpc.com", "https://rpc.ankr.com/eth"},
 		},
 		MATIC: ChainRPC{
-			Mainnet:  "https://polygon-rpc.com",
+			Mainnet:  "https://polygon-bor-rpc.publicnode.com",
 			Testnet:  "https://rpc-mumbai.maticvigil.com",
-			Fallback: "https://rpc.ankr.com/polygon",
-			Extra:    []string{"https://polygon-bor-rpc.publicnode.com", "https://1rpc.io/matic"},
+			Fallback: "https://1rpc.io/matic",
+			Extra:    []string{"https://polygon-rpc.com"},
 		},
 		BSC: ChainRPC{
-			Mainnet:  "https://bsc-dataseed.binance.org",
+			Mainnet:  "https://bsc-rpc.publicnode.com",
 			Testnet:  "https://data-seed-prebsc-1-s1.binance.org:8545",
-			Fallback: "https://rpc.ankr.com/bsc",
-			Extra:    []string{"https://bsc-dataseed1.defibit.io", "https://bsc-dataseed2.binance.org"},
+			Fallback: "https://1rpc.io/bnb",
+			Extra:    []string{"https://bsc-dataseed.binance.org", "https://bsc-dataseed1.defibit.io"},
 		},
 		ARBITRUM: ChainRPC{
 			Mainnet:  "https://arb1.arbitrum.io/rpc",

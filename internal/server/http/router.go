@@ -10,6 +10,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/auth"
 	v1 "github.com/cryptolink/cryptolink/internal/server/http/internalapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/emailapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/marketingapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/merchantapi"
 	merchantauth "github.com/cryptolink/cryptolink/internal/server/http/merchantapi/auth"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -26,6 +27,7 @@ func WithDashboardAPI(
 	authHandler *merchantauth.Handler,
 	subscriptionHandler *subscriptionapi.Handler,
 	emailHandler *emailapi.Handler,
+	marketingHandler *marketingapi.Handler,
 	tokensManager *auth.TokenAuthManager,
 	users *user.Service,
 	enableEmailAuth bool,
@@ -165,6 +167,19 @@ func WithDashboardAPI(
 		// Admin contacts routes
 		adminGroup.GET("/contacts", subscriptionHandler.ListAllContacts)
 		adminGroup.GET("/contacts/export", subscriptionHandler.ExportContacts)
+
+		// Admin marketing routes
+		adminGroup.GET("/marketing/templates", marketingHandler.ListTemplates)
+		adminGroup.GET("/marketing/templates/:templateId", marketingHandler.GetTemplate)
+		adminGroup.GET("/marketing/campaigns", marketingHandler.ListCampaigns)
+		adminGroup.POST("/marketing/campaigns", marketingHandler.CreateCampaign)
+		adminGroup.GET("/marketing/campaigns/:campaignId", marketingHandler.GetCampaign)
+		adminGroup.GET("/marketing/campaigns/:campaignId/recipients", marketingHandler.GetCampaignRecipients)
+		adminGroup.POST("/marketing/campaigns/:campaignId/send", marketingHandler.SendCampaign)
+		adminGroup.GET("/marketing/quota", marketingHandler.GetQuota)
+
+		// Public unsubscribe route (no auth)
+		dashboardAPI.GET("/marketing/unsubscribe", marketingHandler.Unsubscribe)
 
 		// Admin collector factory routes
 		adminGroup.GET("/collector-factories", handler.ListCollectorFactories)

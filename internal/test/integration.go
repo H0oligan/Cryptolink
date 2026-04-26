@@ -215,6 +215,7 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 			dashboardAuthHandler,
 			nil, // subscriptionHandler (not needed in tests)
 			nil, // emailHandler (not needed in tests)
+			nil, // marketingHandler (not needed in tests)
 			authTokenManager,
 			usersService,
 			true,

@@ -66,7 +66,8 @@ func (h *Handler) GetCustomerDetails(c echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, customerDetailsToResponse(customerDetails))
+	feePercent := mt.Settings().GlobalFeePercent()
+	return c.JSON(http.StatusOK, customerDetailsToResponse(customerDetails, feePercent))
 }
 
 func customerToResponse(c *payment.Customer) *model.Customer {
@@ -77,15 +78,21 @@ func customerToResponse(c *payment.Customer) *model.Customer {
 	}
 }
 
-func customerDetailsToResponse(ct *payment.CustomerDetails) *model.Customer {
+func customerDetailsToResponse(ct *payment.CustomerDetails, feePercent float64) *model.Customer {
 	customer := customerToResponse(&ct.Customer)
 
 	mapPayments := func(pt *payment.Payment) *model.CustomerPayment {
+		displayPrice := pt.Price.String()
+		if feePercent > 0 {
+			if adjusted, err := pt.Price.MultiplyFloat64(1 + feePercent/100); err == nil {
+				displayPrice = adjusted.String()
+			}
+		}
 		return &model.CustomerPayment{
 			ID:        pt.MerchantOrderUUID.String(),
 			CreatedAt: strfmt.DateTime(pt.CreatedAt),
 			Currency:  pt.Price.Ticker(),
-			Price:     pt.Price.String(),
+			Price:     displayPrice,
 			Status:    pt.PublicStatus().String(),
 		}
 	}

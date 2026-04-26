@@ -45,6 +45,12 @@ type AdditionalPaymentInfo struct {
 
 	// Network fee paid for this transaction
 	NetworkFee *string `json:"networkFee,omitempty"`
+
+	// Crypto amount received (fee-inclusive)
+	CryptoAmount *string `json:"cryptoAmount,omitempty"`
+
+	// Crypto currency ticker (e.g. "TRON_USDT")
+	CryptoTicker *string `json:"cryptoTicker,omitempty"`
 }
 
 // Validate validates this additional payment info

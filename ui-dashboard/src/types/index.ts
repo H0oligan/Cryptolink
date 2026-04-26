@@ -159,6 +159,8 @@ interface AdditionalPaymentInfo {
     explorerLink?: string;
     senderAddress?: string;
     networkFee?: string;
+    cryptoAmount?: string;
+    cryptoTicker?: string;
 }
 
 interface AdditionalWithdrawalInfo {

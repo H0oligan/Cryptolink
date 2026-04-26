@@ -213,6 +213,16 @@ func (c CryptoCurrency) MakeAmount(raw string) (Money, error) {
 	return CryptoFromRaw(c.Ticker, raw, c.Decimals)
 }
 
+// MaxDisplayDecimals returns the industry-standard maximum display precision.
+// BTC (8 native) → 8, ETH/MATIC/BNB/AVAX/ARB (18 native) → 8,
+// USDT/USDC (6 native) → 6, TRX (6 native) → 6.
+func (c CryptoCurrency) MaxDisplayDecimals() int64 {
+	if c.Decimals <= 8 {
+		return c.Decimals
+	}
+	return 8
+}
+
 func (c CryptoCurrency) MakeAmountMust(raw string) Money {
 	m, err := c.MakeAmount(raw)
 	if err != nil {
@@ -420,6 +430,22 @@ func (m Money) IsPositive() bool {
 	zero := new(big.Int)
 
 	return m.val().Cmp(zero) == +1
+}
+
+// TruncateDecimals zeroes out digits beyond maxDecimals, rounding toward zero.
+// This ensures the displayed/stored amount never exceeds the industry-standard
+// precision (e.g. 8 for ETH) while keeping the internal decimal count unchanged.
+// Example: 0.027345678912345678 ETH (18 dec) truncated to 8 → 0.02734567 ETH
+func (m Money) TruncateDecimals(maxDecimals int64) Money {
+	if maxDecimals >= m.decimals || maxDecimals < 0 {
+		return m
+	}
+	drop := m.decimals - maxDecimals
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(drop), nil)
+	truncated := new(big.Int).Div(m.val(), scale)
+	truncated.Mul(truncated, scale)
+	result, _ := NewFromBigInt(m.moneyType, m.ticker, truncated, m.decimals)
+	return result
 }
 
 func (m Money) val() *big.Int {

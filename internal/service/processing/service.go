@@ -3,6 +3,8 @@ package processing
 
 import (
 	"context"
+	"crypto/rand"
+	"math/big"
 	"strings"
 	"time"
 
@@ -344,6 +346,10 @@ func (s *Service) createIncomingTransaction(
 		}
 	}
 
+	// Truncate to industry-standard display precision (max 8 decimals for native coins).
+	// This rounds down so the customer never underpays when sending the displayed amount.
+	cryptoAmount = cryptoAmount.TruncateDecimals(currency.MaxDisplayDecimals())
+
 	var cryptoServiceFee money.Money
 	if s.config.DefaultServiceFee > 0 {
 		cryptoServiceFee, err = cryptoAmount.MultiplyFloat64(s.config.DefaultServiceFee)
@@ -455,6 +461,8 @@ func (s *Service) createTransactionWithXpubAddress(
 
 // createTransactionWithCollectorAddress creates a transaction using a smart contract collector address.
 // The collector's contract address is permanent — all payments for a given merchant/chain go there.
+// Because all invoices share the same address, a random dust amount (1-999 base units) is added
+// to make each expected amount unique. This lets the watcher match on-chain transfers by amount.
 func (s *Service) createTransactionWithCollectorAddress(
 	ctx context.Context,
 	pt *payment.Payment,
@@ -464,10 +472,26 @@ func (s *Service) createTransactionWithCollectorAddress(
 	cryptoServiceFee money.Money,
 	usdAmount money.Money,
 ) (*payment.Method, error) {
+	// Add random dust (1-999 base units) to differentiate concurrent invoices
+	// sharing the same collector address. For USDT (6 decimals) this is 0.000001–0.000999,
+	// i.e. less than a tenth of a cent — negligible but unique.
+	dustAmount, err := s.generateDustAmount(currency)
+	if err == nil {
+		withDust, addErr := cryptoAmount.Add(dustAmount)
+		if addErr == nil {
+			cryptoAmount = withDust
+		} else {
+			s.logger.Warn().Err(addErr).Msg("unable to add dust to crypto amount, using original")
+		}
+	} else {
+		s.logger.Warn().Err(err).Msg("unable to generate dust amount, using original")
+	}
+
 	s.logger.Info().
 		Str("contract_address", collector.ContractAddress).
 		Str("blockchain", collector.Blockchain).
 		Int64("payment_id", pt.ID).
+		Str("amount", cryptoAmount.String()).
 		Msg("using EVM collector contract address for payment")
 
 	tx, err := s.transactions.Create(ctx, pt.MerchantID, transaction.CreateTransaction{
@@ -486,6 +510,31 @@ func (s *Service) createTransactionWithCollectorAddress(
 	}
 
 	return payment.MakeMethod(tx, currency), nil
+}
+
+// generateDustAmount returns a random amount visible at display precision for the given currency.
+// This tiny amount makes each invoice's expected crypto value unique so the watcher
+// can reliably match on-chain transfers when multiple invoices share a collector address.
+//
+// For ETH (18 native, 8 display): dust is 0.00000001–0.00000999 ETH (~$0.00002–$0.02)
+// For USDT (6 native, 6 display): dust is 0.000001–0.000999 USDT (unchanged)
+func (s *Service) generateDustAmount(currency money.CryptoCurrency) (money.Money, error) {
+	// Random value in [1, 999]
+	n, err := rand.Int(rand.Reader, big.NewInt(999))
+	if err != nil {
+		return money.Money{}, errors.Wrap(err, "crypto/rand failed")
+	}
+	dustBase := new(big.Int).Add(n, big.NewInt(1)) // shift from [0,998] to [1,999]
+
+	// Scale dust so it's visible at display precision.
+	// Without this, ETH dust (1-999 wei) would be zeroed out by truncation.
+	maxDisplay := currency.MaxDisplayDecimals()
+	if currency.Decimals > maxDisplay {
+		scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(currency.Decimals-maxDisplay), nil)
+		dustBase.Mul(dustBase, scale)
+	}
+
+	return money.NewFromBigInt(money.Crypto, currency.Ticker, dustBase, currency.Decimals)
 }
 
 func (s *Service) changePaymentMethod(

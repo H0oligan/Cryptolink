@@ -58,10 +58,13 @@ func (h *Handler) ListPayments(c echo.Context) error {
 		return err
 	}
 
+	feePercent := mt.Settings().GlobalFeePercent()
 	return c.JSON(http.StatusOK, &model.PaymentsPagination{
 		Cursor:  nextCursor,
 		Limit:   int64(pagination.Limit),
-		Results: util.MapSlice(payments, paymentToResponse),
+		Results: util.MapSlice(payments, func(pr payment.PaymentWithRelations) *model.Payment {
+			return paymentToResponse(pr, feePercent)
+		}),
 	})
 }
 
@@ -88,7 +91,7 @@ func (h *Handler) GetPayment(c echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, paymentToResponse(pt))
+	return c.JSON(http.StatusOK, paymentToResponse(pt, mt.Settings().GlobalFeePercent()))
 }
 
 func (h *Handler) CreatePayment(c echo.Context) error {
@@ -162,7 +165,7 @@ func (h *Handler) CreatePayment(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, paymentToResponse(
-		payment.PaymentWithRelations{Payment: pt}),
+		payment.PaymentWithRelations{Payment: pt}, mt.Settings().GlobalFeePercent()),
 	)
 }
 
@@ -203,7 +206,7 @@ func (h *Handler) ResolvePayment(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, paymentToResponse(
-		payment.PaymentWithRelations{Payment: resolved},
+		payment.PaymentWithRelations{Payment: resolved}, mt.Settings().GlobalFeePercent(),
 	))
 }
 
@@ -243,15 +246,24 @@ func (h *Handler) DeclinePayment(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, paymentToResponse(
-		payment.PaymentWithRelations{Payment: declined},
+		payment.PaymentWithRelations{Payment: declined}, mt.Settings().GlobalFeePercent(),
 	))
 }
 
-func paymentToResponse(pr payment.PaymentWithRelations) *model.Payment {
+func paymentToResponse(pr payment.PaymentWithRelations, feePercent float64) *model.Payment {
 	pt := pr.Payment
 	tx := pr.Transaction
 	customer := pr.Customer
 	balance := pr.Balance
+
+	// Apply merchant's volatility fee to the displayed fiat price so the
+	// merchant sees the actual value received in their wallet.
+	displayPrice := pt.Price.String()
+	if feePercent > 0 && pt.Type == payment.TypePayment {
+		if adjusted, err := pt.Price.MultiplyFloat64(1 + feePercent/100); err == nil {
+			displayPrice = adjusted.String()
+		}
+	}
 
 	res := &model.Payment{
 		ID:      pt.MerchantOrderUUID.String(),
@@ -259,7 +271,7 @@ func paymentToResponse(pr payment.PaymentWithRelations) *model.Payment {
 
 		CreatedAt: strfmt.DateTime(pt.CreatedAt),
 
-		Price:    pt.Price.String(),
+		Price:    displayPrice,
 		Currency: pt.Price.Ticker(),
 
 		Status: pt.PublicStatus().String(),
@@ -278,6 +290,14 @@ func paymentToResponse(pr payment.PaymentWithRelations) *model.Payment {
 		if tx != nil {
 			info.SelectedCurrency = util.Ptr(tx.Currency.DisplayName())
 			info.ServiceFee = util.Ptr(tx.ServiceFee.String())
+
+			// Crypto amount received (use FactAmount if available, else expected Amount)
+			cryptoAmt := tx.Amount.String()
+			if tx.FactAmount != nil {
+				cryptoAmt = tx.FactAmount.String()
+			}
+			info.CryptoAmount = util.Ptr(cryptoAmt)
+			info.CryptoTicker = util.Ptr(tx.Currency.Ticker)
 
 			// Blockchain transaction details for enterprise tracking
 			if tx.HashID != nil && *tx.HashID != "" {
