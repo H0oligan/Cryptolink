@@ -4,11 +4,32 @@ pragma solidity ^0.8.20;
 /**
  * @title CryptoLinkCloneFactory
  * @notice Creates EIP-1167 minimal proxy clones of MerchantCollectorV2.
- *         Deployed once per blockchain by CryptoLink admin.
+ *         Deployed once per blockchain by the CryptoLink instance admin.
  *         Each clone costs ~1/50th of a full contract deployment.
  *
  *         The factory has NO admin powers over deployed clones.
  *         Each clone's owner is set at creation and cannot be changed.
+ *
+ *  ──────────────────────────────────────────────────────────────────────────
+ *  WALLET CONFIGURATION ZONE
+ *  ──────────────────────────────────────────────────────────────────────────
+ *  No wallet addresses are hardcoded in this file. Two addresses are passed
+ *  in at runtime by the deploying party:
+ *
+ *  1. Implementation address (constructor parameter `_implementation`):
+ *     The address of the already-deployed MerchantCollectorV2.
+ *     Supplied by the operator when they deploy the factory from the
+ *     Admin Panel — using their own wallet via MetaMask / TronLink.
+ *
+ *  2. Merchant owner address (deploy() parameter `merchantOwner`):
+ *     The address that should own a newly-cloned collector.
+ *     Supplied by the merchant when they deploy a clone from the
+ *     Merchant Panel — using their own wallet via MetaMask / TronLink.
+ *
+ *  Neither address is ever stored in source. Both are supplied per-deployment
+ *  by the party that owns that wallet. The factory does not retain admin
+ *  privileges over any clone it creates.
+ *  ──────────────────────────────────────────────────────────────────────────
  */
 contract CryptoLinkCloneFactory {
     address public immutable implementation;
