@@ -7,6 +7,24 @@ pragma solidity ^0.8.20;
  *         Uses initialize() instead of constructor so clones can set their own owner.
  *         Each clone has its own storage — funds are completely isolated per merchant.
  *         CryptoLink has NO admin function or any access to funds.
+ *
+ *  ──────────────────────────────────────────────────────────────────────────
+ *  WALLET CONFIGURATION ZONE
+ *  ──────────────────────────────────────────────────────────────────────────
+ *  There are NO hardcoded wallet addresses in this file. The owner of each
+ *  deployed clone is supplied by the merchant at clone-creation time:
+ *
+ *      factory.deploy(YOUR_OWN_WALLET_ADDRESS)
+ *
+ *  …which causes the factory to call this contract's initialize() function
+ *  with that address. From then on, only that wallet can withdraw funds.
+ *
+ *  Operators (CryptoLink instance admins) connect their own wallet via
+ *  MetaMask / TronLink in the Admin Panel to deploy the implementation +
+ *  factory once per chain. Merchants connect their own wallet via the
+ *  Merchant Panel to deploy a clone owned by them. No address ever enters
+ *  this source code — they all enter at runtime via constructor parameters.
+ *  ──────────────────────────────────────────────────────────────────────────
  */
 contract MerchantCollectorV2 {
     address public owner;

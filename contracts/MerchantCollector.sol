@@ -7,6 +7,19 @@ pragma solidity ^0.8.20;
  *         Deployed once per merchant per EVM chain.
  *         Only the immutable `owner` (merchant's MetaMask address) can withdraw.
  *         CryptoLink has NO admin function or any access to funds.
+ *
+ *  Original non-proxy variant. Kept for reference. Production deployments
+ *  use MerchantCollectorV2 + CryptoLinkCloneFactory (EIP-1167) for cheaper
+ *  per-merchant deployment.
+ *
+ *  ──────────────────────────────────────────────────────────────────────────
+ *  WALLET CONFIGURATION ZONE
+ *  ──────────────────────────────────────────────────────────────────────────
+ *  No wallet address is hardcoded. The merchant supplies their own address
+ *  as the constructor parameter `_owner` when they deploy the contract from
+ *  the Merchant Panel via MetaMask. After deployment, that address is
+ *  immutable and is the only one that can withdraw funds.
+ *  ──────────────────────────────────────────────────────────────────────────
  */
 contract MerchantCollector {
     address public immutable owner;
