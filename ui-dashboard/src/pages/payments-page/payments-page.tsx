@@ -48,11 +48,23 @@ const columns: ColumnsType<Payment> = [
         render: (_, record: Payment) => <PaymentStatusLabel status={record.status} />
     },
     {
-        title: "Price",
+        title: "Fiat Amount",
         dataIndex: "price",
         key: "price",
         width: "min-content",
         render: (_, record) => <span style={{whiteSpace: "nowrap"}}>{displayPrice(record)}</span>
+    },
+    {
+        title: "Crypto Amount",
+        dataIndex: "cryptoAmount",
+        key: "cryptoAmount",
+        width: "min-content",
+        render: (_, record) => {
+            const amount = record.additionalInfo?.payment?.cryptoAmount;
+            const ticker = record.additionalInfo?.payment?.cryptoTicker;
+            if (!amount) return null;
+            return <span style={{whiteSpace: "nowrap", fontFamily: "monospace", fontSize: 12}}>{amount} {ticker}</span>;
+        }
     },
     {
         title: "Crypto",
@@ -171,12 +183,14 @@ const PaymentsPage: React.FC = () => {
     };
 
     const exportCSV = () => {
-        const headers = ["Date", "Status", "Price", "Currency", "Crypto", "TxHash", "Sender", "OrderID", "Description"];
+        const headers = ["Date", "Status", "Fiat Amount", "Currency", "Crypto Amount", "Crypto Ticker", "Crypto", "TxHash", "Sender", "OrderID", "Description"];
         const rows = payments.map((p) => [
             p.createdAt,
             p.status,
             p.price,
             p.currency,
+            p.additionalInfo?.payment?.cryptoAmount || "",
+            p.additionalInfo?.payment?.cryptoTicker || "",
             p.additionalInfo?.payment?.selectedCurrency || "",
             p.additionalInfo?.payment?.transactionHash || "",
             p.additionalInfo?.payment?.senderAddress || "",

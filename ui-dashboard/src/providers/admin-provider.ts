@@ -227,6 +227,50 @@ const adminProvider = {
             responseType: "blob"
         });
         return response.data;
+    },
+
+    // Marketing
+    async listMarketingTemplates(): Promise<any[]> {
+        const response = await apiRequest.get(withApiPath("/admin/marketing/templates"));
+        return response.data;
+    },
+
+    async getMarketingTemplate(templateId: string): Promise<any> {
+        const response = await apiRequest.get(withApiPath(`/admin/marketing/templates/${templateId}`));
+        return response.data;
+    },
+
+    async listCampaigns(limit?: number, offset?: number): Promise<PaginatedResponse<any>> {
+        const response = await apiRequest.get(withApiPath("/admin/marketing/campaigns"), {
+            params: {limit: limit || 20, offset: offset || 0}
+        });
+        return response.data;
+    },
+
+    async createCampaign(params: {name: string; subject: string; body_html: string; template_id?: string; audience: string}): Promise<any> {
+        const response = await apiRequest.post(withApiPath("/admin/marketing/campaigns"), params);
+        return response.data;
+    },
+
+    async getCampaign(campaignId: string): Promise<any> {
+        const response = await apiRequest.get(withApiPath(`/admin/marketing/campaigns/${campaignId}`));
+        return response.data;
+    },
+
+    async getCampaignRecipients(campaignId: string, limit?: number, offset?: number): Promise<{results: any[]; total: number}> {
+        const response = await apiRequest.get(withApiPath(`/admin/marketing/campaigns/${campaignId}/recipients`), {
+            params: {limit: limit || 50, offset: offset || 0}
+        });
+        return response.data;
+    },
+
+    async sendCampaign(campaignId: string): Promise<void> {
+        await apiRequest.post(withApiPath(`/admin/marketing/campaigns/${campaignId}/send`));
+    },
+
+    async getMarketingQuota(): Promise<{sent: number; limit: number; remaining: number; reset_at: string}> {
+        const response = await apiRequest.get(withApiPath("/admin/marketing/quota"));
+        return response.data;
     }
 };
 

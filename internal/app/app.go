@@ -20,6 +20,7 @@ import (
 	merchantauth "github.com/cryptolink/cryptolink/internal/server/http/merchantapi/auth"
 	"github.com/cryptolink/cryptolink/internal/server/http/paymentapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/emailapi"
+	"github.com/cryptolink/cryptolink/internal/server/http/marketingapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/subscriptionapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/webhook"
 	"github.com/cryptolink/cryptolink/internal/service/user"
@@ -121,6 +122,12 @@ func (app *App) RunServer() {
 		app.Logger(),
 	)
 
+	// Marketing handler
+	marketingHandler := marketingapi.New(
+		app.services.MarketingService(),
+		app.Logger(),
+	)
+
 	schedulerHandler := scheduler.New(
 		app.services.PaymentService(),
 		app.services.ProcessingService(),
@@ -143,6 +150,7 @@ func (app *App) RunServer() {
 			dashboardAuthHandler,
 			subscriptionHandler,
 			emailHandler,
+			marketingHandler,
 			app.services.TokenManagerService(),
 			app.services.UserService(),
 			app.config.Oxygen.Auth.Email.Enabled,
@@ -166,6 +174,13 @@ func (app *App) RunServer() {
 	)
 
 	app.registerEventHandlers()
+
+	// Start marketing queue processor (background goroutine)
+	go app.services.MarketingService().StartQueueProcessor(app.ctx)
+	graceful.AddCallback(func() error {
+		app.services.MarketingService().Stop()
+		return nil
+	})
 
 	app.OnBeforeRun(func(ctx context.Context, app *App) error {
 		cfg := app.config.Oxygen.Auth.Email

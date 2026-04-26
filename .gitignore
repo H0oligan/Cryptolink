@@ -28,3 +28,22 @@ DEPLOYMENT_QUICKSTART.md
 *.key
 *.p12
 secrets/
+.env
+.env.*
+!.env.example
+*credentials*
+*db_password*
+
+# Logs
+logs/
+*.log
+
+# Contracts: source IS published intentionally (public auditability).
+# Build artifacts and per-deployment metadata that could leak deployer/wallet
+# addresses or local compiler caches are NOT.
+contracts/build/
+contracts/cache/
+contracts/artifacts/
+contracts/deployments/
+contracts/.openzeppelin/
+contracts/node_modules/

@@ -119,8 +119,8 @@ func New(
 	}
 }
 
-// ERC-20 Transfer event topic: Transfer(address,address,uint256)
-var erc20TransferTopic = common.HexToHash("0xddf252ad1be2c4e6b9b4170f7cfc9ef7a5c891b13519e1cf2e4a0329118b624e")
+// ERC-20 Transfer event topic: keccak256("Transfer(address,address,uint256)")
+var erc20TransferTopic = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
 
 // PollPendingTransactions is the main entry point called by the scheduler.
 // It finds all pending incoming transactions (no tx hash yet) and checks
@@ -242,6 +242,59 @@ type pendingInfo struct {
 	walletID *int64
 }
 
+// bestMatchByAmount finds the pending transaction whose expected amount best matches
+// the on-chain transfer. Uses percentage-based matching to handle underpayments
+// correctly — a $20 miss on a $100 invoice (20%) is preferred over a $17 miss on
+// a $63 invoice (27%).
+//
+// Matching priority:
+//  1. Exact/near-exact (within 0.1% — covers dust jitter + rounding)
+//  2. Overpayment with smallest percentage excess
+//  3. Underpayment with smallest percentage deficit
+//
+// Underpayments are penalized so that an exact match for invoice B is always
+// preferred over an underpayment that happens to be numerically closer to invoice A.
+func bestMatchByAmount(pending []pendingInfo, onChainAmount *big.Int) (int, pendingInfo) {
+	bestIdx := 0
+	bestScore := int64(1<<62 - 1) // max int64-ish
+
+	for i, p := range pending {
+		expected, _ := p.tx.Amount.BigInt()
+		if expected.Sign() <= 0 {
+			continue
+		}
+
+		diff := new(big.Int).Sub(onChainAmount, expected)
+		absDiff := new(big.Int).Abs(diff)
+
+		// Percentage difference in basis points (1 bp = 0.01%).
+		// 63.822456 USDT vs 63.822789 USDT → ~0.5 bp difference.
+		bps := new(big.Int).Mul(absDiff, big.NewInt(10000))
+		bps.Div(bps, expected)
+		score := bps.Int64()
+
+		// Penalize underpayments: add 50000 bp (500%) so that even a 0%
+		// underpayment scores worse than a 499% overpayment. This prevents
+		// a customer's underpayment from "stealing" another invoice's match.
+		if diff.Sign() < 0 {
+			score += 50000
+		}
+
+		if score < bestScore {
+			bestScore = score
+			bestIdx = i
+		}
+	}
+
+	return bestIdx, pending[bestIdx]
+}
+
+// removePending removes element at index from a slice without preserving order.
+func removePending(s []pendingInfo, i int) []pendingInfo {
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
+}
+
 // pollEVMTransactions scans recent blocks on an EVM chain for transactions
 // to the watched addresses.
 func (s *Service) pollEVMTransactions(
@@ -273,8 +326,20 @@ func (s *Service) pollEVMTransactions(
 		return 0, nil
 	}
 
+	// Leave a safety margin behind the reported head block.
+	// eth_blockNumber can report a block before eth_getLogs can serve it,
+	// causing "block range extends beyond current head block" errors.
+	// 3 blocks ≈ 36 seconds on ETH, well within the polling interval.
+	const headBlockBuffer uint64 = 3
+	safeHead := currentBlock
+	if safeHead > headBlockBuffer {
+		safeHead -= headBlockBuffer
+	} else {
+		safeHead = 0
+	}
+
 	// Determine scan range
-	fromBlock := int64(currentBlock) - s.config.BlockScanDepth
+	fromBlock := int64(safeHead) - s.config.BlockScanDepth
 	if fromBlock < 0 {
 		fromBlock = 0
 	}
@@ -287,12 +352,17 @@ func (s *Service) pollEVMTransactions(
 		}
 	}
 
-	if fromBlock > int64(currentBlock) {
+	if fromBlock > int64(safeHead) {
+		s.logger.Debug().
+			Str("blockchain", bc.String()).
+			Int64("from_block", fromBlock).
+			Int64("safe_head", int64(safeHead)).
+			Msg("skipping EVM scan: already caught up to safe head")
 		return 0, nil
 	}
 
 	// Cap the scan range to avoid long-running cycles
-	toBlock := int64(currentBlock)
+	toBlock := int64(safeHead)
 	if toBlock-fromBlock > s.config.MaxBlocksPerCycle {
 		toBlock = fromBlock + s.config.MaxBlocksPerCycle
 		s.logger.Info().
@@ -304,9 +374,10 @@ func (s *Service) pollEVMTransactions(
 			Msg("capping block scan range, will catch up in subsequent cycles")
 	}
 
-	// Build address lookup maps
-	nativeAddresses := make(map[common.Address]pendingInfo)
-	tokenAddresses := make(map[common.Address]map[common.Address]pendingInfo) // contract -> recipient -> info
+	// Build address lookup maps — slices per address to support multiple
+	// concurrent invoices sharing the same collector contract address.
+	nativeAddresses := make(map[common.Address][]pendingInfo)
+	tokenAddresses := make(map[common.Address]map[common.Address][]pendingInfo) // contract -> recipient -> []info
 
 	for _, tx := range txs {
 		addr := s.getRecipientAddress(ctx, tx)
@@ -321,15 +392,16 @@ func (s *Service) pollEVMTransactions(
 		}
 
 		ethAddr := common.HexToAddress(addr)
+		info := pendingInfo{tx: tx, walletID: tx.RecipientWalletID}
 
 		if tx.Currency.Type == money.Coin {
-			nativeAddresses[ethAddr] = pendingInfo{tx: tx, walletID: tx.RecipientWalletID}
+			nativeAddresses[ethAddr] = append(nativeAddresses[ethAddr], info)
 		} else if tx.Currency.TokenContractAddress != "" {
 			contractAddr := common.HexToAddress(tx.Currency.ChooseContractAddress(tx.IsTest))
 			if tokenAddresses[contractAddr] == nil {
-				tokenAddresses[contractAddr] = make(map[common.Address]pendingInfo)
+				tokenAddresses[contractAddr] = make(map[common.Address][]pendingInfo)
 			}
-			tokenAddresses[contractAddr][ethAddr] = pendingInfo{tx: tx, walletID: tx.RecipientWalletID}
+			tokenAddresses[contractAddr][ethAddr] = append(tokenAddresses[contractAddr][ethAddr], info)
 		}
 	}
 
@@ -344,14 +416,26 @@ func (s *Service) pollEVMTransactions(
 	}
 
 	// 2. Scan for ERC-20 token transfers using Transfer event logs
+	tokenRPCFailed := false
 	if len(tokenAddresses) > 0 {
-		d, f := s.scanTokenTransfers(ctx, client, isTest, tokenAddresses, fromBlock, toBlock, onDetected)
+		d, f, rpcErr := s.scanTokenTransfers(ctx, client, isTest, tokenAddresses, fromBlock, toBlock, onDetected)
 		detected += d
 		failedIDs = append(failedIDs, f...)
+		tokenRPCFailed = rpcErr
 	}
 
-	// Update last scanned block (use capped toBlock, not currentBlock, for progressive catch-up)
-	s.lastScannedBlock.Store(cacheKey, toBlock)
+	// Only advance lastScannedBlock if token scans succeeded (or were not needed).
+	// When the RPC rejects eth_getLogs (block range / rate limit), we must NOT
+	// advance so the same blocks are re-scanned on the next cycle.
+	if !tokenRPCFailed {
+		s.lastScannedBlock.Store(cacheKey, toBlock)
+	} else {
+		s.logger.Warn().
+			Str("blockchain", bc.String()).
+			Int64("from_block", fromBlock).
+			Int64("to_block", toBlock).
+			Msg("NOT advancing lastScannedBlock due to token scan RPC failure — blocks will be re-scanned")
+	}
 
 	return detected, failedIDs
 }
@@ -362,7 +446,7 @@ func (s *Service) scanNativeTransfers(
 	client *ethclient.Client,
 	bc money.Blockchain,
 	isTest bool,
-	addresses map[common.Address]pendingInfo,
+	addresses map[common.Address][]pendingInfo,
 	fromBlock, toBlock int64,
 	onDetected OnTransferDetected,
 ) (int64, []int64) {
@@ -382,8 +466,8 @@ func (s *Service) scanNativeTransfers(
 			}
 
 			recipient := *blockTx.To()
-			info, ok := addresses[recipient]
-			if !ok {
+			pending, ok := addresses[recipient]
+			if !ok || len(pending) == 0 {
 				continue
 			}
 
@@ -391,6 +475,9 @@ func (s *Service) scanNativeTransfers(
 			if blockTx.Value().Sign() == 0 {
 				continue
 			}
+
+			// Match the on-chain amount to the closest pending invoice
+			bestIdx, info := bestMatchByAmount(pending, blockTx.Value())
 
 			d, err := s.buildNativeDetection(ctx, client, bc, isTest, blockTx, info)
 			if err != nil {
@@ -410,7 +497,11 @@ func (s *Service) scanNativeTransfers(
 				failedIDs = append(failedIDs, info.tx.ID)
 			} else {
 				detected++
-				delete(addresses, recipient)
+				// Remove matched pending tx; clean up address if empty
+				addresses[recipient] = removePending(pending, bestIdx)
+				if len(addresses[recipient]) == 0 {
+					delete(addresses, recipient)
+				}
 			}
 		}
 
@@ -423,16 +514,20 @@ func (s *Service) scanNativeTransfers(
 }
 
 // scanTokenTransfers uses eth_getLogs to find ERC-20 Transfer events to watched addresses.
+// Returns (detected count, failed tx IDs, whether any RPC error occurred).
+// When rpcFailed is true, the caller must NOT advance lastScannedBlock so the
+// blocks are re-scanned on the next cycle.
 func (s *Service) scanTokenTransfers(
 	ctx context.Context,
 	client *ethclient.Client,
 	isTest bool,
-	tokenAddresses map[common.Address]map[common.Address]pendingInfo,
+	tokenAddresses map[common.Address]map[common.Address][]pendingInfo,
 	fromBlock, toBlock int64,
 	onDetected OnTransferDetected,
-) (int64, []int64) {
+) (int64, []int64, bool) {
 	var detected int64
 	var failedIDs []int64
+	var rpcFailed bool
 
 	for contractAddr, recipients := range tokenAddresses {
 		recipientTopics := make([]common.Hash, 0, len(recipients))
@@ -440,85 +535,112 @@ func (s *Service) scanTokenTransfers(
 			recipientTopics = append(recipientTopics, common.BytesToHash(addr.Bytes()))
 		}
 
-		query := ethereum.FilterQuery{
-			FromBlock: big.NewInt(fromBlock),
-			ToBlock:   big.NewInt(toBlock),
-			Addresses: []common.Address{contractAddr},
-			Topics: [][]common.Hash{
-				{erc20TransferTopic}, // event signature
-				{},                   // from: any
-				recipientTopics,      // to: one of our watched addresses
-			},
-		}
-
-		logs, err := client.FilterLogs(ctx, query)
-		if err != nil {
-			s.logger.Error().Err(err).
-				Str("contract", contractAddr.Hex()).
-				Msg("unable to filter ERC-20 Transfer logs")
-			for _, info := range recipients {
-				failedIDs = append(failedIDs, info.tx.ID)
-			}
-			continue
-		}
-
-		for _, logEntry := range logs {
-			if len(logEntry.Topics) < 3 {
-				continue
+		// Query in smaller chunks to avoid "block range exceeds" and
+		// "limit exceeded" errors from free/public RPC endpoints.
+		const maxLogsChunk int64 = 20
+		for chunkFrom := fromBlock; chunkFrom <= toBlock; chunkFrom += maxLogsChunk + 1 {
+			chunkTo := chunkFrom + maxLogsChunk
+			if chunkTo > toBlock {
+				chunkTo = toBlock
 			}
 
-			recipientAddr := common.HexToAddress(logEntry.Topics[2].Hex())
-			info, ok := recipients[recipientAddr]
-			if !ok {
-				continue
+			query := ethereum.FilterQuery{
+				FromBlock: big.NewInt(chunkFrom),
+				ToBlock:   big.NewInt(chunkTo),
+				Addresses: []common.Address{contractAddr},
+				Topics: [][]common.Hash{
+					{erc20TransferTopic}, // event signature
+					{},                   // from: any
+					recipientTopics,      // to: one of our watched addresses
+				},
 			}
 
-			amount := new(big.Int).SetBytes(logEntry.Data)
-			senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
-
-			cryptoAmount, err := money.NewFromBigInt(
-				money.Crypto,
-				info.tx.Currency.Ticker,
-				amount,
-				info.tx.Currency.Decimals,
-			)
+			logs, err := client.FilterLogs(ctx, query)
 			if err != nil {
 				s.logger.Error().Err(err).
-					Str("ticker", info.tx.Currency.Ticker).
-					Msg("unable to parse token amount")
-				failedIDs = append(failedIDs, info.tx.ID)
-				continue
+					Str("contract", contractAddr.Hex()).
+					Int64("from_block", chunkFrom).
+					Int64("to_block", chunkTo).
+					Msg("unable to filter ERC-20 Transfer logs")
+				rpcFailed = true
+				for _, pending := range recipients {
+					for _, info := range pending {
+						failedIDs = append(failedIDs, info.tx.ID)
+					}
+				}
+				break // stop chunking for this contract on failure
 			}
 
-			var wt *wallet.Wallet
-			if info.walletID != nil {
-				wt, _ = s.wallets.GetByID(ctx, *info.walletID)
+			for _, logEntry := range logs {
+				if len(logEntry.Topics) < 3 {
+					continue
+				}
+
+				recipientAddr := common.HexToAddress(logEntry.Topics[2].Hex())
+				pending, ok := recipients[recipientAddr]
+				if !ok || len(pending) == 0 {
+					continue
+				}
+
+				amount := new(big.Int).SetBytes(logEntry.Data)
+				senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
+
+				// Match by closest amount to handle concurrent invoices at same address
+				bestIdx, info := bestMatchByAmount(pending, amount)
+
+				cryptoAmount, err := money.NewFromBigInt(
+					money.Crypto,
+					info.tx.Currency.Ticker,
+					amount,
+					info.tx.Currency.Decimals,
+				)
+				if err != nil {
+					s.logger.Error().Err(err).
+						Str("ticker", info.tx.Currency.Ticker).
+						Msg("unable to parse token amount")
+					failedIDs = append(failedIDs, info.tx.ID)
+					continue
+				}
+
+				var wt *wallet.Wallet
+				if info.walletID != nil {
+					wt, _ = s.wallets.GetByID(ctx, *info.walletID)
+				}
+
+				d := DetectedTransfer{
+					PendingTx:     info.tx,
+					Wallet:        wt,
+					TxHash:        logEntry.TxHash.Hex(),
+					SenderAddress: senderAddr.Hex(),
+					Amount:        cryptoAmount,
+					Currency:      info.tx.Currency,
+					NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+				}
+
+				if err := onDetected(ctx, d); err != nil {
+					s.logger.Error().Err(err).
+						Int64("tx_id", info.tx.ID).
+						Str("hash", logEntry.TxHash.Hex()).
+						Msg("failed to process detected token transfer")
+					failedIDs = append(failedIDs, info.tx.ID)
+				} else {
+					detected++
+					// Remove matched pending tx; clean up address if empty
+					recipients[recipientAddr] = removePending(pending, bestIdx)
+					if len(recipients[recipientAddr]) == 0 {
+						delete(recipients, recipientAddr)
+					}
+				}
 			}
 
-			d := DetectedTransfer{
-				PendingTx:     info.tx,
-				Wallet:        wt,
-				TxHash:        logEntry.TxHash.Hex(),
-				SenderAddress: senderAddr.Hex(),
-				Amount:        cryptoAmount,
-				Currency:      info.tx.Currency,
-				NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
-			}
-
-			if err := onDetected(ctx, d); err != nil {
-				s.logger.Error().Err(err).
-					Int64("tx_id", info.tx.ID).
-					Str("hash", logEntry.TxHash.Hex()).
-					Msg("failed to process detected token transfer")
-				failedIDs = append(failedIDs, info.tx.ID)
-			} else {
-				detected++
-				delete(recipients, recipientAddr)
+			// All recipients matched — no need to scan more chunks
+			if len(recipients) == 0 {
+				break
 			}
 		}
 	}
 
-	return detected, failedIDs
+	return detected, failedIDs, rpcFailed
 }
 
 // buildNativeDetection constructs a DetectedTransfer for a native coin block transaction.
@@ -735,6 +857,8 @@ func (s *Service) pollBTCTransactions(
 
 // pollTRONTransactions checks TRON addresses for incoming payments
 // using the TronGrid API to query recent transactions sent to each address.
+// Groups pending txs by address to avoid redundant API calls and supports
+// multiple concurrent invoices at the same collector address via amount matching.
 func (s *Service) pollTRONTransactions(
 	ctx context.Context,
 	isTest bool,
@@ -749,6 +873,13 @@ func (s *Service) pollTRONTransactions(
 	var detected int64
 	var failedIDs []int64
 
+	// Group pending txs by (address, coin vs token) to query TronGrid once per address.
+	type addrKey struct {
+		addr    string
+		isCoin  bool
+	}
+	grouped := make(map[addrKey][]pendingInfo)
+
 	for _, tx := range txs {
 		addr := s.getRecipientAddress(ctx, tx)
 		if addr == "" {
@@ -759,120 +890,194 @@ func (s *Service) pollTRONTransactions(
 				Msg("skipping TRON transaction: unable to resolve recipient address")
 			continue
 		}
+		key := addrKey{addr: addr, isCoin: tx.Currency.Type == money.Coin}
+		grouped[key] = append(grouped[key], pendingInfo{tx: tx, walletID: tx.RecipientWalletID})
+	}
 
-		if tx.Currency.Type == money.Coin {
-			// TRX native transfer — query recent native transactions
-			recentTxs, err := s.tron.GetAccountTransactions(ctx, addr, isTest, 10)
-			if err != nil {
-				s.logger.Error().Err(err).Str("address", addr).Int64("tx_id", tx.ID).
-					Msg("unable to get TRON transactions")
-				failedIDs = append(failedIDs, tx.ID)
-				continue
-			}
-
-			for _, rtx := range recentTxs {
-				if !rtx.Success || rtx.To != addr || rtx.Amount <= 0 {
-					continue
-				}
-				if rtx.Type != "TransferContract" {
-					continue
-				}
-
-				cryptoAmount, err := money.NewFromBigInt(
-					money.Crypto, tx.Currency.Ticker,
-					big.NewInt(rtx.Amount), tx.Currency.Decimals,
-				)
-				if err != nil {
-					continue
-				}
-
-				var wt *wallet.Wallet
-				if tx.RecipientWalletID != nil {
-					wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
-				}
-
-				d := DetectedTransfer{
-					PendingTx:     tx,
-					Wallet:        wt,
-					TxHash:        rtx.TxID,
-					SenderAddress: rtx.From,
-					Amount:        cryptoAmount,
-					Currency:      tx.Currency,
-					NetworkID:     tx.Currency.ChooseNetwork(isTest),
-				}
-
-				if err := onDetected(ctx, d); err != nil {
-					s.logger.Error().Err(err).Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
-						Msg("failed to process detected TRON payment")
-					failedIDs = append(failedIDs, tx.ID)
-				} else {
-					detected++
-					s.logger.Info().Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
-						Str("address", addr).Int64("sun", rtx.Amount).
-						Msg("TRON incoming payment detected")
-				}
-				break // One match per pending tx
-			}
+	for key, pending := range grouped {
+		if key.isCoin {
+			d, f := s.pollTRONNativeForAddress(ctx, isTest, key.addr, pending, onDetected)
+			detected += d
+			failedIDs = append(failedIDs, f...)
 		} else {
-			// TRC20 token transfer — query TRC20 transaction history
-			recentTxs, err := s.tron.GetTRC20Transactions(ctx, addr, isTest, 10)
-			if err != nil {
-				s.logger.Error().Err(err).Str("address", addr).Int64("tx_id", tx.ID).
-					Msg("unable to get TRC20 transactions")
-				failedIDs = append(failedIDs, tx.ID)
-				continue
-			}
+			d, f := s.pollTRONTokenForAddress(ctx, isTest, key.addr, pending, onDetected)
+			detected += d
+			failedIDs = append(failedIDs, f...)
+		}
+	}
 
-			tokenContract := tx.Currency.ChooseContractAddress(isTest)
-			for _, rtx := range recentTxs {
-				if rtx.To != addr {
-					continue
-				}
-				if !strings.EqualFold(rtx.TokenAddress, tokenContract) {
-					continue
-				}
+	return detected, failedIDs
+}
 
-				amount := new(big.Int)
-				amount.SetString(rtx.TokenAmount, 10)
-				if amount.Sign() <= 0 {
-					continue
-				}
+// pollTRONNativeForAddress checks a single TRON address for native TRX transfers,
+// matching each on-chain tx to the closest-amount pending invoice.
+func (s *Service) pollTRONNativeForAddress(
+	ctx context.Context,
+	isTest bool,
+	addr string,
+	pending []pendingInfo,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	var detected int64
+	var failedIDs []int64
 
-				cryptoAmount, err := money.NewFromBigInt(
-					money.Crypto, tx.Currency.Ticker,
-					amount, tx.Currency.Decimals,
-				)
-				if err != nil {
-					continue
-				}
+	recentTxs, err := s.tron.GetAccountTransactions(ctx, addr, isTest, 20)
+	if err != nil {
+		s.logger.Error().Err(err).Str("address", addr).Msg("unable to get TRON transactions")
+		for _, p := range pending {
+			failedIDs = append(failedIDs, p.tx.ID)
+		}
+		return 0, failedIDs
+	}
 
-				var wt *wallet.Wallet
-				if tx.RecipientWalletID != nil {
-					wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
-				}
+	for _, rtx := range recentTxs {
+		if len(pending) == 0 {
+			break
+		}
+		if !rtx.Success || rtx.To != addr || rtx.Amount <= 0 {
+			continue
+		}
+		if rtx.Type != "TransferContract" {
+			continue
+		}
 
-				d := DetectedTransfer{
-					PendingTx:     tx,
-					Wallet:        wt,
-					TxHash:        rtx.TxID,
-					SenderAddress: rtx.From,
-					Amount:        cryptoAmount,
-					Currency:      tx.Currency,
-					NetworkID:     tx.Currency.ChooseNetwork(isTest),
-				}
+		onChainAmount := big.NewInt(rtx.Amount)
+		bestIdx, info := bestMatchByAmount(pending, onChainAmount)
 
-				if err := onDetected(ctx, d); err != nil {
-					s.logger.Error().Err(err).Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
-						Msg("failed to process detected TRC20 payment")
-					failedIDs = append(failedIDs, tx.ID)
-				} else {
-					detected++
-					s.logger.Info().Int64("tx_id", tx.ID).Str("hash", rtx.TxID).
-						Str("address", addr).Str("amount", rtx.TokenAmount).
-						Msg("TRC20 incoming payment detected")
-				}
+		cryptoAmount, err := money.NewFromBigInt(
+			money.Crypto, info.tx.Currency.Ticker,
+			onChainAmount, info.tx.Currency.Decimals,
+		)
+		if err != nil {
+			continue
+		}
+
+		var wt *wallet.Wallet
+		if info.walletID != nil {
+			wt, _ = s.wallets.GetByID(ctx, *info.walletID)
+		}
+
+		d := DetectedTransfer{
+			PendingTx:     info.tx,
+			Wallet:        wt,
+			TxHash:        rtx.TxID,
+			SenderAddress: rtx.From,
+			Amount:        cryptoAmount,
+			Currency:      info.tx.Currency,
+			NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+		}
+
+		if err := onDetected(ctx, d); err != nil {
+			s.logger.Error().Err(err).Int64("tx_id", info.tx.ID).Str("hash", rtx.TxID).
+				Msg("failed to process detected TRON payment")
+			failedIDs = append(failedIDs, info.tx.ID)
+		} else {
+			detected++
+			s.logger.Info().Int64("tx_id", info.tx.ID).Str("hash", rtx.TxID).
+				Str("address", addr).Int64("sun", rtx.Amount).
+				Msg("TRON incoming payment detected")
+			pending = removePending(pending, bestIdx)
+		}
+	}
+
+	return detected, failedIDs
+}
+
+// pollTRONTokenForAddress checks a single TRON address for TRC-20 token transfers,
+// matching each on-chain tx to the closest-amount pending invoice.
+func (s *Service) pollTRONTokenForAddress(
+	ctx context.Context,
+	isTest bool,
+	addr string,
+	pending []pendingInfo,
+	onDetected OnTransferDetected,
+) (int64, []int64) {
+	var detected int64
+	var failedIDs []int64
+
+	recentTxs, err := s.tron.GetTRC20Transactions(ctx, addr, isTest, 20)
+	if err != nil {
+		s.logger.Error().Err(err).Str("address", addr).Msg("unable to get TRC20 transactions")
+		for _, p := range pending {
+			failedIDs = append(failedIDs, p.tx.ID)
+		}
+		return 0, failedIDs
+	}
+
+	for _, rtx := range recentTxs {
+		if len(pending) == 0 {
+			break
+		}
+		if rtx.To != addr {
+			continue
+		}
+
+		// Find a pending tx whose token contract matches this transfer
+		matchIdx := -1
+		for i, p := range pending {
+			tokenContract := p.tx.Currency.ChooseContractAddress(isTest)
+			if strings.EqualFold(rtx.TokenAddress, tokenContract) {
+				matchIdx = i
 				break
 			}
+		}
+		if matchIdx == -1 {
+			continue
+		}
+
+		amount := new(big.Int)
+		amount.SetString(rtx.TokenAmount, 10)
+		if amount.Sign() <= 0 {
+			continue
+		}
+
+		// Among pending txs with matching token contract, find closest by amount
+		var tokenPending []pendingInfo
+		var tokenIndices []int
+		tokenContract := pending[matchIdx].tx.Currency.ChooseContractAddress(isTest)
+		for i, p := range pending {
+			if strings.EqualFold(p.tx.Currency.ChooseContractAddress(isTest), tokenContract) {
+				tokenPending = append(tokenPending, p)
+				tokenIndices = append(tokenIndices, i)
+			}
+		}
+
+		bestSubIdx, info := bestMatchByAmount(tokenPending, amount)
+		bestIdx := tokenIndices[bestSubIdx]
+
+		cryptoAmount, err := money.NewFromBigInt(
+			money.Crypto, info.tx.Currency.Ticker,
+			amount, info.tx.Currency.Decimals,
+		)
+		if err != nil {
+			continue
+		}
+
+		var wt *wallet.Wallet
+		if info.walletID != nil {
+			wt, _ = s.wallets.GetByID(ctx, *info.walletID)
+		}
+
+		d := DetectedTransfer{
+			PendingTx:     info.tx,
+			Wallet:        wt,
+			TxHash:        rtx.TxID,
+			SenderAddress: rtx.From,
+			Amount:        cryptoAmount,
+			Currency:      info.tx.Currency,
+			NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+		}
+
+		if err := onDetected(ctx, d); err != nil {
+			s.logger.Error().Err(err).Int64("tx_id", info.tx.ID).Str("hash", rtx.TxID).
+				Msg("failed to process detected TRC20 payment")
+			failedIDs = append(failedIDs, info.tx.ID)
+		} else {
+			detected++
+			s.logger.Info().Int64("tx_id", info.tx.ID).Str("hash", rtx.TxID).
+				Str("address", addr).Str("amount", rtx.TokenAmount).
+				Msg("TRC20 incoming payment detected")
+			pending = removePending(pending, bestIdx)
 		}
 	}
 

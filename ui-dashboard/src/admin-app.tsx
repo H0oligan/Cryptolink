@@ -7,7 +7,8 @@ import {useMount} from "react-use";
 import {ProLayout, RouteContext, RouteContextType} from "@ant-design/pro-components";
 import {
     LogoutOutlined, DashboardOutlined, ArrowLeftOutlined, UserOutlined,
-    ShopOutlined, CrownOutlined, MailOutlined, AlertOutlined, ThunderboltOutlined, TeamOutlined
+    ShopOutlined, CrownOutlined, MailOutlined, AlertOutlined, ThunderboltOutlined, TeamOutlined,
+    NotificationOutlined
 } from "@ant-design/icons";
 import {Avatar, Space, Dropdown, MenuProps} from "antd";
 import bevis from "src/utils/bevis";
@@ -23,6 +24,7 @@ import AdminEmailPage from "src/pages/admin/email-page/email-page";
 import AdminPaymentsPage from "src/pages/admin/payments-page/payments-page";
 import AdminContractsPage from "src/pages/admin/contracts-page/contracts-page";
 import AdminContactsPage from "src/pages/admin/contacts-page/contacts-page";
+import AdminMarketingPage from "src/pages/admin/marketing-page/marketing-page";
 import ThemeToggle from "src/theme/theme-toggle";
 import {useTheme} from "src/theme/theme-context";
 
@@ -42,6 +44,7 @@ const adminMenus: MenuItem[] = [
     {path: "/payments", name: "Payments Support", icon: <AlertOutlined />},
     {path: "/contracts", name: "Contracts", icon: <ThunderboltOutlined />},
     {path: "/contacts", name: "Contacts", icon: <TeamOutlined />},
+    {path: "/marketing", name: "Marketing", icon: <NotificationOutlined />},
 ];
 
 const b = bevis("app");
@@ -217,6 +220,7 @@ const AdminApp: React.FC = () => {
                                         <Route path="payments" element={<AdminPaymentsPage />} />
                                         <Route path="contracts" element={<AdminContractsPage />} />
                                         <Route path="contacts" element={<AdminContactsPage />} />
+                                        <Route path="marketing" element={<AdminMarketingPage />} />
                                         <Route path="*" element="not found" />
                                     </>
                                 )}
