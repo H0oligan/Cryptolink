@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://cryptolink.cc">Website</a> ·
-  <a href="https://cryptolink.cc/doc">Documentation</a> ·
+  <a href="https://cryptolink.cc/docs">Documentation</a> ·
   <a href="https://cryptolink.cc/merchants/login?mode=register">Try It Free</a>
 </p>
 
@@ -348,7 +348,7 @@ public function handle(Request $request): Response
 }
 ```
 
-→ **[Full documentation with Node.js, Python, WooCommerce examples →](https://cryptolink.cc/doc)**
+→ **[Full documentation with Node.js, Python, WooCommerce examples →](https://cryptolink.cc/docs)**
 
 ---
 
@@ -398,7 +398,7 @@ A full security audit was performed in February 2025. Key findings and resolutio
 
 Subsequent dependency hardening: Echo framework upgraded, `golang-jwt/jwt v3` removed, npm vulnerabilities patched in both SPAs.
 
-→ **[Full security audit report →](https://cryptolink.cc/doc#security-audit)**
+→ **[Full security audit report →](https://cryptolink.cc/docs#security-audit)**
 
 ---
 
@@ -464,7 +464,7 @@ The `config/*.yml`, `.env`, and any `*.pem` / `*.key` / `secrets/` files are git
 
 <p align="center">
   <a href="https://cryptolink.cc">cryptolink.cc</a> ·
-  <a href="https://cryptolink.cc/doc">Docs</a> ·
+  <a href="https://cryptolink.cc/docs">Docs</a> ·
   <a href="https://cryptolink.cc/privacy">Privacy Policy</a> ·
   <a href="https://github.com/H0oligan/Cryptolink">GitHub</a>
 </p>

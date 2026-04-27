@@ -56,7 +56,7 @@ const defaultMenus: MenuItem[] = [
     {path: "/currencies", name: "Currencies & Fees", icon: <DollarOutlined />},
     {path: "/wallet-setup", name: "Wallet Setup", icon: <WalletOutlined />},
     {path: "/settings", name: "Settings", icon: <SettingOutlined />},
-    {path: "https://cryptolink.cc/doc/", name: "Documentation", icon: <BookOutlined />}
+    {path: "https://cryptolink.cc/docs", name: "Documentation", icon: <BookOutlined />}
 ];
 
 
