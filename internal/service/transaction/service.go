@@ -281,6 +281,30 @@ func (s *Service) GetByHash(ctx context.Context, networkID, txHash string) (*Tra
 	return s.entryToTransaction(tx)
 }
 
+// GetByHashAndRecipient looks up a transaction by (networkID, txHash, recipientAddress).
+// This is the correct dedup key for the address watcher: a single on-chain
+// transaction (e.g. a Disperse-style batch payout, an exchange sweep, a
+// payment splitter) may legitimately settle multiple invoices that share the
+// same hash but target *different* recipient addresses. Filtering by recipient
+// prevents the first detected leg from "stealing" the hash and locking out
+// every subsequent leg in the same tx.
+func (s *Service) GetByHashAndRecipient(ctx context.Context, networkID, txHash, recipient string) (*Transaction, error) {
+	tx, err := s.store.GetTransactionByHashNetworkAndRecipient(ctx, repository.GetTransactionByHashNetworkAndRecipientParams{
+		NetworkID:        repository.StringToNullable(networkID),
+		TransactionHash:  repository.StringToNullable(txHash),
+		RecipientAddress: recipient,
+	})
+
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, ErrNotFound
+	case err != nil:
+		return nil, err
+	}
+
+	return s.entryToTransaction(tx)
+}
+
 func (s *Service) getByID(ctx context.Context, q repository.Querier, merchantID, id int64) (*Transaction, error) {
 	tx, err := q.GetTransactionByID(ctx, repository.GetTransactionByIDParams{
 		ID:                 id,

@@ -24,6 +24,18 @@ and (CASE WHEN @filter_by_merchant_id::boolean THEN merchant_id = $2 ELSE true E
 -- name: GetTransactionByHashAndNetworkID :one
 select * from transactions where transaction_hash = $1 and network_id = $2 limit 1;
 
+-- name: GetTransactionByHashNetworkAndRecipient :one
+-- Used by the address watcher to dedup detection: a single on-chain transaction
+-- (e.g. a Disperse-style batch payout) may legitimately settle multiple invoices
+-- that share the same hash but target *different* recipient addresses.
+-- Lower-case the recipient column at query time because some chains store the
+-- address in mixed case (EIP-55 checksum) while the watcher always lower-cases.
+select * from transactions
+where transaction_hash = @transaction_hash
+  and network_id = @network_id
+  and lower(recipient_address) = lower(@recipient_address)
+limit 1;
+
 -- name: GetLatestTransactionByPaymentID :one
 select * from transactions where entity_id = $1 order by id desc limit 1;
 
