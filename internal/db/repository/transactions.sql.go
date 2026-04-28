@@ -287,6 +287,57 @@ func (q *Queries) GetTransactionByHashAndNetworkID(ctx context.Context, arg GetT
 	return i, err
 }
 
+const getTransactionByHashNetworkAndRecipient = `-- name: GetTransactionByHashNetworkAndRecipient :one
+select id, created_at, updated_at, merchant_id, status, type, entity_id, recipient_wallet_id, sender_address, recipient_address, transaction_hash, blockchain, currency_type, currency, decimals, amount, fact_amount, network_fee, service_fee, usd_amount, metadata, network_id, is_test, network_decimals, sender_wallet_id from transactions
+where transaction_hash = $1
+  and network_id = $2
+  and lower(recipient_address) = lower($3)
+limit 1
+`
+
+type GetTransactionByHashNetworkAndRecipientParams struct {
+	TransactionHash  sql.NullString
+	NetworkID        sql.NullString
+	RecipientAddress string
+}
+
+// GetTransactionByHashNetworkAndRecipient finds a transaction by the
+// (network_id, transaction_hash, recipient_address) tuple — the correct dedup
+// key for the address watcher when a single on-chain transaction settles
+// multiple invoices to different recipients (e.g. Disperse-style batch payouts).
+func (q *Queries) GetTransactionByHashNetworkAndRecipient(ctx context.Context, arg GetTransactionByHashNetworkAndRecipientParams) (Transaction, error) {
+	row := q.db.QueryRow(ctx, getTransactionByHashNetworkAndRecipient, arg.TransactionHash, arg.NetworkID, arg.RecipientAddress)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MerchantID,
+		&i.Status,
+		&i.Type,
+		&i.EntityID,
+		&i.RecipientWalletID,
+		&i.SenderAddress,
+		&i.RecipientAddress,
+		&i.TransactionHash,
+		&i.Blockchain,
+		&i.CurrencyType,
+		&i.Currency,
+		&i.Decimals,
+		&i.Amount,
+		&i.FactAmount,
+		&i.NetworkFee,
+		&i.ServiceFee,
+		&i.UsdAmount,
+		&i.Metadata,
+		&i.NetworkID,
+		&i.IsTest,
+		&i.NetworkDecimals,
+		&i.SenderWalletID,
+	)
+	return i, err
+}
+
 const getTransactionByID = `-- name: GetTransactionByID :one
 select id, created_at, updated_at, merchant_id, status, type, entity_id, recipient_wallet_id, sender_address, recipient_address, transaction_hash, blockchain, currency_type, currency, decimals, amount, fact_amount, network_fee, service_fee, usd_amount, metadata, network_id, is_test, network_decimals, sender_wallet_id from transactions where id = $1
 and (CASE WHEN $3::boolean THEN merchant_id = $2 ELSE true END)

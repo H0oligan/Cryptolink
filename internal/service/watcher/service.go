@@ -37,11 +37,12 @@ type DetectedTransfer struct {
 	Wallet *wallet.Wallet
 
 	// On-chain data
-	TxHash        string
-	SenderAddress string
-	Amount        money.Money
-	Currency      money.CryptoCurrency
-	NetworkID     string
+	TxHash           string
+	SenderAddress    string
+	RecipientAddress string
+	Amount           money.Money
+	Currency         money.CryptoCurrency
+	NetworkID        string
 }
 
 // OnTransferDetected is a callback invoked when the watcher detects an incoming payment.
@@ -122,6 +123,14 @@ func New(
 // ERC-20 Transfer event topic: keccak256("Transfer(address,address,uint256)")
 var erc20TransferTopic = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
 
+// Received event topic emitted by MerchantCollector(V1/V2).receive():
+// keccak256("Received(address,uint256)"). Indexes inbound native coin
+// regardless of whether the value arrived from a direct EOA send or via an
+// internal CALL from another contract (exchange batch withdrawal, disperser,
+// payment splitter, multisig, etc.) — top-level tx.To-based scanning misses
+// the latter.
+var nativeReceivedTopic = common.HexToHash("0x88a5966d370b9919b20f3e2c13ff65706f196a4e32cc2c12bf57088f88525874")
+
 // PollPendingTransactions is the main entry point called by the scheduler.
 // It finds all pending incoming transactions (no tx hash yet) and checks
 // their recipient addresses for incoming blockchain transactions.
@@ -170,18 +179,33 @@ func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTran
 
 	group.SetLimit(s.config.MaxConcurrency)
 
-	// Wrap onDetected with tx hash deduplication to prevent the same
-	// on-chain transaction from being matched to multiple pending payments.
-	// This can happen when multiple payments share the same collector contract address.
+	// Wrap onDetected with tx-hash + recipient deduplication.
+	//
+	// Why include recipient: a single on-chain transaction may legitimately
+	// settle multiple invoices when funds are routed through a batch payer
+	// (Disperse.app, exchange withdrawal sweep, multisig, payment splitter).
+	// In that case the same hash carries N value transfers to N different
+	// recipient addresses, each of which must be allowed to bind to its own
+	// pending invoice. A hash-only dedup let the first detected leg lock out
+	// every subsequent leg in the same tx.
+	//
+	// Why we still need dedup at all: when several invoices share the *same*
+	// collector address (one merchant, multiple concurrent payments), only
+	// one detection should bind to a given on-chain transfer.
 	dedupOnDetected := func(ctx context.Context, d DetectedTransfer) error {
-		existing, err := s.transactions.GetByHash(ctx, d.NetworkID, d.TxHash)
+		recipient := d.RecipientAddress
+		if recipient == "" && d.PendingTx != nil {
+			recipient = d.PendingTx.RecipientAddress
+		}
+		existing, err := s.transactions.GetByHashAndRecipient(ctx, d.NetworkID, d.TxHash, recipient)
 		if err == nil && existing != nil {
 			s.logger.Warn().
 				Str("tx_hash", d.TxHash).
 				Str("network_id", d.NetworkID).
+				Str("recipient", recipient).
 				Int64("pending_tx_id", d.PendingTx.ID).
 				Int64("existing_tx_id", existing.ID).
-				Msg("skipping duplicate: tx hash already assigned to another transaction")
+				Msg("skipping duplicate: hash + recipient already bound to another transaction")
 			return nil
 		}
 		return onDetected(ctx, d)
@@ -376,7 +400,15 @@ func (s *Service) pollEVMTransactions(
 
 	// Build address lookup maps — slices per address to support multiple
 	// concurrent invoices sharing the same collector contract address.
-	nativeAddresses := make(map[common.Address][]pendingInfo)
+	//
+	// Native addresses are split by recipient type:
+	//   - collector contracts (walletID == nil): emit `Received(from,amount)`
+	//     on every inbound payment, including internal CALLs. Detected via
+	//     eth_getLogs on the contract address.
+	//   - managed hot wallets (walletID != nil): EOAs without event emission.
+	//     Detected via top-level tx.To matching by walking block transactions.
+	nativeAddressesContract := make(map[common.Address][]pendingInfo)
+	nativeAddressesEOA := make(map[common.Address][]pendingInfo)
 	tokenAddresses := make(map[common.Address]map[common.Address][]pendingInfo) // contract -> recipient -> []info
 
 	for _, tx := range txs {
@@ -395,7 +427,11 @@ func (s *Service) pollEVMTransactions(
 		info := pendingInfo{tx: tx, walletID: tx.RecipientWalletID}
 
 		if tx.Currency.Type == money.Coin {
-			nativeAddresses[ethAddr] = append(nativeAddresses[ethAddr], info)
+			if info.walletID == nil {
+				nativeAddressesContract[ethAddr] = append(nativeAddressesContract[ethAddr], info)
+			} else {
+				nativeAddressesEOA[ethAddr] = append(nativeAddressesEOA[ethAddr], info)
+			}
 		} else if tx.Currency.TokenContractAddress != "" {
 			contractAddr := common.HexToAddress(tx.Currency.ChooseContractAddress(tx.IsTest))
 			if tokenAddresses[contractAddr] == nil {
@@ -408,9 +444,19 @@ func (s *Service) pollEVMTransactions(
 	var detected int64
 	var failedIDs []int64
 
-	// 1. Scan for native coin transfers by checking block transactions
-	if len(nativeAddresses) > 0 {
-		d, f := s.scanNativeTransfers(ctx, client, bc, isTest, nativeAddresses, fromBlock, toBlock, onDetected)
+	// 1a. Native coin into collector contracts — log-based detection so we
+	//     also catch internal CALLs (CEX batch withdrawals, dispersers, etc.).
+	nativeLogRPCFailed := false
+	if len(nativeAddressesContract) > 0 {
+		d, f, rpcErr := s.scanNativeTransfersByLog(ctx, client, bc, isTest, nativeAddressesContract, fromBlock, toBlock, onDetected)
+		detected += d
+		failedIDs = append(failedIDs, f...)
+		nativeLogRPCFailed = rpcErr
+	}
+
+	// 1b. Native coin into managed hot wallets (EOAs) — top-level tx scan.
+	if len(nativeAddressesEOA) > 0 {
+		d, f := s.scanNativeTransfers(ctx, client, bc, isTest, nativeAddressesEOA, fromBlock, toBlock, onDetected)
 		detected += d
 		failedIDs = append(failedIDs, f...)
 	}
@@ -424,17 +470,19 @@ func (s *Service) pollEVMTransactions(
 		tokenRPCFailed = rpcErr
 	}
 
-	// Only advance lastScannedBlock if token scans succeeded (or were not needed).
-	// When the RPC rejects eth_getLogs (block range / rate limit), we must NOT
+	// Only advance lastScannedBlock if all log-based scans succeeded (or were
+	// not needed). On RPC failure (rate limit, block range error) we must NOT
 	// advance so the same blocks are re-scanned on the next cycle.
-	if !tokenRPCFailed {
+	if !tokenRPCFailed && !nativeLogRPCFailed {
 		s.lastScannedBlock.Store(cacheKey, toBlock)
 	} else {
 		s.logger.Warn().
 			Str("blockchain", bc.String()).
 			Int64("from_block", fromBlock).
 			Int64("to_block", toBlock).
-			Msg("NOT advancing lastScannedBlock due to token scan RPC failure — blocks will be re-scanned")
+			Bool("native_log_failed", nativeLogRPCFailed).
+			Bool("token_log_failed", tokenRPCFailed).
+			Msg("NOT advancing lastScannedBlock due to log scan RPC failure — blocks will be re-scanned")
 	}
 
 	return detected, failedIDs
@@ -511,6 +559,134 @@ func (s *Service) scanNativeTransfers(
 	}
 
 	return detected, failedIDs
+}
+
+// scanNativeTransfersByLog detects native coin (ETH/MATIC/BNB/ARB/AVAX)
+// transfers into collector contracts by indexing the Received(address,uint256)
+// event the contracts emit in their receive() fallback. Catches both direct
+// EOA sends and internal CALLs (exchange withdrawals, dispersers, multisigs).
+//
+// Returns (detected count, failed tx IDs, whether the RPC failed).
+// On rpcFailed=true the caller MUST NOT advance lastScannedBlock so the
+// blocks are re-scanned on the next cycle.
+func (s *Service) scanNativeTransfersByLog(
+	ctx context.Context,
+	client *ethclient.Client,
+	bc money.Blockchain,
+	isTest bool,
+	addresses map[common.Address][]pendingInfo,
+	fromBlock, toBlock int64,
+	onDetected OnTransferDetected,
+) (int64, []int64, bool) {
+	var detected int64
+	var failedIDs []int64
+	var rpcFailed bool
+
+	watched := make([]common.Address, 0, len(addresses))
+	for addr := range addresses {
+		watched = append(watched, addr)
+	}
+
+	// Chunk in matching blocks to scanTokenTransfers to stay friendly with
+	// free / public RPC endpoints (block range / log count caps).
+	const maxLogsChunk int64 = 20
+	for chunkFrom := fromBlock; chunkFrom <= toBlock; chunkFrom += maxLogsChunk + 1 {
+		chunkTo := chunkFrom + maxLogsChunk
+		if chunkTo > toBlock {
+			chunkTo = toBlock
+		}
+
+		query := ethereum.FilterQuery{
+			FromBlock: big.NewInt(chunkFrom),
+			ToBlock:   big.NewInt(chunkTo),
+			Addresses: watched,
+			Topics: [][]common.Hash{
+				{nativeReceivedTopic},
+			},
+		}
+
+		logs, err := client.FilterLogs(ctx, query)
+		if err != nil {
+			s.logger.Error().Err(err).
+				Str("blockchain", bc.String()).
+				Int64("from_block", chunkFrom).
+				Int64("to_block", chunkTo).
+				Msg("unable to filter native Received logs")
+			rpcFailed = true
+			for _, pending := range addresses {
+				for _, info := range pending {
+					failedIDs = append(failedIDs, info.tx.ID)
+				}
+			}
+			break
+		}
+
+		for _, logEntry := range logs {
+			if len(logEntry.Topics) < 2 {
+				continue
+			}
+
+			recipientAddr := logEntry.Address
+			pending, ok := addresses[recipientAddr]
+			if !ok || len(pending) == 0 {
+				continue
+			}
+
+			amount := new(big.Int).SetBytes(logEntry.Data)
+			if amount.Sign() == 0 {
+				continue
+			}
+
+			senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
+
+			bestIdx, info := bestMatchByAmount(pending, amount)
+
+			cryptoAmount, err := money.NewFromBigInt(
+				money.Crypto,
+				info.tx.Currency.Ticker,
+				amount,
+				info.tx.Currency.Decimals,
+			)
+			if err != nil {
+				s.logger.Error().Err(err).
+					Str("ticker", info.tx.Currency.Ticker).
+					Msg("unable to parse native amount from log")
+				failedIDs = append(failedIDs, info.tx.ID)
+				continue
+			}
+
+			d := DetectedTransfer{
+				PendingTx:        info.tx,
+				Wallet:           nil, // collector flow has no managed wallet
+				TxHash:           logEntry.TxHash.Hex(),
+				SenderAddress:    senderAddr.Hex(),
+				RecipientAddress: recipientAddr.Hex(),
+				Amount:           cryptoAmount,
+				Currency:         info.tx.Currency,
+				NetworkID:        info.tx.Currency.ChooseNetwork(isTest),
+			}
+
+			if err := onDetected(ctx, d); err != nil {
+				s.logger.Error().Err(err).
+					Int64("tx_id", info.tx.ID).
+					Str("hash", logEntry.TxHash.Hex()).
+					Msg("failed to process detected native transfer (log-based)")
+				failedIDs = append(failedIDs, info.tx.ID)
+			} else {
+				detected++
+				addresses[recipientAddr] = removePending(pending, bestIdx)
+				if len(addresses[recipientAddr]) == 0 {
+					delete(addresses, recipientAddr)
+				}
+			}
+		}
+
+		if len(addresses) == 0 {
+			break
+		}
+	}
+
+	return detected, failedIDs, rpcFailed
 }
 
 // scanTokenTransfers uses eth_getLogs to find ERC-20 Transfer events to watched addresses.
@@ -608,13 +784,14 @@ func (s *Service) scanTokenTransfers(
 				}
 
 				d := DetectedTransfer{
-					PendingTx:     info.tx,
-					Wallet:        wt,
-					TxHash:        logEntry.TxHash.Hex(),
-					SenderAddress: senderAddr.Hex(),
-					Amount:        cryptoAmount,
-					Currency:      info.tx.Currency,
-					NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+					PendingTx:        info.tx,
+					Wallet:           wt,
+					TxHash:           logEntry.TxHash.Hex(),
+					SenderAddress:    senderAddr.Hex(),
+					RecipientAddress: recipientAddr.Hex(),
+					Amount:           cryptoAmount,
+					Currency:         info.tx.Currency,
+					NetworkID:        info.tx.Currency.ChooseNetwork(isTest),
 				}
 
 				if err := onDetected(ctx, d); err != nil {
@@ -677,14 +854,20 @@ func (s *Service) buildNativeDetection(
 		wt, _ = s.wallets.GetByID(ctx, *info.walletID)
 	}
 
+	recipient := ""
+	if blockTx.To() != nil {
+		recipient = blockTx.To().Hex()
+	}
+
 	return DetectedTransfer{
-		PendingTx:     info.tx,
-		Wallet:        wt,
-		TxHash:        blockTx.Hash().Hex(),
-		SenderAddress: sender.Hex(),
-		Amount:        cryptoAmount,
-		Currency:      info.tx.Currency,
-		NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+		PendingTx:        info.tx,
+		Wallet:           wt,
+		TxHash:           blockTx.Hash().Hex(),
+		SenderAddress:    sender.Hex(),
+		RecipientAddress: recipient,
+		Amount:           cryptoAmount,
+		Currency:         info.tx.Currency,
+		NetworkID:        info.tx.Currency.ChooseNetwork(isTest),
 	}, nil
 }
 
@@ -827,13 +1010,14 @@ func (s *Service) pollBTCTransactions(
 		}
 
 		d := DetectedTransfer{
-			PendingTx:     tx,
-			Wallet:        wt,
-			TxHash:        txHash,
-			SenderAddress: senderAddress,
-			Amount:        cryptoAmount,
-			Currency:      tx.Currency,
-			NetworkID:     tx.Currency.ChooseNetwork(isTest),
+			PendingTx:        tx,
+			Wallet:           wt,
+			TxHash:           txHash,
+			SenderAddress:    senderAddress,
+			RecipientAddress: addr,
+			Amount:           cryptoAmount,
+			Currency:         tx.Currency,
+			NetworkID:        tx.Currency.ChooseNetwork(isTest),
 		}
 
 		if err := onDetected(ctx, d); err != nil {
@@ -958,13 +1142,14 @@ func (s *Service) pollTRONNativeForAddress(
 		}
 
 		d := DetectedTransfer{
-			PendingTx:     info.tx,
-			Wallet:        wt,
-			TxHash:        rtx.TxID,
-			SenderAddress: rtx.From,
-			Amount:        cryptoAmount,
-			Currency:      info.tx.Currency,
-			NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+			PendingTx:        info.tx,
+			Wallet:           wt,
+			TxHash:           rtx.TxID,
+			SenderAddress:    rtx.From,
+			RecipientAddress: addr,
+			Amount:           cryptoAmount,
+			Currency:         info.tx.Currency,
+			NetworkID:        info.tx.Currency.ChooseNetwork(isTest),
 		}
 
 		if err := onDetected(ctx, d); err != nil {
@@ -1059,13 +1244,14 @@ func (s *Service) pollTRONTokenForAddress(
 		}
 
 		d := DetectedTransfer{
-			PendingTx:     info.tx,
-			Wallet:        wt,
-			TxHash:        rtx.TxID,
-			SenderAddress: rtx.From,
-			Amount:        cryptoAmount,
-			Currency:      info.tx.Currency,
-			NetworkID:     info.tx.Currency.ChooseNetwork(isTest),
+			PendingTx:        info.tx,
+			Wallet:           wt,
+			TxHash:           rtx.TxID,
+			SenderAddress:    rtx.From,
+			RecipientAddress: addr,
+			Amount:           cryptoAmount,
+			Currency:         info.tx.Currency,
+			NetworkID:        info.tx.Currency.ChooseNetwork(isTest),
 		}
 
 		if err := onDetected(ctx, d); err != nil {

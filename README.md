@@ -105,6 +105,7 @@ Your private key stays in your hardware wallet / cold storage. CryptoLink has *o
 - **Self-hosted** — runs on your own infrastructure; no external SaaS dependency
 - **Multi-merchant** — one installation supports unlimited merchants; admin panel for super-admin operators
 - **Smart-contract clone factory** — merchants deploy a personal collector clone in one transaction (~$0.50 of gas)
+- **Robust EVM payment detection** — event-based watcher (`eth_getLogs` on the collector's `Received(address,uint256)` log) catches direct sends *and* payments routed through exchange batch withdrawals, dispersers, multisigs, and payment splitters that are invisible to top-level transaction scans
 - **xpub / ypub / zpub support** — auto-detects BIP44 (legacy), BIP49 (P2SH-SegWit), BIP84 (native SegWit `bc1q…`)
 - **Multi-fiat invoicing** — price in any of 26 fiat currencies; merchant-configurable volatility-fee markup applied at conversion
 - **REST API** — full programmatic control over payments, webhooks, payment links, customers

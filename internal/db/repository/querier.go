@@ -78,6 +78,7 @@ type Querier interface {
 	GetSubscriptionPlanByID(ctx context.Context, id string) (SubscriptionPlan, error)
 	GetSuperAdmins(ctx context.Context) ([]User, error)
 	GetTransactionByHashAndNetworkID(ctx context.Context, arg GetTransactionByHashAndNetworkIDParams) (Transaction, error)
+	GetTransactionByHashNetworkAndRecipient(ctx context.Context, arg GetTransactionByHashNetworkAndRecipientParams) (Transaction, error)
 	GetTransactionByID(ctx context.Context, arg GetTransactionByIDParams) (Transaction, error)
 	GetTransactionsByFilter(ctx context.Context, arg GetTransactionsByFilterParams) ([]Transaction, error)
 	GetUsageTrackingByID(ctx context.Context, id int64) (UsageTracking, error)
