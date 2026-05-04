@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
 )
 
 type Querier interface {
@@ -122,8 +123,14 @@ type Querier interface {
 	UpdateMerchantSettings(ctx context.Context, arg UpdateMerchantSettingsParams) error
 	UpdateMerchantSubscription(ctx context.Context, arg UpdateMerchantSubscriptionParams) (MerchantSubscription, error)
 	UpdatePayment(ctx context.Context, arg UpdatePaymentParams) (Payment, error)
+	ExtendPaymentExpiry(ctx context.Context, arg ExtendPaymentExpiryParams) (ExtendPaymentExpiryRow, error)
 	UpdatePaymentCustomerID(ctx context.Context, arg UpdatePaymentCustomerIDParams) error
 	UpdatePaymentWebhookInfo(ctx context.Context, arg UpdatePaymentWebhookInfoParams) error
+	InsertTransactionFill(ctx context.Context, arg InsertTransactionFillParams) (TransactionFill, error)
+	ListTransactionFills(ctx context.Context, transactionID int64) ([]TransactionFill, error)
+	SumConfirmedFillsForTx(ctx context.Context, transactionID int64) (pgtype.Numeric, error)
+	SumAllFillsForTx(ctx context.Context, transactionID int64) (pgtype.Numeric, error)
+	FillExistsByHashAndRecipient(ctx context.Context, networkID, transactionHash, recipient string) (bool, error)
 	UpdateRegistryItem(ctx context.Context, arg UpdateRegistryItemParams) (Registry, error)
 	UpdateSubscriptionPlan(ctx context.Context, arg UpdateSubscriptionPlanParams) error
 	UpdateTransaction(ctx context.Context, arg UpdateTransactionParams) (Transaction, error)

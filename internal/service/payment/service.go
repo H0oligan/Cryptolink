@@ -406,8 +406,12 @@ func (s *Service) GetBatchExpired(ctx context.Context, limit int64) ([]*Payment,
 		ExpiresAt: repository.TimeToNullable(time.Now()),
 		CreatedAt: time.Now().Add(-ExpirationPeriodForNotLocked),
 		Type:      string(TypePayment),
-		Status:    []string{StatusPending.String(), StatusLocked.String()},
-		Limit:     lim,
+		// Include StatusPartial so partial-paid invoices that hit their
+		// extended expiry (capped at original+24h) get the same expiry
+		// treatment as ordinary unpaid invoices. Funds already received
+		// remain reconcilable via the normal underpaid/admin-resolve path.
+		Status: []string{StatusPending.String(), StatusLocked.String(), StatusPartial.String()},
+		Limit:  lim,
 	})
 	if err != nil {
 		return nil, err
@@ -617,6 +621,43 @@ func (s *Service) Update(ctx context.Context, merchantID, id int64, props Update
 func (s *Service) Fail(ctx context.Context, pt *Payment) error {
 	_, err := s.Update(ctx, pt.MerchantID, pt.ID, UpdateProps{Status: StatusFailed})
 	return err
+}
+
+// PartialExtensionPerFill is the per-top-up window the customer gets to
+// finish paying. Each detected fill bumps expires_at to now()+this duration,
+// hard-capped at original_expires_at + 24h by the SQL layer so dust spam
+// can't keep an invoice alive forever.
+const PartialExtensionPerFill = time.Minute * 30
+
+// MarkPartial flips a payment to StatusPartial and extends expires_at by
+// PartialExtensionPerFill from now (capped at original+24h). Idempotent —
+// safe to call on every detected partial fill.
+func (s *Service) MarkPartial(ctx context.Context, merchantID, paymentID int64) (*Payment, error) {
+	requested := time.Now().Add(PartialExtensionPerFill)
+
+	row, err := s.repo.ExtendPaymentExpiry(ctx, repository.ExtendPaymentExpiryParams{
+		ID:                 paymentID,
+		MerchantID:         merchantID,
+		Status:             string(StatusPartial),
+		UpdatedAt:          time.Now(),
+		RequestedExpiresAt: requested,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to extend partial payment expiry")
+	}
+
+	pt, err := s.GetByID(ctx, merchantID, row.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	evt := bus.PaymentStatusUpdateEvent{MerchantID: merchantID, PaymentID: pt.ID}
+	if pubErr := s.publisher.Publish(bus.TopicPaymentStatusUpdate, evt); pubErr != nil {
+		s.logger.Warn().Err(pubErr).Int64("payment_id", pt.ID).
+			Msg("unable to publish partial payment event")
+	}
+
+	return pt, nil
 }
 
 // ResolvePayment allows a merchant to manually mark a failed or underpaid payment as successful.

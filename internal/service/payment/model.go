@@ -64,6 +64,8 @@ func (p *Payment) PublicStatus() Status {
 	switch p.Status {
 	case StatusPending, StatusLocked:
 		return StatusPending
+	case StatusPartial:
+		return StatusPartial
 	default:
 		return p.Status
 	}
@@ -168,6 +170,10 @@ const (
 
 	// StatusLocked customer filled the form
 	StatusLocked Status = "locked"
+
+	// StatusPartial customer sent less than expected; awaiting top-up to the
+	// same address. Cumulative confirmed amount is below invoice expected.
+	StatusPartial Status = "partial"
 
 	// StatusInProgress underlying tx is in progress
 	StatusInProgress Status = "inProgress"

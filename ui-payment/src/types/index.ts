@@ -28,13 +28,16 @@ const CURRENCY = [
 ] as const;
 type Currency = typeof CURRENCY[number];
 
-type PaymentStatus = "pending" | "inProgress" | "success" | "failed" | "underpaid";
+type PaymentStatus = "pending" | "partial" | "inProgress" | "success" | "failed" | "underpaid";
 type PaymentAction = "redirect" | "showMessage";
 
 interface PaymentInfo {
     amount: string;
     amountFormatted: string;
     factAmountFormatted?: string;
+    receivedAmount?: string;
+    remainingAmount?: string;
+    remainingPaymentLink?: string;
     recipientAddress: string;
     status: PaymentStatus;
     successUrl?: string;

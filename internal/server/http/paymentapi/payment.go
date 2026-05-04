@@ -305,6 +305,10 @@ func paymentInfoToResponse(i *processing.PaymentInfo) *model.PaymentInfo {
 		AmountFormatted:     i.AmountFormatted,
 		FactAmountFormatted: i.FactAmountFormatted,
 
+		ReceivedAmount:       i.ReceivedAmount,
+		RemainingAmount:      i.RemainingAmount,
+		RemainingPaymentLink: i.RemainingPaymentLink,
+
 		ExpiresAt:             strfmt.DateTime(i.ExpiresAt),
 		ExpirationDurationMin: i.ExpirationDurationMin,
 
