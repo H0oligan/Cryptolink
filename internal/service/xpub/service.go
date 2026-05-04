@@ -10,16 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcutil/base58"
-	"github.com/btcsuite/btcutil/bech32"
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/base58"
+	"github.com/btcsuite/btcd/btcutil/bech32"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/kms/wallet"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/wemeetagain/go-hdwallet"
 )
 
 type Service struct {
@@ -143,8 +144,8 @@ func (s *Service) CreateXpubWallet(ctx context.Context, merchantID int64, blockc
 		return nil, ErrInvalidXpub
 	}
 
-	// Validate with go-hdwallet (checks curve point, checksum, etc.)
-	if _, err := hdwallet.StringWallet(convertedKey); err != nil {
+	// Validate with hdkeychain (checks curve point, checksum, version bytes).
+	if _, err := hdkeychain.NewKeyFromString(convertedKey); err != nil {
 		return nil, ErrInvalidXpub
 	}
 
@@ -434,8 +435,7 @@ func (s *Service) GetAddressByAddress(ctx context.Context, blockchain, address s
 // and address index. So for a depth-3 xpub, we derive: xpub / 0 (receive chain) / index.
 // If the xpub is already at chain level (depth 4), we derive: xpub / index directly.
 func (s *Service) deriveAddressFromXpub(xpub, blockchain, derivationPath string, index int) (string, string, error) {
-	// Parse xpub
-	key, err := hdwallet.StringWallet(xpub)
+	key, err := hdkeychain.NewKeyFromString(xpub)
 	if err != nil {
 		return "", "", errors.Wrap(err, "failed to parse xpub")
 	}
@@ -443,21 +443,23 @@ func (s *Service) deriveAddressFromXpub(xpub, blockchain, derivationPath string,
 	// If xpub is at account level (depth 3), first derive the receive chain (child 0)
 	// before deriving the address index. This matches BIP44/49/84 standard:
 	// account_xpub / 0 (receive) / address_index
-	if key.Depth == 3 {
-		key, err = key.Child(0) // receive chain
+	if key.Depth() == 3 {
+		key, err = key.Derive(0) // receive chain
 		if err != nil {
 			return "", "", errors.Wrap(err, "failed to derive receive chain from account xpub")
 		}
 	}
 
-	// Derive child key at index
-	childKey, err := key.Child(uint32(index))
+	childKey, err := key.Derive(uint32(index))
 	if err != nil {
 		return "", "", errors.Wrap(err, "failed to derive child key")
 	}
 
-	// childKey.Key is the 33-byte compressed public key
-	compressedPubKey := childKey.Key
+	ecPubKey, err := childKey.ECPubKey()
+	if err != nil {
+		return "", "", errors.Wrap(err, "failed to extract child public key")
+	}
+	compressedPubKey := ecPubKey.SerializeCompressed()
 	pubKeyHex := hex.EncodeToString(compressedPubKey)
 
 	switch wallet.Blockchain(blockchain) {
@@ -467,7 +469,13 @@ func (s *Service) deriveAddressFromXpub(xpub, blockchain, derivationPath string,
 	default:
 		// Only BTC uses xpub-derived addresses.
 		// EVM chains and TRON use smart contract collectors instead.
-		return childKey.Address(), pubKeyHex, nil
+		// hdkeychain.Address requires a chaincfg.Params; default to MainNet
+		// since the BTC fallback path above handles all supported chains.
+		addr, addrErr := childKey.Address(&chaincfg.MainNetParams)
+		if addrErr != nil {
+			return "", "", errors.Wrap(addrErr, "failed to derive default address")
+		}
+		return addr.EncodeAddress(), pubKeyHex, nil
 	}
 }
 
