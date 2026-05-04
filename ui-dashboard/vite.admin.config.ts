@@ -16,6 +16,10 @@ function globalPolyfill(): Plugin {
     };
 }
 
+// CryptoLink public release tag (single-decimal scheme: 1.0, 2.0, …).
+// Single source of truth for the admin SPA — kept in sync with vite.config.ts.
+const CRYPTOLINK_VERSION = "1.0";
+
 // Admin panel SPA — built with base /admin/ and deployed to public_html/admin/
 export default defineConfig({
     base: "/admin/",
@@ -32,6 +36,9 @@ export default defineConfig({
             src: path.resolve(__dirname, "/src"),
             buffer: "buffer/"
         }
+    },
+    define: {
+        __CRYPTOLINK_VERSION__: JSON.stringify(CRYPTOLINK_VERSION)
     },
     optimizeDeps: {
         esbuildOptions: {

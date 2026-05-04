@@ -1,0 +1,3551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoLink v1.0 Documentation - Self-Hosted Crypto Payment Gateway</title>
+    <meta name="description" content="Complete documentation for CryptoLink v1.0 - open-source, self-hosted, non-custodial crypto payment gateway. API reference, integration guides, and self-hosting instructions.">
+    <meta name="version" content="1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/nginx.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --primary-dark: #4f46e5;
+            --secondary: #10b981;
+            --secondary-light: #34d399;
+            --dark: #0f172a;
+            --dark2: #1e293b;
+            --dark3: #334155;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --border: #1e293b;
+            --sidebar-w: 280px;
+            --header-h: 60px;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--dark);
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        /* ── HEADER ── */
+        .site-header {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+            height: var(--header-h);
+            background: rgba(15,23,42,0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 1.5rem;
+            gap: 1rem;
+        }
+        .header-logo { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; }
+        .header-logo img { height: 32px; }
+        .header-logo span { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+        .header-logo span em { color: var(--primary); font-style: normal; }
+        .header-badge {
+            background: var(--primary); color: #fff;
+            font-size: 0.65rem; font-weight: 700; padding: 2px 7px;
+            border-radius: 20px; letter-spacing: 0.05em; text-transform: uppercase;
+        }
+        .header-right { margin-left: auto; display: flex; align-items: center; gap: 1rem; }
+        .header-link {
+            color: var(--text-muted); text-decoration: none; font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+        .header-link:hover { color: var(--primary-light); }
+        .hamburger {
+            display: none; flex-direction: column; gap: 5px; cursor: pointer;
+            background: none; border: none; padding: 4px;
+        }
+        .hamburger span {
+            display: block; width: 22px; height: 2px;
+            background: var(--text-muted); border-radius: 2px; transition: 0.3s;
+        }
+
+        /* ── LAYOUT ── */
+        .layout { display: flex; padding-top: var(--header-h); min-height: 100vh; }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            position: fixed; top: var(--header-h); left: 0; bottom: 0;
+            width: var(--sidebar-w); overflow-y: auto;
+            background: rgba(15,23,42,0.98);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem 0; z-index: 100;
+            transition: transform 0.3s;
+        }
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--dark3); border-radius: 4px; }
+
+        .sidebar-group { margin-bottom: 1.5rem; }
+        .sidebar-group-label {
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--text-dim);
+            padding: 0 1.25rem 0.4rem;
+        }
+        .sidebar a {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.45rem 1.25rem;
+            color: var(--text-muted); text-decoration: none;
+            font-size: 0.875rem; border-left: 3px solid transparent;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .sidebar a:hover { color: var(--text); background: rgba(99,102,241,0.08); }
+        .sidebar a.active {
+            color: var(--primary-light); border-left-color: var(--primary);
+            background: rgba(99,102,241,0.1); font-weight: 500;
+        }
+        .sidebar a .icon { font-size: 0.85rem; width: 16px; text-align: center; opacity: 0.7; }
+
+        .sidebar-overlay {
+            display: none; position: fixed; inset: 0; z-index: 90;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+        }
+
+        /* ── MAIN CONTENT ── */
+        .main-content {
+            margin-left: var(--sidebar-w);
+            flex: 1; min-width: 0;
+            padding: 3rem 4rem;
+            max-width: calc(100% - var(--sidebar-w));
+        }
+
+        /* ── SECTIONS ── */
+        .doc-section {
+            max-width: 860px; margin: 0 auto 6rem;
+            scroll-margin-top: calc(var(--header-h) + 2rem);
+        }
+        .section-label {
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+            text-transform: uppercase; color: var(--primary); margin-bottom: 0.5rem;
+        }
+        h1.section-title {
+            font-size: 2.25rem; font-weight: 700; color: #fff;
+            line-height: 1.2; margin-bottom: 1rem;
+        }
+        h2 { font-size: 1.5rem; font-weight: 600; color: #fff; margin: 2.5rem 0 1rem; }
+        h3 { font-size: 1.15rem; font-weight: 600; color: var(--text); margin: 2rem 0 0.75rem; }
+        h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); margin: 1.5rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        p { color: var(--text-muted); margin-bottom: 1rem; }
+        p strong { color: var(--text); }
+        ul, ol { color: var(--text-muted); padding-left: 1.5rem; margin-bottom: 1rem; }
+        li { margin-bottom: 0.35rem; }
+        li strong { color: var(--text); }
+
+        .section-intro {
+            font-size: 1.05rem; color: var(--text-muted); line-height: 1.8;
+            border-left: 3px solid var(--primary); padding-left: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        /* ── DIVIDER ── */
+        .section-divider {
+            border: none; border-top: 1px solid var(--border); margin: 2rem 0;
+        }
+
+        /* ── CALLOUT BOXES ── */
+        .callout {
+            border-radius: 8px; padding: 1rem 1.25rem;
+            margin: 1.5rem 0; font-size: 0.9rem;
+            border-left: 4px solid;
+        }
+        .callout-title { font-weight: 600; margin-bottom: 0.25rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .callout p { margin: 0; }
+        .callout.info { background: rgba(99,102,241,0.1); border-color: var(--primary); }
+        .callout.info .callout-title { color: var(--primary-light); }
+        .callout.info p { color: #a5b4fc; }
+        .callout.success { background: rgba(16,185,129,0.1); border-color: var(--secondary); }
+        .callout.success .callout-title { color: var(--secondary-light); }
+        .callout.success p { color: #6ee7b7; }
+        .callout.warning { background: rgba(245,158,11,0.1); border-color: #f59e0b; }
+        .callout.warning .callout-title { color: #fbbf24; }
+        .callout.warning p { color: #fde68a; }
+        .callout.danger { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+        .callout.danger .callout-title { color: #f87171; }
+        .callout.danger p { color: #fca5a5; }
+
+        /* ── CODE BLOCKS ── */
+        .code-wrap { position: relative; margin: 1.25rem 0; border-radius: 10px; overflow: hidden; }
+        .code-header {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #1a1f2e; padding: 0.6rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .code-lang {
+            font-size: 0.72rem; font-weight: 600; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 0.08em;
+        }
+        .copy-btn {
+            background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);
+            color: var(--primary-light); font-size: 0.72rem; font-weight: 600;
+            padding: 3px 10px; border-radius: 5px; cursor: pointer;
+            transition: all 0.2s; letter-spacing: 0.05em;
+        }
+        .copy-btn:hover { background: rgba(99,102,241,0.3); }
+        .copy-btn.copied { color: var(--secondary-light); border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.1); }
+        pre { margin: 0; }
+        pre code.hljs { padding: 1.25rem; font-size: 0.84rem; font-family: 'JetBrains Mono', monospace; line-height: 1.65; border-radius: 0; }
+
+        /* inline code */
+        code:not(.hljs) {
+            background: rgba(99,102,241,0.15); color: var(--primary-light);
+            padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.83em;
+        }
+
+        /* ── TABS ── */
+        .tab-group { margin: 1.5rem 0; }
+        .tab-buttons { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+        .tab-btn {
+            background: none; border: none; border-bottom: 2px solid transparent;
+            color: var(--text-dim); font-size: 0.85rem; font-weight: 500;
+            padding: 0.5rem 1.1rem; cursor: pointer; transition: all 0.2s;
+            font-family: 'Inter', sans-serif; margin-bottom: -1px;
+        }
+        .tab-btn:hover { color: var(--text-muted); }
+        .tab-btn.active { color: var(--primary-light); border-bottom-color: var(--primary); }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* ── TABLES ── */
+        .table-wrap { overflow-x: auto; margin: 1.5rem 0; border-radius: 10px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        thead { background: var(--dark2); }
+        th {
+            text-align: left; padding: 0.75rem 1rem;
+            color: var(--text-muted); font-weight: 600; font-size: 0.78rem;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 0.75rem 1rem; color: var(--text-muted);
+            border-bottom: 1px solid rgba(30,41,59,0.7);
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(99,102,241,0.04); }
+        td strong { color: var(--text); }
+        td code { font-size: 0.8rem; }
+
+        .badge {
+            display: inline-flex; align-items: center;
+            padding: 2px 8px; border-radius: 20px;
+            font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em;
+        }
+        .badge-green { background: rgba(16,185,129,0.15); color: var(--secondary-light); }
+        .badge-blue  { background: rgba(99,102,241,0.15); color: var(--primary-light); }
+        .badge-red   { background: rgba(239,68,68,0.15); color: #f87171; }
+        .badge-yellow { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .badge-gray  { background: rgba(100,116,139,0.2); color: var(--text-dim); }
+        .check { color: var(--secondary); }
+        .cross { color: #ef4444; }
+        .partial { color: #f59e0b; }
+
+        /* ── ENDPOINT BLOCKS ── */
+        .endpoint {
+            display: flex; align-items: center; gap: 0.75rem;
+            background: var(--dark2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.75rem;
+        }
+        .method {
+            font-family: 'JetBrains Mono', monospace; font-weight: 700;
+            font-size: 0.8rem; padding: 3px 10px; border-radius: 5px; flex-shrink: 0;
+        }
+        .method-get  { background: rgba(16,185,129,0.15); color: #34d399; }
+        .method-post { background: rgba(99,102,241,0.15); color: #818cf8; }
+        .method-put  { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .method-del  { background: rgba(239,68,68,0.15); color: #f87171; }
+        .endpoint-path { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text); }
+        .endpoint-desc { margin-left: auto; font-size: 0.8rem; color: var(--text-dim); }
+
+        /* ── FLOW STEPS ── */
+        .flow-steps { margin: 1.5rem 0; }
+        .flow-step {
+            display: flex; gap: 1rem; margin-bottom: 1rem; align-items: flex-start;
+        }
+        .flow-num {
+            flex-shrink: 0; width: 32px; height: 32px;
+            background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);
+            color: var(--primary-light); font-weight: 700; font-size: 0.85rem;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        }
+        .flow-body strong { color: var(--text); display: block; margin-bottom: 0.2rem; font-size: 0.95rem; }
+        .flow-body span { color: var(--text-muted); font-size: 0.875rem; }
+
+        /* ── AUDIT TABLE ── */
+        .severity-critical { color: #f87171; font-weight: 700; }
+        .severity-high     { color: #fb923c; font-weight: 600; }
+        .severity-medium   { color: #fbbf24; font-weight: 600; }
+        .severity-low      { color: #a3e635; font-weight: 600; }
+        .severity-info     { color: var(--primary-light); font-weight: 500; }
+
+        /* ── FAQ ── */
+        .faq-item { border-bottom: 1px solid var(--border); }
+        .faq-question {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1rem 0; cursor: pointer; color: var(--text);
+            font-weight: 500; font-size: 0.95rem; list-style: none; gap: 1rem;
+        }
+        .faq-question::-webkit-details-marker { display: none; }
+        .faq-question::after {
+            content: '+'; color: var(--primary); font-size: 1.25rem;
+            font-weight: 300; flex-shrink: 0; transition: transform 0.2s;
+        }
+        details[open] .faq-question::after { content: '−'; }
+        .faq-answer { padding: 0 0 1rem; color: var(--text-muted); font-size: 0.9rem; }
+        .faq-answer p { margin-bottom: 0.5rem; }
+        .faq-answer p:last-child { margin-bottom: 0; }
+
+        /* ── STAT CARDS ── */
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 1rem; margin: 1.5rem 0; }
+        .stat-card {
+            background: var(--dark2); border: 1px solid var(--border);
+            border-radius: 10px; padding: 1.25rem; text-align: center;
+        }
+        .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--primary-light); line-height: 1; }
+        .stat-label { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.4rem; }
+
+        /* ── ARCH DIAGRAM ── */
+        .arch-diagram {
+            background: var(--dark2); border: 1px solid var(--border);
+            border-radius: 10px; padding: 2rem; margin: 1.5rem 0;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted);
+            white-space: pre; overflow-x: auto; line-height: 1.8;
+        }
+
+        /* ── MOBILE ── */
+        @media (max-width: 900px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-overlay.open { display: block; }
+            .hamburger { display: flex; }
+            .main-content { margin-left: 0; max-width: 100%; padding: 2rem 1.25rem; }
+            h1.section-title { font-size: 1.65rem; }
+            h2 { font-size: 1.25rem; }
+        }
+        @media (max-width: 600px) {
+            .main-content { padding: 1.5rem 1rem; }
+            .stat-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="site-header">
+    <button class="hamburger" id="hamburger" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+    </button>
+    <a href="#introduction" class="header-logo">
+        <img src="/logo.svg" alt="CryptoLink" onerror="this.style.display='none'">
+        <span><em>Crypto</em>Link</span>
+    </a>
+    <span class="header-badge">Docs</span>
+    <span class="header-badge" style="background:var(--secondary);">v1.0</span>
+    <div class="header-right">
+        <a href="/merchants/login" class="header-link">Dashboard →</a>
+    </div>
+</header>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-group">
+        <div class="sidebar-group-label">Getting Started</div>
+        <a href="#introduction" class="nav-link active"><span class="icon">🏠</span> Introduction</a>
+        <a href="#how-it-works" class="nav-link"><span class="icon">⚙️</span> How It Works</a>
+        <a href="#non-custodial" class="nav-link"><span class="icon">🔐</span> Non-Custodial Architecture</a>
+        <a href="#open-source" class="nav-link"><span class="icon">🛡️</span> Open Source &amp; Security</a>
+        <a href="#quick-start" class="nav-link"><span class="icon">🚀</span> Quick Start</a>
+    </div>
+    <div class="sidebar-group">
+        <div class="sidebar-group-label">API Reference</div>
+        <a href="#authentication" class="nav-link"><span class="icon">🔑</span> Authentication</a>
+        <a href="#payments-api" class="nav-link"><span class="icon">💳</span> Payments API</a>
+        <a href="#payment-links-api" class="nav-link"><span class="icon">🔗</span> Payment Links API</a>
+        <a href="#webhooks" class="nav-link"><span class="icon">📡</span> Webhooks</a>
+        <a href="#wallet-api" class="nav-link"><span class="icon">👛</span> Wallet Configuration API</a>
+        <a href="#currencies" class="nav-link"><span class="icon">₿</span> Currencies &amp; Networks</a>
+    </div>
+    <div class="sidebar-group">
+        <div class="sidebar-group-label">Integration Guides</div>
+        <a href="#integration-laravel" class="nav-link"><span class="icon">🐘</span> Laravel / PHP</a>
+        <a href="#integration-nodejs" class="nav-link"><span class="icon">🟢</span> Node.js</a>
+        <a href="#integration-python" class="nav-link"><span class="icon">🐍</span> Python</a>
+        <a href="#integration-woocommerce" class="nav-link"><span class="icon">🛒</span> WordPress / WooCommerce</a>
+    </div>
+    <div class="sidebar-group">
+        <div class="sidebar-group-label">Operations</div>
+        <a href="#self-hosting" class="nav-link"><span class="icon">🖥️</span> Self-Hosting Guide</a>
+        <a href="#security-audit" class="nav-link"><span class="icon">🔍</span> Security Audit 2025</a>
+        <a href="#changelog" class="nav-link"><span class="icon">📝</span> Changelog</a>
+        <a href="#faq" class="nav-link"><span class="icon">❓</span> FAQ</a>
+    </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 1: INTRODUCTION -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="introduction" class="doc-section">
+    <div class="section-label">Overview</div>
+    <h1 class="section-title">CryptoLink Documentation <span style="font-size:0.5em;vertical-align:middle;background:var(--secondary);color:#fff;padding:4px 10px;border-radius:6px;margin-left:0.5em;font-weight:600;letter-spacing:0.05em;">v1.0</span></h1>
+    <p class="section-intro">
+        CryptoLink is a 100% open-source, self-hosted, non-custodial crypto payment gateway.
+        Accept Bitcoin, Ethereum, USDT, USDC, TRON, and more — on your own server, with your own keys.
+        No third party ever touches your funds. No per-transaction fees. No lock-in.
+    </p>
+    <p class="section-intro" style="font-size:0.9em;color:var(--text-muted);">
+        Current release: <strong style="color:var(--secondary);">CryptoLink v1.0</strong>. See the
+        <a href="#changelog" style="color:var(--primary-light);">Changelog</a> for what shipped in this release.
+    </p>
+
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-value">0%</div>
+            <div class="stat-label">Transaction Fees</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">17</div>
+            <div class="stat-label">Currencies / 7 Chains</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">MIT</div>
+            <div class="stat-label">License</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">$0</div>
+            <div class="stat-label">Starting Plan</div>
+        </div>
+    </div>
+
+    <h2>What is CryptoLink?</h2>
+    <p>
+        CryptoLink gives merchants complete sovereignty over their crypto payment infrastructure.
+        Unlike centralized processors (Stripe, Coinbase Commerce, BitPay), CryptoLink runs
+        entirely on your own server. You generate your own wallet addresses, you receive funds
+        directly, and your private keys never leave your custody.
+    </p>
+    <p>
+        CryptoLink is written in Go (backend) and React + Vite (frontend), with a clean REST API
+        and two independent dashboards — one for merchants, one for the super-admin operator.
+        It connects directly to blockchain networks — Blockstream/mempool.space for Bitcoin,
+        go-ethereum RPC for EVM chains, and TronGrid for TRON — with no third-party middleware
+        standing between you and the blockchain.
+    </p>
+
+    <h2>Key Features</h2>
+    <ul>
+        <li><strong>True non-custody</strong> — BTC uses xpub HD derivation; EVM and TRON chains use merchant-owned smart contract collectors. Private keys never touch the server.</li>
+        <li><strong>Self-hosted</strong> — deploy on any Linux server with full control</li>
+        <li><strong>Open source</strong> — MIT license, every line of code is fully auditable</li>
+        <li><strong>Zero per-transaction fees</strong> — flat subscription plans starting at $0/month</li>
+        <li><strong>7 blockchains, 17 currencies</strong> — BTC, ETH, MATIC, BSC, TRON, Arbitrum, Avalanche plus USDT/USDC on supported chains</li>
+        <li><strong>No third-party middleware</strong> — direct blockchain APIs (Blockstream, go-ethereum RPC, TronGrid) with no intermediary dependencies</li>
+        <li><strong>Smart contract collectors</strong> — EIP-1167 clone factory pattern for cheap, non-custodial EVM and TRON payment addresses</li>
+        <li><strong>Multi-merchant</strong> — one installation can host multiple independent merchants</li>
+        <li><strong>Real-time webhooks</strong> — HMAC-signed event delivery for every payment state change</li>
+        <li><strong>Payment links</strong> — reusable, shareable links for donations or flexible-amount payments</li>
+        <li><strong>Modern dashboard</strong> — React SPA with analytics, payment management, and API token management</li>
+        <li><strong>Multi-fiat invoicing</strong> — price in any of 26 fiat currencies (USD, EUR, GBP, JPY, …) with optional volatility-fee markup</li>
+        <li><strong>Underpayment handling</strong> — automatic detection, configurable grace period for top-up</li>
+        <li><strong>Subscription enforcement</strong> — plan limits checked server-side; HTTP 402 on overage with upgrade URL</li>
+    </ul>
+
+    <h2>Subscription Plans</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Plan</th><th>Price</th><th>Monthly Volume</th><th>Merchants</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>Free</strong></td><td>$0/mo</td><td>Up to $1,000</td><td>1</td></tr>
+                <tr><td><strong>Starter</strong></td><td>$9.99/mo</td><td>Up to $10,000</td><td>1</td></tr>
+                <tr><td><strong>Growth</strong></td><td>$29.99/mo</td><td>Up to $50,000</td><td>3</td></tr>
+                <tr><td><strong>Business</strong></td><td>$79.99/mo</td><td>Up to $250,000</td><td>10</td></tr>
+                <tr><td><strong>Enterprise</strong></td><td>$199.99/mo</td><td>Unlimited</td><td>Unlimited</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout success">
+        <div class="callout-title">Open Source</div>
+        <p>CryptoLink is fully open source under the MIT license. Every line of backend Go code, frontend React component,
+        database migration, and Solidity contract is available for inspection and audit.</p>
+    </div>
+
+    <h2>Anonymity &amp; What Goes On-Chain</h2>
+    <p>CryptoLink is built for privacy-conscious operators. Here is exactly what is and isn't visible to whom:</p>
+
+    <h3>What is NEVER published or known to CryptoLink</h3>
+    <ul>
+        <li><strong>Your private keys</strong> — they never leave your hardware wallet, cold storage, or browser extension.</li>
+        <li><strong>Your legal identity</strong> — no KYC. Sign-up requires only an email address, which you can rotate.</li>
+        <li><strong>Your customer list, order data, or business volume</strong> — all stored only in your self-hosted database.</li>
+        <li><strong>The mapping between merchant accounts and real-world identities</strong> — CryptoLink-the-software has no such record.</li>
+    </ul>
+
+    <h3>What IS publicly visible (because all blockchains are public ledgers)</h3>
+    <ul>
+        <li><strong>Deployed smart-contract addresses themselves.</strong> EVM and TRON contracts live on a public chain; their bytecode can be verified on block explorers (Etherscan, Tronscan). This is unavoidable for any on-chain payment system.</li>
+        <li><strong>Each collector clone's address and its owner.</strong> When a merchant deploys a clone, the factory emits a <code>CloneCreated(owner, clone)</code> event. Anyone watching the chain can see the owner address — but no name, email, or business name is attached.</li>
+        <li><strong>Payment transactions to your address.</strong> Every blockchain transaction is public. This is true of all on-chain payments, custodial or not.</li>
+        <li><strong>The CryptoLink open-source code</strong>, including the Solidity contracts. Publishing them is a feature, not a leak — it lets anyone verify there's no backdoor.</li>
+    </ul>
+
+    <div class="callout info">
+        <div class="callout-title">Are the contracts safe to publish?</div>
+        <p>Yes — and they are intentionally public. There are no hardcoded admin or merchant addresses in any of them. The factory has no admin powers over deployed clones. The owner of each clone is set once at deploy time (passed in by the deploying merchant) and cannot be changed. CryptoLink does not publish the addresses of any specific deployed factory — each operator is expected to deploy their own per chain.</p>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 2: HOW IT WORKS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="how-it-works" class="doc-section">
+    <div class="section-label">Architecture</div>
+    <h1 class="section-title">How It Works</h1>
+    <p class="section-intro">
+        CryptoLink follows a simple, transparent flow. For Bitcoin, every payment gets a unique
+        address derived from your xpub key. For EVM chains and TRON, payments go to your
+        merchant-owned smart contract collector — no shared wallets, no commingled funds.
+    </p>
+
+    <h2>Payment Flow</h2>
+    <div class="flow-steps">
+        <div class="flow-step">
+            <div class="flow-num">1</div>
+            <div class="flow-body">
+                <strong>Merchant creates a payment via API</strong>
+                <span>Your server calls <code>POST /api/merchant/v1/merchant/{merchantId}/payment</code> with fiat currency (USD/EUR), amount, and your order ID. CryptoLink returns the payment UUID and a hosted payment page URL (<code>paymentURL</code>).</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">2</div>
+            <div class="flow-body">
+                <strong>Customer is redirected to the payment page</strong>
+                <span>The customer lands on <code>https://yourdomain.com/p/{uuid}</code> — a page hosted entirely on your own server. No third-party iframes, no external scripts that can steal card data.</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">3</div>
+            <div class="flow-body">
+                <strong>A unique blockchain address is generated</strong>
+                <span>For Bitcoin, CryptoLink uses your xpub key and BIP32/BIP44/BIP84 HD derivation to generate a fresh, unique deposit address. For EVM chains and TRON, the customer pays to your merchant-owned smart contract collector address. The customer sees this address with a QR code. Your private key is never involved.</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">4</div>
+            <div class="flow-body">
+                <strong>Customer sends cryptocurrency</strong>
+                <span>The customer sends the exact amount (or any amount for payment links) to the displayed address. The payment page auto-detects the currency (ETH, USDT, BTC, etc.) based on your configuration.</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">5</div>
+            <div class="flow-body">
+                <strong>CryptoLink's address watcher detects the transaction</strong>
+                <span>CryptoLink's built-in watcher polls blockchain APIs directly every 15s — Blockstream/mempool.space for Bitcoin, go-ethereum RPC for EVM chains, and TronGrid for TRON. EVM detection is <strong>event-based</strong>: collector contracts emit a <code>Received(address,uint256)</code> log on every inbound payment, and the watcher indexes those logs via <code>eth_getLogs</code>. This catches not only direct customer sends but also payments routed through exchange withdrawal sweeps, batch payers (Disperse-style), payment splitters and multisigs — all of which deliver value via internal contract calls invisible to a top-level transaction scan. ERC-20 / TRC-20 detection uses the standard <code>Transfer</code> event; Bitcoin uses balance-change polling. Detection is deduplicated on <code>(network, txHash, recipient)</code> so a single batch transaction can correctly settle multiple invoices to different collector addresses.</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">6</div>
+            <div class="flow-body">
+                <strong>Payment status updates in real-time</strong>
+                <span>The payment moves through states: <code>pending</code> → <code>inProgress</code> (mempool/broadcast) → <code>success</code> (confirmed) or <code>failed</code>/<code>expired</code>. The customer's payment page polls for updates and shows confirmation in real-time.</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">7</div>
+            <div class="flow-body">
+                <strong>Merchant receives webhook notification</strong>
+                <span>Your webhook URL (set in <strong>Dashboard → Settings → Webhook URL</strong>) receives a signed POST with the payment status, amount, and your order ID. Verify the <code>X-Signature</code> header and fulfill the order.</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">8</div>
+            <div class="flow-body">
+                <strong>Funds arrive directly in your wallet</strong>
+                <span>The cryptocurrency was sent directly to an address you control. It sits there until you withdraw it using your hardware wallet or cold storage. CryptoLink never held the funds — it only watched the blockchain.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="arch-diagram">┌──────────────────┐          ┌────────────────────────┐
+│   Your Store /   │  API     │                        │
+│   E-commerce     │─────────▶│   CryptoLink Server    │
+│   Backend        │          │   (your own VPS)       │
+└──────────────────┘          │                        │
+         ▲                    │  • Derives addresses   │
+         │ Webhook            │  • Manages payments    │
+         │ (HMAC signed)      │  • Polls blockchains   │
+         └────────────────────│                        │
+                              └────────────┬───────────┘
+                                           │ Direct API polling
+                                           ▼
+                              ┌────────────────────────┐
+                              │   Blockchain APIs      │
+                              │   (no middleware)      │
+                              │                        │
+                              │  • Blockstream (BTC)   │
+                              │  • go-ethereum (EVM)   │
+                              │  • TronGrid (TRON)     │
+                              └────────────┬───────────┘
+                                           │
+                                           ▼
+                              ┌────────────────────────┐
+                              │   Blockchain Network   │
+                              │   (BTC/ETH/TRON/…)    │
+                              │                        │
+                              │  Funds go DIRECTLY to  │
+                              │  merchant's wallet     │
+                              └────────────────────────┘</div>
+
+    <h2>Payment States</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Status</th><th>Description</th><th>Trigger</th></tr></thead>
+            <tbody>
+                <tr><td><span class="badge badge-gray">pending</span></td><td>Payment created, awaiting transaction</td><td>Created via API</td></tr>
+                <tr><td><span class="badge badge-yellow">locked</span></td><td>Customer picked a currency; awaiting on-chain transfer</td><td>Customer action on payment page</td></tr>
+                <tr><td><span class="badge badge-yellow">inProgress</span></td><td>Transaction detected on-chain, awaiting confirmations</td><td>Address watcher (event-based for EVM, balance-based for BTC, log-based for tokens)</td></tr>
+                <tr><td><span class="badge badge-green">success</span></td><td>Transaction confirmed; merchant webhook delivered</td><td>Address watcher (confirmed)</td></tr>
+                <tr><td><span class="badge badge-red">failed</span></td><td>Transaction failed or wrong amount</td><td>Address watcher / system check</td></tr>
+                <tr><td><span class="badge badge-red">expired</span></td><td>Payment window elapsed (default: 24h)</td><td>Scheduled job</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 3: NON-CUSTODIAL ARCHITECTURE -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="non-custodial" class="doc-section">
+    <div class="section-label">Security Model</div>
+    <h1 class="section-title">Non-Custodial Architecture</h1>
+    <p class="section-intro">
+        This is the most important section of the documentation. Understanding why CryptoLink
+        cannot steal your funds — even if the server is fully compromised — is fundamental to
+        evaluating it as a payment solution.
+    </p>
+
+    <div class="callout success">
+        <div class="callout-title">The Core Guarantee</div>
+        <p>For <strong>Bitcoin</strong>, CryptoLink derives deposit addresses using only your extended public key (xpub).
+        For <strong>EVM chains and TRON</strong>, each merchant deploys their own smart contract collector — only the merchant's wallet can withdraw funds from it.
+        In both cases, the private key never touches the server and CryptoLink cannot spend your funds.</p>
+    </div>
+
+    <h2>What is an Extended Public Key?</h2>
+    <p>
+        An <strong>extended public key</strong> is a concept from the BIP32 Hierarchical Deterministic
+        (HD) wallet standard. It encodes a public key and a chain code that together allow derivation
+        of an unlimited number of child public keys — and therefore an unlimited number of unique deposit addresses.
+    </p>
+    <p>
+        Crucially, knowing an extended public key allows you to <em>derive addresses</em> but gives you <strong>zero ability</strong>
+        to sign transactions or move funds. The mathematical relationship is one-way:
+    </p>
+
+    <div class="arch-diagram">Master Seed (BIP39 mnemonic — NEVER leaves hardware wallet)
+        │
+        ▼
+Master Private Key + Master Chain Code
+        │
+        ├──▶ Master Public Key + Chain Code = zpub/xpub
+        │         │
+        │         ├──▶ Child pubkey at m/84'/0'/0'/0/0  → bc1q...abc (Address 0)
+        │         ├──▶ Child pubkey at m/84'/0'/0'/0/1  → bc1q...def (Address 1)
+        │         ├──▶ Child pubkey at m/84'/0'/0'/0/2  → bc1q...ghi (Address 2)
+        │         └──▶ ... unlimited unique addresses
+        │
+        └──▶ Master Private Key (stays in Ledger/Trezor — NEVER exported)
+
+CryptoLink only ever receives the extended public key.
+CryptoLink can generate addresses 0, 1, 2, ... ∞
+CryptoLink CANNOT derive the private key from the public key (one-way function).</div>
+
+    <h3>Key Format Auto-Detection (SLIP-0132)</h3>
+    <p>
+        Different wallet software exports keys with different prefixes. CryptoLink uses the
+        <strong>SLIP-0132</strong> standard to auto-detect the key format from the first 4 bytes
+        (version prefix) and automatically selects the correct derivation path and address format:
+    </p>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Prefix</th><th>Standard</th><th>Address Format</th><th>Derivation Path</th><th>Example Address</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td><code>zpub</code></td>
+                    <td>BIP84</td>
+                    <td>Native SegWit (bech32)</td>
+                    <td><code>m/84'/0'/0'</code></td>
+                    <td><code>bc1q...</code> <span class="badge badge-green">Recommended</span></td>
+                </tr>
+                <tr>
+                    <td><code>ypub</code></td>
+                    <td>BIP49</td>
+                    <td>SegWit (P2SH-wrapped)</td>
+                    <td><code>m/49'/0'/0'</code></td>
+                    <td><code>3...</code></td>
+                </tr>
+                <tr>
+                    <td><code>xpub</code></td>
+                    <td>BIP44</td>
+                    <td>Legacy (P2PKH)</td>
+                    <td><code>m/44'/0'/0'</code></td>
+                    <td><code>1...</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p>
+        Internally, CryptoLink converts all key formats (zpub, ypub) to <code>xpub</code> version
+        bytes for the derivation library, but preserves the correct derivation path based on the
+        original format. This means the same key always produces the same addresses regardless
+        of how it is encoded.
+    </p>
+
+    <div class="callout info">
+        <div class="callout-title">Which format should I use?</div>
+        <p><strong>zpub</strong> (Native SegWit / BIP84) is recommended. It produces <code>bc1q...</code>
+        addresses with the lowest transaction fees. This is the default in modern wallets like
+        Electrum, Trezor Suite, and BlueWallet. If your wallet only exports <code>xpub</code>,
+        CryptoLink will treat it as Legacy (1-prefix addresses).</p>
+    </div>
+
+    <h3>Hardware Wallet Compatibility</h3>
+    <p>
+        Most modern wallets export the correct SLIP-0132 prefix. However, some hardware wallet
+        software (notably <strong>Ledger Live</strong>) exports all keys as <code>xpub</code>
+        regardless of whether the account uses Native SegWit (bc1q) or Legacy (1-prefix) addresses.
+        This can cause an address format mismatch.
+    </p>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Wallet</th><th>Export Format</th><th>Notes</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Exodus</strong></td><td><code>zpub</code> / <code>ypub</code> / <code>xpub</code></td><td>Settings &rarr; Developer Menu &rarr; Export. All three formats available.</td></tr>
+                <tr><td><strong>Electrum</strong></td><td><code>zpub</code></td><td>Wallet &rarr; Information &rarr; Master Public Key. Correct format for SegWit.</td></tr>
+                <tr><td><strong>Trezor Suite</strong></td><td><code>zpub</code></td><td>Account &rarr; Show Public Key. Correct format for SegWit accounts.</td></tr>
+                <tr><td><strong>Ledger Live</strong></td><td><code>xpub</code> only</td><td>Always exports <code>xpub</code> even for SegWit accounts. Use Electrum or Sparrow to export <code>zpub</code> instead.</td></tr>
+                <tr><td><strong>Coldcard</strong></td><td><code>zpub</code></td><td>Settings &rarr; Advanced &rarr; Export &rarr; XPUB. Uses correct SLIP-0132 prefixes.</td></tr>
+                <tr><td><strong>Sparrow Wallet</strong></td><td><code>zpub</code></td><td>Settings &rarr; Show Master Public Key. Always correct format.</td></tr>
+                <tr><td><strong>BlueWallet</strong></td><td><code>zpub</code></td><td>Wallet &rarr; Details &rarr; Show XPUB. Uses correct format.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout warning">
+        <div class="callout-title">Address Verification After Import</div>
+        <p>After importing your key, CryptoLink derives the first receive address and displays it
+        for verification. <strong>Compare this address with the first receive address in your wallet
+        software.</strong> If they match, your configuration is correct. If they don't match, you may
+        need to re-export your key in the correct format (zpub for bc1q addresses).</p>
+    </div>
+
+    <h2>How Address Derivation Works</h2>
+    <p>
+        When a customer initiates a payment, CryptoLink increments an internal counter and derives
+        the next child address from your extended public key using the BIP32 derivation path
+        (e.g., BIP84 path <code>m/84'/0'/0'/0/n</code> for Native SegWit):
+    </p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">Derivation Logic (conceptual)</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-go">// CryptoLink receives zpub from merchant during setup
+// (xpub and ypub also accepted — auto-converted internally)
+zpub := "zpub6rFR7y4Q2A...your_key..."
+
+// For each new payment, derive the next index
+paymentIndex := db.GetNextAddressIndex(merchantID)
+
+// Derive child public key using BIP32 (path: m/84'/0'/0'/0/{index})
+childKey := bip32.DeriveChildKey(zpub, paymentIndex)
+
+// Convert to Bitcoin bech32 address
+address := bitcoin.PublicKeyToBech32Address(childKey)
+// Result: "bc1q3a2d8f..." — a fresh, unique Native SegWit address
+// This address belongs to the merchant's HD wallet
+// ONLY the merchant's private key (in their hardware wallet) can sign from it</code></pre>
+    </div>
+
+    <h2>Smart Contract Collectors (EVM &amp; TRON)</h2>
+    <p>
+        For EVM-compatible chains (ETH, MATIC, BSC, Arbitrum, Avalanche) and TRON, CryptoLink uses
+        a <strong>smart contract collector pattern</strong> instead of xpub derivation. Each merchant deploys
+        their own collector contract via a clone factory (EIP-1167 minimal proxy) — a cheap (~$0.50) deployment
+        that creates a unique contract owned exclusively by the merchant's wallet address.
+    </p>
+    <p>
+        The collector contract has only one authorized withdrawer: the merchant. The contract accepts
+        incoming payments (native coins and tokens), and only the merchant's wallet can call
+        <code>withdrawAll()</code> or <code>withdrawToken()</code> to move funds out.
+    </p>
+
+    <div class="arch-diagram">Admin deploys factory once (~$16 total):
+    MerchantCollectorV2 (implementation) + CryptoLinkCloneFactory
+
+Merchant deploys clone (~$0.50):
+    factory.deploy(merchantWalletAddress)
+        │
+        ▼
+    EIP-1167 Minimal Proxy → points to implementation
+        │
+        ├── initialize(merchantWalletAddress)  → sets owner
+        ├── receive()                          → accepts payments
+        ├── withdrawAll(tokenAddresses[])      → owner only
+        └── withdrawToken(tokenAddress)        → owner only
+
+CryptoLink server CANNOT call withdraw — only the merchant's wallet can.</div>
+
+    <div class="callout info">
+        <div class="callout-title">TRON Smart Contracts</div>
+        <p>TRON uses the same clone factory pattern, deployed via <strong>TronLink</strong> browser extension.
+        Contracts are compiled with <code>--evm-version paris</code> (no PUSH0) for TVM compatibility.
+        Known TRC-20 tokens: USDT (<code>TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code>),
+        USDC (<code>TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8</code>).</p>
+    </div>
+
+    <h2>Trust Model</h2>
+    <p>With CryptoLink, here is what you must trust — and what you don't:</p>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Entity</th><th>Trust Required?</th><th>Reason</th></tr></thead>
+            <tbody>
+                <tr><td><strong>CryptoLink code</strong></td><td><span class="check">✓ Yes</span></td><td>Open source — you can read and audit every line</td></tr>
+                <tr><td><strong>Your server</strong></td><td><span class="check">✓ Yes</span></td><td>You control it — standard server hardening applies</td></tr>
+                <tr><td><strong>Blockchain APIs (Blockstream, TronGrid)</strong></td><td><span class="partial">⚡ Partial</span></td><td>Trusted to report transactions accurately; cannot move your funds. Multiple fallback sources reduce single-point risk.</td></tr>
+                <tr><td><strong>CryptoLink developers</strong></td><td><span class="cross">✗ No</span></td><td>No access to your server, keys, or funds</td></tr>
+                <tr><td><strong>CryptoLink company</strong></td><td><span class="cross">✗ No</span></td><td>Self-hosted — no ongoing relationship with any company</td></tr>
+                <tr><td><strong>Payment processor</strong></td><td><span class="cross">✗ No</span></td><td>There is none — no third party in the payment path</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Comparison: CryptoLink vs Centralized Alternatives</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>CryptoLink</th>
+                    <th>Stripe Crypto</th>
+                    <th>Coinbase Commerce</th>
+                    <th>BitPay</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Non-custodial</strong></td>
+                    <td><span class="check">✓ Yes</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                    <td><span class="partial">⚡ Partial</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Self-hosted</strong></td>
+                    <td><span class="check">✓ Yes</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Open source</strong></td>
+                    <td><span class="check">✓ MIT</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                    <td><span class="cross">✗ No</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Transaction fees</strong></td>
+                    <td><span class="check">✓ None</span></td>
+                    <td>1.5%</td>
+                    <td>1%</td>
+                    <td>1%</td>
+                </tr>
+                <tr>
+                    <td><strong>Private key custody</strong></td>
+                    <td>You hold keys</td>
+                    <td>They hold keys</td>
+                    <td>They hold keys</td>
+                    <td>They hold keys</td>
+                </tr>
+                <tr>
+                    <td><strong>Account freezing risk</strong></td>
+                    <td><span class="check">✓ None</span></td>
+                    <td><span class="cross">✗ High</span></td>
+                    <td><span class="cross">✗ High</span></td>
+                    <td><span class="cross">✗ High</span></td>
+                </tr>
+                <tr>
+                    <td><strong>KYC required</strong></td>
+                    <td><span class="check">✓ No</span></td>
+                    <td><span class="cross">✗ Yes</span></td>
+                    <td><span class="cross">✗ Yes</span></td>
+                    <td><span class="cross">✗ Yes</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Data privacy</strong></td>
+                    <td>100% on your server</td>
+                    <td>Shared with Stripe</td>
+                    <td>Shared with Coinbase</td>
+                    <td>Shared with BitPay</td>
+                </tr>
+                <tr>
+                    <td><strong>Server shutdown risk</strong></td>
+                    <td><span class="check">✓ Zero</span></td>
+                    <td><span class="cross">✗ Yes</span></td>
+                    <td><span class="cross">✗ Yes</span></td>
+                    <td><span class="cross">✗ Yes</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 4: OPEN SOURCE & SECURITY -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="open-source" class="doc-section">
+    <div class="section-label">Trust &amp; Transparency</div>
+    <h1 class="section-title">Open Source &amp; Security</h1>
+    <p class="section-intro">
+        CryptoLink is released under the MIT License. Every line of backend Go code, every frontend
+        React component, every database migration, and every configuration template is available
+        for inspection, audit, and modification.
+    </p>
+
+    <h2>MIT License</h2>
+    <p>
+        The MIT license grants you unlimited rights to use, copy, modify, merge, publish, distribute,
+        sublicense, and sell copies of the software. There are no usage restrictions, no royalties,
+        and no CLAs. Fork it. White-label it. Build a business on it.
+    </p>
+
+    <h2>Security Design Principles</h2>
+    <ul>
+        <li><strong>Non-custodial by design</strong> — the architecture makes custody of merchant funds structurally impossible</li>
+        <li><strong>Parameterized SQL everywhere</strong> — all database queries use prepared statements; SQL injection is eliminated at the framework level</li>
+        <li><strong>bcrypt password hashing</strong> — merchant passwords are hashed with bcrypt (cost factor 12)</li>
+        <li><strong>Constant-time HMAC comparison</strong> — webhook signatures use <code>hmac.Equal()</code> (Go) to prevent timing attacks</li>
+        <li><strong>Security headers</strong> — HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and CSP set on all responses</li>
+        <li><strong>Rate limiting</strong> — auth and payment endpoints are rate-limited to prevent brute force and DoS</li>
+        <li><strong>SSRF protection</strong> — merchant-supplied callback URLs are validated to prevent Server-Side Request Forgery</li>
+        <li><strong>Sanitized error logs</strong> — sensitive data (tokens, keys, passwords) is never written to logs</li>
+        <li><strong>CSRF protection</strong> — session-based endpoints include CSRF token validation</li>
+    </ul>
+
+    <h2>2025 Security Audit Summary</h2>
+    <p>
+        CryptoLink underwent an independent security audit in 2025. All critical and high-severity
+        findings were resolved prior to the stable release. See the full
+        <a href="#security-audit" style="color:var(--primary-light)">Security Audit section</a> for the complete report.
+    </p>
+
+    <div class="callout success">
+        <div class="callout-title">Audit Result: All Critical &amp; High Findings Resolved</div>
+        <p>The 2025 audit identified 0 Critical, 2 High, 4 Medium, and 3 Low severity findings.
+        All High and Medium findings were fixed before the stable release. The 3 Low findings are
+        accepted risks with documented mitigations.</p>
+    </div>
+
+    <h2>Reporting Vulnerabilities</h2>
+    <p>
+        If you discover a security vulnerability in CryptoLink, please report it responsibly via
+        email at <a href="mailto:security@cryptolink.cc" style="color:var(--primary-light)">security@cryptolink.cc</a>.
+        Do not disclose security vulnerabilities publicly before they are resolved.
+    </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 5: QUICK START -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="quick-start" class="doc-section">
+    <div class="section-label">Getting Started</div>
+    <h1 class="section-title">Quick Start</h1>
+    <p class="section-intro">
+        Get your first test payment running in under 10 minutes. This guide assumes you have a
+        running CryptoLink instance. If you need to set one up, see the
+        <a href="#self-hosting" style="color:var(--primary-light)">Self-Hosting Guide</a>.
+    </p>
+
+    <h2>Step 1: Create an Account</h2>
+    <p>Navigate to <code>https://yourdomain.com/merchants/login?mode=register</code> and create a merchant account. The first account on a fresh installation automatically receives admin privileges.</p>
+
+    <h2>Step 2: Configure Your Wallets</h2>
+    <p>CryptoLink uses two different wallet approaches depending on the blockchain:</p>
+
+    <h3>Bitcoin (xpub / zpub / ypub)</h3>
+    <p>Go to <strong>Dashboard &rarr; Settings &rarr; Wallets</strong> and import your Bitcoin extended public key.
+    CryptoLink accepts <code>zpub</code> (Native SegWit, recommended), <code>ypub</code> (SegWit), and <code>xpub</code> (Legacy) —
+    the format and derivation path are auto-detected from the key prefix.</p>
+    <ul>
+        <li><strong>Exodus</strong>: Settings &rarr; Developer Menu &rarr; Export xpub for Bitcoin. Use the <code>zpub</code> key for Native SegWit.</li>
+        <li><strong>Electrum</strong>: Wallet &rarr; Information &rarr; Master Public Key. Exports <code>zpub</code> for SegWit wallets.</li>
+        <li><strong>Trezor</strong>: Trezor Suite &rarr; Account &rarr; Show Public Key. Exports <code>zpub</code> for SegWit accounts.</li>
+        <li><strong>Ledger</strong>: Ledger Live &rarr; Account &rarr; Advanced &rarr; Extended Public Key. Note: Ledger exports as <code>xpub</code>
+        even for SegWit accounts — use Electrum or Sparrow to export the correct <code>zpub</code> format.</li>
+        <li><strong>Coldcard</strong>: Settings &rarr; Advanced &rarr; Export &rarr; XPUB. Uses correct SLIP-0132 prefixes.</li>
+        <li><strong>Xpub Extractor</strong>: Use the offline tool at <code>https://yourdomain.com/xpub-extractor.html</code></li>
+    </ul>
+
+    <div class="callout info">
+        <div class="callout-title">Address Verification</div>
+        <p>After importing your key, CryptoLink derives the first receive address and displays it
+        for verification. Compare this address with the first receive address in your wallet software.
+        If they match, your wallet is correctly configured. If they don't, you likely need to
+        re-export your key in the correct format (zpub for bc1q addresses). See the
+        <a href="#non-custodial" style="color:var(--primary-light)">Hardware Wallet Compatibility</a> section for details.</p>
+    </div>
+
+    <h3>EVM Chains &amp; TRON (Smart Contract Collector)</h3>
+    <p>For ETH, MATIC, BSC, Arbitrum, Avalanche, and TRON, each merchant deploys a <strong>smart contract collector</strong> via the dashboard. This is a one-time setup per chain:</p>
+    <ul>
+        <li><strong>EVM Chains</strong>: Connect MetaMask, click "Deploy Collector" — costs ~$0.50 in gas</li>
+        <li><strong>TRON</strong>: Connect TronLink browser extension, click "Deploy Collector" — costs ~150 TRX (~$0.50)</li>
+    </ul>
+    <p>The collector contract is owned by your wallet — only you can withdraw funds from it.</p>
+
+    <div class="callout warning">
+        <div class="callout-title">Never Share Your Seed Phrase</div>
+        <p>You only need the extended public key (xpub, ypub, or zpub), never your seed phrase or private key.
+        These keys are safe to share with CryptoLink — they can only be used to derive addresses, not to move funds.</p>
+    </div>
+
+    <h2>Step 3: Generate an API Token</h2>
+    <p>Navigate to <strong>Dashboard → API Tokens → Create Token</strong>. Copy the token — it is shown only once.</p>
+
+    <h2>Step 4: Create Your First Payment</h2>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">curl -X POST https://yourdomain.com/api/merchant/v1/merchant/{merchantId}/payment \
+  -H "Content-Type: application/json" \
+  -H "X-CRYPTOLINK-TOKEN: your_api_token_here" \
+  -d '{
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "currency": "USD",
+    "price": 50.00,
+    "orderId": "order_001",
+    "description": "Test payment",
+    "redirectUrl": "https://yourstore.com/thank-you"
+  }'</code></pre>
+    </div>
+
+    <p>You'll receive a response like:</p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "paymentURL": "https://yourdomain.com/p/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "pending",
+  "price": "50.00",
+  "currency": "USD",
+  "orderId": "order_001",
+  "type": "payment"
+}</code></pre>
+    </div>
+
+    <h2>Step 5: Redirect Your Customer</h2>
+    <p>Redirect the customer to the <code>paymentURL</code> from the response. They'll see a payment page where they choose a cryptocurrency, get a unique deposit address and QR code, and see real-time status updates.</p>
+
+    <h2>Step 6: Handle the Webhook</h2>
+    <p>When payment completes, your webhook URL (configured in <strong>Settings → Webhook</strong>) receives a POST request. Verify the <code>X-Signature</code> header and fulfill the order:</p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-php">&lt;?php
+// Verify webhook signature
+$signature = $_SERVER['HTTP_X_SIGNATURE'] ?? '';
+$body = file_get_contents('php://input');
+$secret = getenv('CRYPTOLINK_HMAC_SECRET');
+
+$expected = base64_encode(hash_hmac('sha512', $body, $secret, true));
+
+if (!hash_equals($expected, $signature)) {
+    http_response_code(401);
+    exit('Invalid signature');
+}
+
+$payload = json_decode($body, true);
+
+if ($payload['status'] === 'success') {
+    // Fulfill the order using merchantOrderID (your orderId from payment creation)
+    fulfillOrder($payload['merchantOrderID']);
+}
+
+http_response_code(200);
+echo 'OK';</code></pre>
+    </div>
+
+    <p>That's it. Your CryptoLink integration is live. For production use, review the full
+    <a href="#webhooks" style="color:var(--primary-light)">Webhooks</a> and
+    <a href="#integration-laravel" style="color:var(--primary-light)">Integration</a> sections below.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 6: AUTHENTICATION -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="authentication" class="doc-section">
+    <div class="section-label">API Reference</div>
+    <h1 class="section-title">Authentication</h1>
+    <p class="section-intro">
+        CryptoLink uses token-based authentication. Every API request must include your merchant
+        API token in the request header.
+    </p>
+
+    <h2>API Token Header</h2>
+    <p>Include your token in every request using the <code>X-CRYPTOLINK-TOKEN</code> header:</p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">curl https://yourdomain.com/api/merchant/v1/merchant/{merchantId}/payment \
+  -H "X-CRYPTOLINK-TOKEN: cl_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"</code></pre>
+    </div>
+
+    <h2>Creating API Tokens</h2>
+    <ol>
+        <li>Log in to the merchant dashboard at <code>/merchants/login</code></li>
+        <li>Click your account name in the top-right corner</li>
+        <li>Navigate to <strong>API Tokens</strong></li>
+        <li>Click <strong>Create Token</strong> and give it a descriptive name</li>
+        <li>Copy the token immediately — it will not be shown again</li>
+    </ol>
+
+    <div class="callout warning">
+        <div class="callout-title">Token Security</div>
+        <p>Store API tokens in environment variables or a secrets manager — never hardcode them
+        in source code or commit them to version control. Tokens grant full merchant API access.
+        Rotate tokens immediately if you suspect compromise.</p>
+    </div>
+
+    <h2>Token Scopes</h2>
+    <p>Currently, all API tokens grant full merchant-level access. Per-token scope restrictions are planned for a future release. Use separate merchant accounts if you need permission isolation between applications.</p>
+
+    <h2>Authentication Errors</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>HTTP Status</th><th>Error</th><th>Cause</th></tr></thead>
+            <tbody>
+                <tr><td><code>401</code></td><td><code>unauthorized</code></td><td>Missing or invalid token header</td></tr>
+                <tr><td><code>403</code></td><td><code>forbidden</code></td><td>Token valid but lacks permission for this resource</td></tr>
+                <tr><td><code>429</code></td><td><code>rate_limited</code></td><td>Too many authentication attempts</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Base URL</h2>
+    <p>All API endpoints include your <strong>Merchant UUID</strong>, which you can find in the merchant dashboard under Settings. Replace <code>{merchantId}</code> with your UUID:</p>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">text</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code>https://yourdomain.com/api/merchant/v1/merchant/{merchantId}</code></pre>
+    </div>
+    <p>Example for merchant UUID <code>550e8400-e29b-41d4-a716-446655440000</code>:</p>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">text</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code>https://yourdomain.com/api/merchant/v1/merchant/550e8400-e29b-41d4-a716-446655440000/payment</code></pre>
+    </div>
+    <p>All requests must use HTTPS. HTTP requests are redirected to HTTPS and tokens transmitted over HTTP are considered compromised.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 7: PAYMENTS API -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="payments-api" class="doc-section">
+    <div class="section-label">API Reference</div>
+    <h1 class="section-title">Payments API</h1>
+    <p class="section-intro">
+        The Payments API is the core of CryptoLink. Use it to create, retrieve, and list
+        payment requests. Each payment generates a unique deposit address and hosted payment page.
+    </p>
+
+    <h2>Endpoints</h2>
+    <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/payment</span>
+        <span class="endpoint-desc">Create a new payment</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/payment/{id}</span>
+        <span class="endpoint-desc">Retrieve a payment by ID</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/payment</span>
+        <span class="endpoint-desc">List payments with pagination</span>
+    </div>
+
+    <h2>Create Payment</h2>
+    <p><strong>POST</strong> <code>/api/merchant/v1/merchant/{merchantId}/payment</code></p>
+
+    <div class="callout info">
+        <div class="callout-title">How it works</div>
+        <p>You create a payment with a <strong>fiat amount</strong> (USD or EUR). CryptoLink returns a hosted payment page URL. Your customer visits that page and chooses which cryptocurrency to pay with. You receive a webhook when payment completes. Configure your webhook URL in the merchant dashboard under <strong>Settings → Webhook</strong>.</p>
+    </div>
+
+    <h3>Request Body</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>string (UUID v4)</td><td><span class="badge badge-red">Required</span></td><td>Unique UUID you generate per payment — used for idempotency. Re-submitting with the same UUID returns the existing payment.</td></tr>
+                <tr><td><code>currency</code></td><td>string</td><td><span class="badge badge-red">Required</span></td><td>Fiat currency: <code>"USD"</code> or <code>"EUR"</code>. The customer chooses which crypto to pay with on the payment page.</td></tr>
+                <tr><td><code>price</code></td><td>number</td><td><span class="badge badge-red">Required</span></td><td>Amount in fiat currency (e.g. <code>100.00</code>). Min: 0.01</td></tr>
+                <tr><td><code>orderId</code></td><td>string</td><td><span class="badge badge-yellow">Optional</span></td><td>Your internal order reference — returned in webhook payloads for matching</td></tr>
+                <tr><td><code>description</code></td><td>string</td><td><span class="badge badge-yellow">Optional</span></td><td>Human-readable description (max 128 chars)</td></tr>
+                <tr><td><code>redirectUrl</code></td><td>string</td><td><span class="badge badge-yellow">Optional</span></td><td>URL shown to customer after payment detected. Defaults to merchant website.</td></tr>
+                <tr><td><code>isTest</code></td><td>boolean</td><td><span class="badge badge-yellow">Optional</span></td><td>Set <code>true</code> for testnet payments (default: false)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Request</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "currency": "USD",
+  "price": 100.00,
+  "orderId": "order_123",
+  "description": "Payment for Order #123",
+  "redirectUrl": "https://yourstore.com/thank-you"
+}</code></pre>
+    </div>
+
+    <h3>Response</h3>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Response 201 Created</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "paymentURL": "https://yourdomain.com/p/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "pending",
+  "price": "100.00",
+  "currency": "USD",
+  "orderId": "order_123",
+  "description": "Payment for Order #123",
+  "type": "payment",
+  "createdAt": "2025-06-01T14:30:00Z"
+}</code></pre>
+    </div>
+
+    <h2>Get Payment</h2>
+    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/payment/{id}</code></p>
+    <p>Retrieve the current state of a payment by its UUID. Poll this endpoint to check status if webhooks are unavailable, though webhooks are strongly preferred.</p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Response 200 OK</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "paymentURL": "https://yourdomain.com/p/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "success",
+  "price": "100.00",
+  "currency": "USD",
+  "orderId": "order_123",
+  "description": "Payment for Order #123",
+  "type": "payment",
+  "createdAt": "2025-06-01T14:30:00Z"
+}</code></pre>
+    </div>
+
+    <h2>List Payments</h2>
+    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/payment?cursor=0&amp;limit=20</code></p>
+
+    <h3>Query Parameters</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>skip</code></td><td>integer</td><td>0</td><td>Number of records to skip (for pagination)</td></tr>
+                <tr><td><code>limit</code></td><td>integer</td><td>20</td><td>Maximum records to return (max: 100)</td></tr>
+                <tr><td><code>status</code></td><td>string</td><td>all</td><td>Filter by status: pending, inProgress, success, failed, expired</td></tr>
+                <tr><td><code>currency</code></td><td>string</td><td>all</td><td>Filter by currency ticker</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Error Responses</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Status</th><th>Code</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>400</code></td><td><code>validation_error</code></td><td>Invalid request body or parameters</td></tr>
+                <tr><td><code>401</code></td><td><code>unauthorized</code></td><td>Missing or invalid API token</td></tr>
+                <tr><td><code>402</code></td><td><code>limit_exceeded</code></td><td>Subscription plan limit exceeded (payment count, volume, or merchant count). Response includes <code>upgrade_url</code>.</td></tr>
+                <tr><td><code>404</code></td><td><code>not_found</code></td><td>Payment ID does not exist</td></tr>
+                <tr><td><code>429</code></td><td><code>rate_limited</code></td><td>Rate limit exceeded</td></tr>
+                <tr><td><code>500</code></td><td><code>internal_error</code></td><td>Server error (check server logs)</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 8: PAYMENT LINKS API -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="payment-links-api" class="doc-section">
+    <div class="section-label">API Reference</div>
+    <h1 class="section-title">Payment Links API</h1>
+    <p class="section-intro">
+        Payment links are reusable, shareable URLs that accept payments without a fixed amount.
+        Ideal for donations, tips, open-ended invoices, or any scenario where the customer
+        specifies the amount.
+    </p>
+
+    <h2>Endpoints</h2>
+    <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/payment-link</span>
+        <span class="endpoint-desc">Create a reusable payment link</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/payment-link/{id}</span>
+        <span class="endpoint-desc">Retrieve a payment link</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/payment-link</span>
+        <span class="endpoint-desc">List all payment links</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-delete">DELETE</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/payment-link/{id}</span>
+        <span class="endpoint-desc">Delete a payment link</span>
+    </div>
+
+    <h2>Create Payment Link</h2>
+    <p><strong>POST</strong> <code>/api/merchant/v1/merchant/{merchantId}/payment-link</code></p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Request</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "name": "Donation Link",
+  "description": "Support our open-source project",
+  "currency": "USDT_TRON",
+  "redirect_url": "https://example.com/thank-you",
+  "successMessage": "Thank you for your payment!"
+}</code></pre>
+    </div>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Response 201 Created</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "id": "7f3a9b2c-1234-5678-abcd-ef0123456789",
+  "url": "https://yourdomain.com/p/7f3a9b2c-1234-5678-abcd-ef0123456789",
+  "name": "Donation Link",
+  "description": "Support our open-source project",
+  "currency": "USDT_TRON",
+  "status": "active",
+  "total_payments": 0,
+  "total_amount_usd": "0.00",
+  "created_at": "2025-06-01T12:00:00Z"
+}</code></pre>
+    </div>
+
+    <h3>Payment Link Fields</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>name</code></td><td>string</td><td><span class="badge badge-red">Required</span></td><td>Internal name for identifying the link in your dashboard</td></tr>
+                <tr><td><code>description</code></td><td>string</td><td><span class="badge badge-yellow">Optional</span></td><td>Description shown to the customer on the payment page</td></tr>
+                <tr><td><code>currency</code></td><td>string</td><td><span class="badge badge-red">Required</span></td><td>Accepted currency ticker</td></tr>
+                <tr><td><code>redirect_url</code></td><td>string</td><td><span class="badge badge-yellow">Optional</span></td><td>Post-payment redirect URL</td></tr>
+                <tr><td><code>successMessage</code></td><td>string</td><td><span class="badge badge-yellow">Optional</span></td><td>Message shown to customer after payment (alternative to redirect)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout info">
+        <div class="callout-title">Reusability</div>
+        <p>Payment links can be used unlimited times. Each time a customer visits the link and
+        completes a payment, a new payment record is created. The link URL remains constant and
+        can be embedded in emails, social media, or your website permanently.</p>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 9: WEBHOOKS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="webhooks" class="doc-section">
+    <div class="section-label">API Reference</div>
+    <h1 class="section-title">Webhooks</h1>
+    <p class="section-intro">
+        Webhooks are the recommended way to receive payment status updates. CryptoLink sends
+        a signed HTTP POST to your webhook URL (configured in <strong>Dashboard → Settings → Webhook URL</strong>) whenever a payment status changes.
+        All webhooks are signed with HMAC-SHA512 for security verification.
+    </p>
+
+    <h2>Webhook Events</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Event</th><th>Trigger</th><th>Action Recommended</th></tr></thead>
+            <tbody>
+                <tr><td><code>payment.pending</code></td><td>Payment created (initial state)</td><td>Display "awaiting payment" UI</td></tr>
+                <tr><td><code>payment.inProgress</code></td><td>Transaction broadcast to mempool</td><td>Show "payment processing" status</td></tr>
+                <tr><td><code>payment.success</code></td><td>Transaction confirmed on-chain</td><td><strong>Fulfill the order</strong></td></tr>
+                <tr><td><code>payment.failed</code></td><td>Transaction failed or underpaid</td><td>Notify customer, offer retry</td></tr>
+                <tr><td><code>payment.expired</code></td><td>Payment window elapsed (24h default)</td><td>Cancel order, notify customer</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Webhook Payload</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Webhook POST body</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "success",
+  "merchantOrderID": "order_123",
+  "amount": "100.00",
+  "currency": "USD",
+  "cryptoAmount": "107.24",
+  "cryptoCurrency": "ETH_USDT",
+  "selectedBlockchain": "ETH",
+  "customerEmail": "customer@example.com",
+  "isTest": false,
+  "linkId": null
+}</code></pre>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Field</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>The payment UUID — same as the <code>id</code> you provided when creating the payment</td></tr>
+                <tr><td><code>status</code></td><td>Current payment status: <code>pending</code>, <code>inProgress</code>, <code>success</code>, <code>failed</code></td></tr>
+                <tr><td><code>merchantOrderID</code></td><td>Your <code>orderId</code> from payment creation — use this to match to your order</td></tr>
+                <tr><td><code>amount</code></td><td>Invoice amount in fiat (e.g. "100.00")</td></tr>
+                <tr><td><code>currency</code></td><td>Fiat currency: "USD" or "EUR"</td></tr>
+                <tr><td><code>cryptoAmount</code></td><td>Crypto amount the customer paid/is expected to pay</td></tr>
+                <tr><td><code>cryptoCurrency</code></td><td>Crypto ticker used (e.g. "ETH_USDT", "BTC", "USDT_TRON")</td></tr>
+                <tr><td><code>selectedBlockchain</code></td><td>Blockchain network (e.g. "ETH", "BTC", "TRON")</td></tr>
+                <tr><td><code>customerEmail</code></td><td>Customer email if provided</td></tr>
+                <tr><td><code>isTest</code></td><td>True if this is a testnet payment</td></tr>
+                <tr><td><code>linkId</code></td><td>Payment link UUID if payment originated from a link, otherwise null</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Signature Verification</h2>
+    <p>
+        Every webhook request includes an <code>X-Signature</code> header containing a
+        base64-encoded HMAC-SHA512 signature of the raw request body. Always verify this signature
+        before processing any webhook.
+    </p>
+    <p>
+        The HMAC secret is set in your merchant dashboard under <strong>Settings → Webhook → HMAC Secret</strong>.
+        You choose this secret yourself — set it to a long random string.
+    </p>
+
+    <div class="callout danger">
+        <div class="callout-title">Always Verify Signatures</div>
+        <p>Never fulfill orders based on unverified webhooks. An attacker who knows your callback URL
+        can forge payment success notifications without signature verification. Use constant-time
+        comparison (hash_equals in PHP, hmac.Equal in Go) to prevent timing attacks.</p>
+    </div>
+
+    <div class="tab-group">
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab(this,'wh-php')">PHP</button>
+            <button class="tab-btn" onclick="switchTab(this,'wh-node')">Node.js</button>
+            <button class="tab-btn" onclick="switchTab(this,'wh-python')">Python</button>
+            <button class="tab-btn" onclick="switchTab(this,'wh-go')">Go</button>
+        </div>
+        <div id="wh-php" class="tab-pane active">
+            <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+                <pre><code class="language-php">&lt;?php
+function verifyWebhookSignature(string $body, string $signature, string $secret): bool {
+    $expected = base64_encode(hash_hmac('sha512', $body, $secret, true));
+    return hash_equals($expected, $signature);
+}
+
+$body      = file_get_contents('php://input');
+$signature = $_SERVER['HTTP_X_SIGNATURE'] ?? '';
+$secret    = getenv('CRYPTOLINK_HMAC_SECRET');
+
+if (!verifyWebhookSignature($body, $signature, $secret)) {
+    http_response_code(401);
+    exit('Signature verification failed');
+}
+
+$event = json_decode($body, true);
+
+switch ($event['status']) {
+    case 'success':
+        fulfillOrder($event['merchantOrderID'], $event['amount'], $event['currency']);
+        break;
+    case 'failed':
+    case 'expired':
+        cancelOrder($event['merchantOrderID']);
+        notifyCustomer($event['customerEmail'], $event['status']);
+        break;
+}
+
+http_response_code(200);
+echo json_encode(['received' => true]);</code></pre>
+            </div>
+        </div>
+        <div id="wh-node" class="tab-pane">
+            <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">javascript</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+                <pre><code class="language-javascript">const crypto = require('crypto');
+const express = require('express');
+const app = express();
+
+// Use raw body parser for webhook endpoint
+app.use('/webhooks/cryptolink', express.raw({ type: 'application/json' }));
+
+function verifySignature(body, signature, secret) {
+    const expected = crypto
+        .createHmac('sha512', secret)
+        .update(body)
+        .digest('base64');
+    // Constant-time comparison
+    return crypto.timingSafeEqual(
+        Buffer.from(expected),
+        Buffer.from(signature)
+    );
+}
+
+app.post('/webhooks/cryptolink', (req, res) => {
+    const signature = req.headers['x-signature'];
+    const secret    = process.env.CRYPTOLINK_HMAC_SECRET;
+    const rawBody   = req.body; // Buffer (raw body)
+
+    if (!verifySignature(rawBody, signature, secret)) {
+        return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    const event = JSON.parse(rawBody.toString());
+
+    if (event.status === 'success') {
+        fulfillOrder(event.merchantOrderID, event.amount, event.currency);
+    } else if (event.status === 'failed' || event.status === 'expired') {
+        cancelOrder(event.merchantOrderID);
+    }
+
+    res.status(200).json({ received: true });
+});</code></pre>
+            </div>
+        </div>
+        <div id="wh-python" class="tab-pane">
+            <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+                <pre><code class="language-python">import hmac
+import hashlib
+import base64
+import os
+from flask import Flask, request, jsonify, abort
+
+app = Flask(__name__)
+
+def verify_signature(body: bytes, signature: str, secret: str) -> bool:
+    mac = hmac.new(secret.encode(), body, hashlib.sha512)
+    expected = base64.b64encode(mac.digest()).decode()
+    return hmac.compare_digest(expected, signature)
+
+@app.route('/webhooks/cryptolink', methods=['POST'])
+def handle_webhook():
+    signature = request.headers.get('X-Signature', '')
+    secret    = os.environ['CRYPTOLINK_HMAC_SECRET']
+    raw_body  = request.get_data()  # raw bytes before JSON parse
+
+    if not verify_signature(raw_body, signature, secret):
+        abort(401, description='Invalid webhook signature')
+
+    event = request.get_json()
+
+    if event['status'] == 'success':
+        fulfill_order(event['merchantOrderID'], event['amount'], event['currency'])
+    elif event['status'] in ('failed', 'expired'):
+        cancel_order(event['merchantOrderID'])
+
+    return jsonify({'received': True}), 200</code></pre>
+            </div>
+        </div>
+        <div id="wh-go" class="tab-pane">
+            <div class="code-wrap">
+                <div class="code-header"><span class="code-lang">go</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+                <pre><code class="language-go">package main
+
+import (
+    "crypto/hmac"
+    "crypto/sha512"
+    "encoding/base64"
+    "encoding/json"
+    "io"
+    "net/http"
+    "os"
+)
+
+type WebhookEvent struct {
+    ID              string `json:"id"`
+    Status          string `json:"status"`
+    MerchantOrderID string `json:"merchantOrderID"`
+    Amount          string `json:"amount"`
+    Currency        string `json:"currency"`
+    CryptoAmount    string `json:"cryptoAmount"`
+    CryptoCurrency  string `json:"cryptoCurrency"`
+    CustomerEmail   string `json:"customerEmail"`
+    IsTest          bool   `json:"isTest"`
+}
+
+func verifySignature(body []byte, signature, secret string) bool {
+    mac := hmac.New(sha512.New, []byte(secret))
+    mac.Write(body)
+    expected := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(signature))
+}
+
+func handleWebhook(w http.ResponseWriter, r *http.Request) {
+    body, _ := io.ReadAll(r.Body)
+    signature := r.Header.Get("X-Signature")
+    secret := os.Getenv("CRYPTOLINK_HMAC_SECRET")
+
+    if !verifySignature(body, signature, secret) {
+        http.Error(w, "Invalid signature", http.StatusUnauthorized)
+        return
+    }
+
+    var event WebhookEvent
+    json.Unmarshal(body, &event)
+
+    switch event.Status {
+    case "success":
+        fulfillOrder(event.MerchantOrderID, event.Amount, event.Currency)
+    case "failed", "expired":
+        cancelOrder(event.MerchantOrderID)
+    }
+
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte(`{"received":true}`))
+}</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <h2>Retry Policy</h2>
+    <p>
+        If your callback URL returns a non-2xx HTTP status, CryptoLink will retry delivery using
+        exponential backoff: after 1 minute, 5 minutes, 30 minutes, and 2 hours. After 4 failed
+        attempts, the webhook is marked as failed. You can view and manually retry failed webhooks
+        from the dashboard.
+    </p>
+    <p>
+        Your endpoint should respond within <strong>30 seconds</strong>. If processing takes longer,
+        respond with <code>200 OK</code> immediately and process the event asynchronously via a queue.
+    </p>
+
+    <div class="callout info">
+        <div class="callout-title">Idempotency</div>
+        <p>Your webhook handler must be idempotent. The same event may be delivered more than once
+        due to network issues or retries. Use the payment <code>id</code> field to deduplicate
+        events and avoid double-fulfilling orders.</p>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 9B: WALLET CONFIGURATION API -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="wallet-api" class="doc-section">
+    <div class="section-label">API Reference</div>
+    <h1 class="section-title">Wallet Configuration API</h1>
+    <p class="section-intro">
+        Manage Bitcoin HD wallet (xpub) configurations programmatically. These endpoints allow you to import
+        extended public keys, derive addresses, and manage wallet lifecycle. For EVM and TRON wallets,
+        use the dashboard's smart contract deployment flow instead.
+    </p>
+
+    <h2>Endpoints</h2>
+    <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet</span>
+        <span class="endpoint-desc">Import an extended public key</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet</span>
+        <span class="endpoint-desc">List all xpub wallets</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}</span>
+        <span class="endpoint-desc">Get wallet details</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-delete">DELETE</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}</span>
+        <span class="endpoint-desc">Delete a wallet configuration</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/derive</span>
+        <span class="endpoint-desc">Derive the next address</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/next-address</span>
+        <span class="endpoint-desc">Get next unused address</span>
+    </div>
+    <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/addresses</span>
+        <span class="endpoint-desc">List all derived addresses</span>
+    </div>
+
+    <h2>Import Extended Public Key</h2>
+    <p><strong>POST</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet</code></p>
+    <p>
+        Import a Bitcoin extended public key. Accepts <code>xpub</code>, <code>ypub</code>, or <code>zpub</code>
+        formats. The derivation path is auto-detected from the key's version bytes (SLIP-0132) — you do not
+        need to specify it manually.
+    </p>
+
+    <h3>Request Body</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>blockchain</code></td><td>string</td><td><span class="badge badge-red">Required</span></td><td>Blockchain identifier: <code>"BTC"</code></td></tr>
+                <tr><td><code>xpub</code></td><td>string</td><td><span class="badge badge-red">Required</span></td><td>Extended public key in any format: <code>xpub...</code>, <code>ypub...</code>, or <code>zpub...</code></td></tr>
+                <tr><td><code>derivationPath</code></td><td>string</td><td><span class="badge badge-yellow">Optional</span></td><td>Override derivation path (e.g. <code>m/84'/0'/0'</code>). Auto-detected from key format if omitted.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — Import a zpub key</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">curl -X POST https://yourdomain.com/api/merchant/v1/merchant/{merchantId}/xpub-wallet \
+  -H "Content-Type: application/json" \
+  -H "X-CRYPTOLINK-TOKEN: your_api_token" \
+  -d '{
+    "blockchain": "BTC",
+    "xpub": "zpub6rFR7y4Q2AijBEqTUqiGMcA8k3KNBNzihkghGjRjkTLmBgR..."
+  }'</code></pre>
+    </div>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Response 201 Created</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "blockchain": "BTC",
+  "derivationPath": "m/84'/0'/0'",
+  "lastDerivedIndex": -1,
+  "createdAt": "2026-03-14T12:00:00Z"
+}</code></pre>
+    </div>
+
+    <div class="callout info">
+        <div class="callout-title">Auto-Detection</div>
+        <p>The <code>derivationPath</code> in the response shows the auto-detected path: <code>m/84'/0'/0'</code> for zpub
+        (Native SegWit), <code>m/49'/0'/0'</code> for ypub (SegWit), <code>m/44'/0'/0'</code> for xpub (Legacy).
+        The <code>lastDerivedIndex</code> starts at <code>-1</code> — the first derived address will be at index 0.</p>
+    </div>
+
+    <h2>List Wallets</h2>
+    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet</code></p>
+    <p>Returns all active xpub wallets for the merchant.</p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Response 200 OK</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">[
+  {
+    "uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "blockchain": "BTC",
+    "derivationPath": "m/84'/0'/0'",
+    "lastDerivedIndex": 5,
+    "createdAt": "2026-03-14T12:00:00Z"
+  }
+]</code></pre>
+    </div>
+
+    <h2>Delete Wallet</h2>
+    <p><strong>DELETE</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}</code></p>
+    <p>Permanently removes the wallet configuration and all derived addresses from CryptoLink.
+    Your funds remain safe — this only removes the public key from the server. Returns <code>204 No Content</code> on success.</p>
+
+    <h2>Derive Address</h2>
+    <p><strong>POST</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/derive</code></p>
+    <p>Derives the next sequential address from the wallet's extended public key. No request body needed.
+    Each call increments the internal counter and returns a new unique address.</p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Response 201 Created</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">{
+  "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+  "derivationPath": "m/84'/0'/0'/0/0",
+  "derivationIndex": 0,
+  "isUsed": false,
+  "createdAt": "2026-03-14T12:01:00Z"
+}</code></pre>
+    </div>
+
+    <h2>Get Next Unused Address</h2>
+    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/next-address</code></p>
+    <p>Returns the next unused (unreserved) derived address. If all existing addresses are in use,
+    derives a new one automatically.</p>
+
+    <h2>List Derived Addresses</h2>
+    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/addresses</code></p>
+    <p>Returns all addresses that have been derived from this wallet, including their usage status.</p>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">json — Response 200 OK</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-json">[
+  {
+    "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    "derivationPath": "m/84'/0'/0'/0/0",
+    "derivationIndex": 0,
+    "isUsed": true,
+    "createdAt": "2026-03-14T12:01:00Z"
+  },
+  {
+    "uuid": "b2c3d4e5-f678-9012-bcde-f12345678901",
+    "address": "bc1q9h5yjda0hs9ftlg3f0lm45rg9kpa9wfvyaalqq",
+    "derivationPath": "m/84'/0'/0'/0/1",
+    "derivationIndex": 1,
+    "isUsed": false,
+    "createdAt": "2026-03-14T12:02:00Z"
+  }
+]</code></pre>
+    </div>
+
+    <h2>Error Responses</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Status</th><th>Code</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>400</code></td><td><code>validation_error</code></td><td>Invalid key format, missing fields, or wallet already exists for this blockchain</td></tr>
+                <tr><td><code>401</code></td><td><code>unauthorized</code></td><td>Missing or invalid API token</td></tr>
+                <tr><td><code>404</code></td><td><code>not_found</code></td><td>Wallet ID does not exist</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout info">
+        <div class="callout-title">One Wallet Per Blockchain</div>
+        <p>Each merchant can have at most one active xpub wallet per blockchain (currently BTC only).
+        To change the key, delete the existing wallet first, then import the new key.
+        Deleting a wallet removes the public key and all derived addresses from CryptoLink but does not
+        affect your funds — they remain in your wallet.</p>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 10: CURRENCIES & NETWORKS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="currencies" class="doc-section">
+    <div class="section-label">API Reference</div>
+    <h1 class="section-title">Currencies &amp; Networks</h1>
+    <p class="section-intro">
+        CryptoLink supports 17 currency configurations across 7 blockchain networks.
+        Bitcoin uses xpub-based HD address derivation. EVM chains and TRON use
+        merchant-owned smart contract collectors deployed via the dashboard.
+    </p>
+
+    <h3>Bitcoin (xpub-based)</h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Currency</th><th>Ticker</th><th>Network</th><th>Wallet Type</th><th>Detection</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Bitcoin</strong></td>
+                    <td><code>BTC</code></td>
+                    <td>Bitcoin Mainnet</td>
+                    <td>xpub / zpub / ypub (auto-detected)</td>
+                    <td>Blockstream + mempool.space</td>
+                    <td>Accepts all key formats. zpub = bech32 (bc1q, recommended), ypub = SegWit (3-prefix), xpub = Legacy (1-prefix)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>EVM Chains (Smart Contract Collector)</h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Currency</th><th>Ticker</th><th>Network</th><th>Standard</th><th>Detection</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>Ethereum</strong></td><td><code>ETH</code></td><td>Ethereum</td><td>Native</td><td>go-ethereum RPC</td><td>Smart contract collector</td></tr>
+                <tr><td><strong>Tether USD (ERC-20)</strong></td><td><code>USDT_ETH</code></td><td>Ethereum</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ETH</td></tr>
+                <tr><td><strong>USD Coin (ERC-20)</strong></td><td><code>USDC_ETH</code></td><td>Ethereum</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ETH</td></tr>
+                <tr><td><strong>Polygon</strong></td><td><code>MATIC</code></td><td>Polygon PoS</td><td>Native</td><td>go-ethereum RPC</td><td>Low-fee EVM chain</td></tr>
+                <tr><td><strong>USDT (Polygon)</strong></td><td><code>USDT_MATIC</code></td><td>Polygon PoS</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as MATIC</td></tr>
+                <tr><td><strong>USDC (Polygon)</strong></td><td><code>USDC_MATIC</code></td><td>Polygon PoS</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as MATIC</td></tr>
+                <tr><td><strong>BNB</strong></td><td><code>BNB</code></td><td>BNB Smart Chain</td><td>Native</td><td>go-ethereum RPC</td><td>Binance ecosystem</td></tr>
+                <tr><td><strong>USDT (BSC)</strong></td><td><code>USDT_BSC</code></td><td>BNB Smart Chain</td><td>BEP-20</td><td>go-ethereum RPC</td><td>Same collector as BNB</td></tr>
+                <tr><td><strong>Arbitrum ETH</strong></td><td><code>ARB</code></td><td>Arbitrum One</td><td>Native</td><td>go-ethereum RPC</td><td>L2 rollup, low fees</td></tr>
+                <tr><td><strong>USDT (Arbitrum)</strong></td><td><code>USDT_ARB</code></td><td>Arbitrum One</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ARB</td></tr>
+                <tr><td><strong>USDC (Arbitrum)</strong></td><td><code>USDC_ARB</code></td><td>Arbitrum One</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ARB</td></tr>
+                <tr><td><strong>Avalanche</strong></td><td><code>AVAX</code></td><td>Avalanche C-Chain</td><td>Native</td><td>go-ethereum RPC</td><td>Fast finality</td></tr>
+                <tr><td><strong>USDT (Avalanche)</strong></td><td><code>USDT_AVAX</code></td><td>Avalanche C-Chain</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as AVAX</td></tr>
+                <tr><td><strong>USDC (Avalanche)</strong></td><td><code>USDC_AVAX</code></td><td>Avalanche C-Chain</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as AVAX</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>TRON (Smart Contract Collector)</h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Currency</th><th>Ticker</th><th>Network</th><th>Standard</th><th>Detection</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>TRON</strong></td><td><code>TRX</code></td><td>TRON Network</td><td>Native</td><td>TronGrid API</td><td>Clone factory collector via TronLink</td></tr>
+                <tr><td><strong>Tether USD (TRC-20)</strong></td><td><code>USDT_TRON</code></td><td>TRON Network</td><td>TRC-20</td><td>TronGrid API</td><td>Most popular stablecoin; very low fees</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Choosing a Currency</h2>
+    <p>
+        <strong>For stablecoin payments</strong> (avoiding volatility), <code>USDT_TRON</code> is the
+        most popular choice due to extremely low network fees (~$0.01) and fast confirmation times (~3 seconds).
+        For EVM ecosystems, <code>USDT_MATIC</code> and <code>USDT_ARB</code> offer similar low fees.
+        <code>USDC_ETH</code> is preferred for merchants who want an Ethereum-based stablecoin despite higher gas.
+    </p>
+    <p>
+        <strong>For Bitcoin</strong>, expect higher network fees and slower confirmations (10-30 min per block).
+        CryptoLink uses Blockstream and mempool.space APIs to detect both mempool and confirmed transactions.
+    </p>
+    <p>
+        <strong>For low-fee chains</strong>, Polygon (MATIC), BSC, Arbitrum, Avalanche, and TRON all offer
+        sub-dollar transaction fees and fast finality. These are ideal for small-value payments where
+        Ethereum gas would be prohibitive.
+    </p>
+
+    <h2>Network Fees</h2>
+    <p>
+        Network transaction fees are paid by the customer when sending. CryptoLink does not add
+        any markup to network fees. The customer must send the exact amount displayed — underpayments
+        are handled according to your configuration (rejected by default, or accepted with a tolerance).
+    </p>
+
+    <div class="callout info">
+        <div class="callout-title">Multi-Currency Setup</div>
+        <p>You can configure multiple currencies simultaneously. On the payment page, customers
+        can switch between your enabled currencies before sending. <strong>Bitcoin</strong> uses
+        an extended public key (xpub/zpub/ypub) with HD address derivation — each payment gets a unique address.
+        <strong>EVM chains</strong> and <strong>TRON</strong> use a single smart contract collector per chain —
+        all tokens on that chain share the same collector address.</p>
+    </div>
+
+    <h2>Live Exchange Rate Conversion</h2>
+    <p>
+        CryptoLink uses <strong>real-time exchange rates from Binance</strong> (primary) with <strong>CoinGecko</strong> as fallback
+        to convert your invoice amount to the exact crypto amount the customer must pay.
+        Rates are cached for <strong>30 seconds</strong> and cross-validated — if the two sources diverge by more than 5%, the rate is rejected for safety.
+        Stablecoins (USDT, USDC) are priced at $1.00 with no API call.
+    </p>
+
+    <h3>Conversion flow (EUR invoice example)</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Step</th><th>Operation</th><th>Example</th></tr></thead>
+            <tbody>
+                <tr><td>1</td><td>Merchant creates EUR invoice</td><td><code>€85.00 EUR</code></td></tr>
+                <tr><td>2</td><td>EUR → USD (fiat-to-fiat conversion)</td><td><code>$92.35 USD</code></td></tr>
+                <tr><td>3</td><td>USD → crypto (via Binance/CoinGecko rates)</td><td><code>92.35 USDT</code> or <code>0.00138 ETH</code></td></tr>
+                <tr><td>4</td><td>Crypto amount shown on payment page</td><td>Customer sends exact crypto amount</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout info">
+        <div class="callout-title">Rates are locked at payment creation</div>
+        <p>The crypto amount is calculated when the customer selects their payment method on the payment page — not when you create the payment. This gives customers the most current rate. The amount is then locked for the session duration.</p>
+    </div>
+
+    <h2>Merchant Markup / Volatility Buffer</h2>
+    <p>
+        Crypto prices fluctuate between the time a customer sees the amount and when the transaction confirms on-chain. To protect against this volatility, merchants can configure a <strong>markup percentage</strong> per cryptocurrency in the <strong>Currencies &amp; Fees</strong> page of the merchant dashboard.
+    </p>
+
+    <h3>How it works</h3>
+    <ul>
+        <li>Merchant sets a markup (e.g. 2%) for ETH in their dashboard</li>
+        <li>Customer creates a $100 USD invoice</li>
+        <li>Customer sees: <strong>$100</strong> on the payment page (no fee displayed)</li>
+        <li>Crypto amount calculated: equivalent of <strong>$102</strong> (100 + 2%)</li>
+        <li>Merchant receives $102 worth of crypto — the 2% covers conversion & volatility risk</li>
+    </ul>
+
+    <div class="callout warning">
+        <div class="callout-title">Disclose fees to your customers</div>
+        <p>The markup is not shown on CryptoLink's payment page — your customers see only the invoice amount in fiat. You are responsible for informing customers about any markup on your own website or terms of service. A typical disclosure: <em>"Crypto payments include a 1–2% market conversion fee to cover network and volatility costs."</em></p>
+    </div>
+
+    <h2>Adding Currency Support</h2>
+    <p>
+        CryptoLink is extensible. New currencies can be added by implementing the currency provider
+        interface in the Go backend and adding entries to <code>currencies.json</code>.
+        For EVM-compatible chains, the existing smart contract collector and go-ethereum RPC
+        infrastructure can be reused with minimal configuration.
+        Community contributions for additional currency support are welcome.
+    </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 11: INTEGRATION: LARAVEL/PHP -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="integration-laravel" class="doc-section">
+    <div class="section-label">Integration Guide</div>
+    <h1 class="section-title">Laravel / PHP Integration</h1>
+    <p class="section-intro">
+        A complete integration example for Laravel. This covers a service class, checkout controller,
+        webhook handling, and route configuration. The pattern adapts to any PHP framework.
+    </p>
+
+    <h2>1. Environment Configuration</h2>
+    <p>Add to your <code>.env</code> file:</p>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — .env</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">CRYPTOLINK_BASE_URL=https://yourdomain.com
+CRYPTOLINK_MERCHANT_ID=your-merchant-uuid-from-dashboard
+CRYPTOLINK_API_TOKEN=cl_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CRYPTOLINK_HMAC_SECRET=your_hmac_secret_from_dashboard_settings</code></pre>
+    </div>
+
+    <h2>2. CryptoLink Service Class</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">php — app/Services/CryptoLinkService.php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-php">&lt;?php
+
+namespace App\Services;
+
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
+
+class CryptoLinkService
+{
+    private string $baseUrl;
+    private string $merchantId;
+    private string $apiToken;
+    private string $hmacSecret;
+
+    public function __construct()
+    {
+        $this->baseUrl    = config('services.cryptolink.base_url');
+        $this->merchantId = config('services.cryptolink.merchant_id');
+        $this->apiToken   = config('services.cryptolink.api_token');
+        $this->hmacSecret = config('services.cryptolink.hmac_secret');
+    }
+
+    /**
+     * Create a new crypto payment.
+     *
+     * @param array $params Keys: id (UUID), currency (USD/EUR), price, orderId, description, redirectUrl
+     */
+    public function createPayment(array $params): array
+    {
+        $url = "{$this->baseUrl}/api/merchant/v1/merchant/{$this->merchantId}/payment";
+
+        $response = Http::withHeaders([
+            'X-CRYPTOLINK-TOKEN' => $this->apiToken,
+            'Content-Type'       => 'application/json',
+        ])->post($url, [
+            'id'          => $params['id'],           // UUID v4 you generate
+            'currency'    => $params['currency'],      // "USD" or "EUR"
+            'price'       => $params['price'],         // float e.g. 99.99
+            'orderId'     => $params['orderId'] ?? null,
+            'description' => $params['description'] ?? null,
+            'redirectUrl' => $params['redirectUrl'] ?? null,
+            'isTest'      => $params['isTest'] ?? false,
+        ]);
+
+        if ($response->failed()) {
+            throw new \RuntimeException(
+                'CryptoLink API error: ' . $response->body(),
+                $response->status()
+            );
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Retrieve an existing payment by its UUID.
+     */
+    public function getPayment(string $paymentId): array
+    {
+        $url = "{$this->baseUrl}/api/merchant/v1/merchant/{$this->merchantId}/payment/{$paymentId}";
+
+        $response = Http::withHeaders([
+            'X-CRYPTOLINK-TOKEN' => $this->apiToken,
+        ])->get($url);
+
+        if ($response->failed()) {
+            throw new \RuntimeException('Payment not found', 404);
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Verify a webhook signature (X-Signature header).
+     * Returns true if the signature is valid.
+     */
+    public function verifyWebhookSignature(string $rawBody, string $signature): bool
+    {
+        $expected = base64_encode(
+            hash_hmac('sha512', $rawBody, $this->hmacSecret, true)
+        );
+        return hash_equals($expected, $signature);
+    }
+}
+</code></pre>
+    </div>
+
+    <h2>3. Service Provider / Config Binding</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">php — config/services.php (add this entry)</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-php">'cryptolink' => [
+    'base_url'    => env('CRYPTOLINK_BASE_URL'),
+    'merchant_id' => env('CRYPTOLINK_MERCHANT_ID'),
+    'api_token'   => env('CRYPTOLINK_API_TOKEN'),
+    'hmac_secret' => env('CRYPTOLINK_HMAC_SECRET'),
+],</code></pre>
+    </div>
+
+    <h2>4. Checkout Controller</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">php — app/Http/Controllers/CheckoutController.php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-php">&lt;?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Order;
+use App\Services\CryptoLinkService;
+use Illuminate\Http\Request;
+
+class CheckoutController extends Controller
+{
+    public function __construct(private CryptoLinkService $cryptoLink) {}
+
+    /**
+     * Initiate crypto checkout for an order.
+     */
+    public function initiateCryptoPayment(Request $request, Order $order)
+    {
+        try {
+            $payment = $this->cryptoLink->createPayment([
+                'id'          => \Ramsey\Uuid\Uuid::uuid4()->toString(), // unique per payment
+                'currency'    => 'USD',       // or 'EUR' — fiat currency of invoice
+                'price'       => $order->total_usd,
+                'orderId'     => (string) $order->id,
+                'description' => "Order #{$order->id} — {$order->item_summary}",
+                'redirectUrl' => route('orders.thankyou', $order),
+            ]);
+
+            // Store the payment ID on the order for lookup later
+            $order->update([
+                'crypto_payment_id'  => $payment['id'],
+                'crypto_payment_url' => $payment['paymentURL'],
+                'status'             => 'awaiting_payment',
+            ]);
+
+            // Redirect customer to the CryptoLink-hosted payment page
+            return redirect($payment['paymentURL']);
+
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['payment' => 'Could not initiate payment: ' . $e->getMessage()]);
+        }
+    }
+}
+</code></pre>
+    </div>
+
+    <h2>5. Webhook Controller</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">php — app/Http/Controllers/WebhookController.php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-php">&lt;?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Order;
+use App\Services\CryptoLinkService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+
+class WebhookController extends Controller
+{
+    public function __construct(private CryptoLinkService $cryptoLink) {}
+
+    public function handleCryptoLink(Request $request)
+    {
+        $rawBody   = $request->getContent();
+        $signature = $request->header('X-Signature', '');
+
+        // 1. Verify signature
+        if (!$this->cryptoLink->verifyWebhookSignature($rawBody, $signature)) {
+            Log::warning('CryptoLink: invalid webhook signature');
+            return response()->json(['error' => 'Invalid signature'], 401);
+        }
+
+        $event   = $request->json()->all();
+        $orderId = $event['merchantOrderID'] ?? null; // your orderId from payment creation
+
+        if (!$orderId) {
+            return response()->json(['received' => true]);
+        }
+
+        $order = Order::find($orderId);
+        if (!$order) {
+            Log::error("CryptoLink webhook: order {$orderId} not found");
+            return response()->json(['error' => 'Order not found'], 404);
+        }
+
+        // 2. Handle event (idempotent — check current status first)
+        switch ($event['status']) {
+            case 'success':
+                if ($order->status !== 'completed') {
+                    $order->update(['status' => 'completed']);
+                    $order->fulfill(); // your fulfillment logic
+                    Log::info("CryptoLink: order {$orderId} fulfilled", $event);
+                }
+                break;
+
+            case 'inProgress':
+                $order->update(['status' => 'payment_processing']);
+                break;
+
+            case 'failed':
+                $order->update(['status' => 'payment_failed']);
+                break;
+        }
+
+        return response()->json(['received' => true]);
+    }
+}
+</code></pre>
+    </div>
+
+    <h2>6. Routes</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">php — routes/web.php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-php">&lt;?php
+use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\WebhookController;
+
+// Checkout — requires auth
+Route::middleware('auth')->group(function () {
+    Route::post('/orders/{order}/pay-crypto', [CheckoutController::class, 'initiateCryptoPayment'])
+        ->name('checkout.crypto');
+});
+
+// Webhook — must be CSRF-exempt
+Route::post('/webhooks/cryptolink', [WebhookController::class, 'handleCryptoLink'])
+    ->name('webhooks.cryptolink')
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
+</code></pre>
+    </div>
+
+    <div class="callout warning">
+        <div class="callout-title">CSRF Exemption Required</div>
+        <p>The webhook route must be excluded from Laravel's CSRF middleware, as CryptoLink's
+        POST request does not include a CSRF token. Security is provided by the HMAC signature
+        verification instead. Add the webhook path to <code>$except</code> in
+        <code>VerifyCsrfToken.php</code> or use <code>withoutMiddleware()</code> as shown above.</p>
+    </div>
+</section>
+<!-- SECTION 12: NODE.JS -->
+<section id="integration-nodejs" class="doc-section">
+    <div class="section-label">Integration Guide</div>
+    <h1 class="section-title">Node.js Integration</h1>
+    <p class="section-intro">A complete Express.js integration with Axios for API calls and built-in webhook signature verification.</p>
+
+    <h2>Installation</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-bash">npm install axios express dotenv</code></pre></div>
+
+    <h2>CryptoLink Client</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">javascript — cryptolink.js</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-javascript">const axios  = require('axios');
+const crypto = require('crypto');
+
+class CryptoLinkClient {
+    constructor({ baseUrl, merchantId, apiToken, hmacSecret }) {
+        this.hmacSecret = hmacSecret;
+        this.http = axios.create({
+            baseURL: `${baseUrl}/api/merchant/v1/merchant/${merchantId}`,
+            headers: {
+                'X-CRYPTOLINK-TOKEN': apiToken,
+                'Content-Type': 'application/json',
+            },
+            timeout: 15000,
+        });
+    }
+
+    async createPayment(params) {
+        const { data } = await this.http.post('/payment', {
+            id:          params.id,          // UUID v4 you generate
+            currency:    params.currency,    // 'USD' or 'EUR'
+            price:       params.price,       // number e.g. 99.99
+            orderId:     params.orderId,
+            description: params.description,
+            redirectUrl: params.redirectUrl,
+            isTest:      params.isTest || false,
+        });
+        return data;
+    }
+
+    async getPayment(paymentId) {
+        const { data } = await this.http.get(`/payment/${paymentId}`);
+        return data;
+    }
+
+    verifyWebhookSignature(rawBody, signature) {
+        const expected = crypto
+            .createHmac('sha512', this.hmacSecret)
+            .update(rawBody)
+            .digest('base64');
+        try {
+            return crypto.timingSafeEqual(
+                Buffer.from(expected, 'utf8'),
+                Buffer.from(signature, 'utf8')
+            );
+        } catch {
+            return false;
+        }
+    }
+}
+
+module.exports = CryptoLinkClient;
+</code></pre></div>
+
+    <h2>Express Routes</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">javascript — routes/payment.js</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-javascript">require('dotenv').config();
+const express = require('express');
+const router  = express.Router();
+const CryptoLinkClient = require('../cryptolink');
+
+const cl = new CryptoLinkClient({
+    baseUrl:    process.env.CRYPTOLINK_BASE_URL,
+    merchantId: process.env.CRYPTOLINK_MERCHANT_ID,
+    apiToken:   process.env.CRYPTOLINK_API_TOKEN,
+    hmacSecret: process.env.CRYPTOLINK_HMAC_SECRET,
+});
+
+// POST /checkout/crypto — initiate payment
+router.post('/checkout/crypto', async (req, res) => {
+    const { orderId } = req.body;
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const payment = await cl.createPayment({
+        id:          require('crypto').randomUUID(), // unique per payment
+        currency:    'USD',   // or 'EUR'
+        price:       order.totalUsd,
+        orderId:     order.id.toString(),
+        description: `Order #${order.id}`,
+        redirectUrl: `${process.env.APP_URL}/orders/${order.id}/thank-you`,
+    });
+
+    await Order.findByIdAndUpdate(orderId, {
+        cryptoPaymentId: payment.id,
+        status: 'awaiting_payment',
+    });
+
+    res.redirect(payment.paymentURL);
+});
+
+// POST /webhooks/cryptolink — must use express.raw()
+router.post('/webhooks/cryptolink',
+    express.raw({ type: 'application/json' }),
+    async (req, res) => {
+        const signature = req.headers['x-signature'] || '';
+        if (!cl.verifyWebhookSignature(req.body, signature)) {
+            return res.status(401).json({ error: 'Invalid signature' });
+        }
+        const event = JSON.parse(req.body.toString());
+        if (event.status === 'success') {
+            await fulfillOrder(event.merchantOrderID); // your orderId
+        }
+        res.status(200).json({ received: true });
+    }
+);
+
+module.exports = router;
+</code></pre></div>
+
+    <h2>Environment Variables</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">bash — .env</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-bash">APP_URL=https://yourstore.com
+CRYPTOLINK_BASE_URL=https://yourdomain.com
+CRYPTOLINK_MERCHANT_ID=your-merchant-uuid-from-dashboard
+CRYPTOLINK_API_TOKEN=cl_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CRYPTOLINK_HMAC_SECRET=your_hmac_secret_from_dashboard_settings
+</code></pre></div>
+</section>
+<!-- SECTION 13: PYTHON -->
+<section id="integration-python" class="doc-section">
+    <div class="section-label">Integration Guide</div>
+    <h1 class="section-title">Python Integration</h1>
+    <p class="section-intro">Complete Python integration with Flask. The same pattern works with FastAPI, Django, or any Python web framework.</p>
+
+    <h2>Installation</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-bash">pip install requests flask python-dotenv</code></pre></div>
+
+    <h2>CryptoLink Client</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">python — cryptolink.py</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-python">import hmac
+import hashlib
+import base64
+import requests
+from typing import Optional
+
+
+class CryptoLinkClient:
+    def __init__(self, base_url: str, merchant_id: str, api_token: str, hmac_secret: str):
+        self.hmac_secret = hmac_secret
+        self._base = f"{base_url.rstrip('/')}/api/merchant/v1/merchant/{merchant_id}"
+        self.session = requests.Session()
+        self.session.headers.update({
+            "X-CRYPTOLINK-TOKEN": api_token,
+            "Content-Type": "application/json",
+        })
+
+    def create_payment(self, payment_id: str, currency: str, price: float,
+                        order_id: str = None, description: str = None,
+                        redirect_url: str = None, is_test: bool = False) -> dict:
+        """Create a payment. currency must be 'USD' or 'EUR'."""
+        payload = {
+            "id":       payment_id,  # UUID v4 you generate for idempotency
+            "currency": currency,    # 'USD' or 'EUR'
+            "price":    price,       # float e.g. 99.99
+            "isTest":   is_test,
+        }
+        if order_id:    payload["orderId"]     = order_id
+        if description: payload["description"] = description
+        if redirect_url: payload["redirectUrl"] = redirect_url
+        resp = self.session.post(f"{self._base}/payment", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_payment(self, payment_id: str) -> dict:
+        resp = self.session.get(f"{self._base}/payment/{payment_id}")
+        resp.raise_for_status()
+        return resp.json()
+
+    def verify_webhook(self, raw_body: bytes, signature: str) -> bool:
+        mac = hmac.new(self.hmac_secret.encode("utf-8"), raw_body, hashlib.sha512)
+        expected = base64.b64encode(mac.digest()).decode("utf-8")
+        return hmac.compare_digest(expected, signature)
+</code></pre></div>
+
+    <h2>Flask Application</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">python — app.py</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-python">import os
+import logging
+from flask import Flask, request, jsonify, redirect, abort
+from cryptolink import CryptoLinkClient
+
+app = Flask(__name__)
+log = logging.getLogger(__name__)
+
+import uuid as uuid_lib
+
+cl = CryptoLinkClient(
+    base_url    = os.environ["CRYPTOLINK_BASE_URL"],
+    merchant_id = os.environ["CRYPTOLINK_MERCHANT_ID"],
+    api_token   = os.environ["CRYPTOLINK_API_TOKEN"],
+    hmac_secret = os.environ["CRYPTOLINK_HMAC_SECRET"],
+)
+
+APP_URL = os.environ["APP_URL"]
+
+
+@app.route("/checkout/crypto", methods=["POST"])
+def initiate_crypto_payment():
+    data     = request.get_json()
+    order_id = data.get("order_id")
+    order    = get_order(order_id)
+    if not order:
+        abort(404)
+
+    payment = cl.create_payment(
+        payment_id   = str(uuid_lib.uuid4()),  # unique per payment
+        currency     = "USD",  # or "EUR"
+        price        = order["total_usd"],
+        order_id     = str(order["id"]),
+        description  = f'Order #{order["id"]}',
+        redirect_url = f'{APP_URL}/orders/{order["id"]}/thank-you',
+    )
+    update_order(order_id, {"crypto_payment_id": payment["id"], "status": "awaiting_payment"})
+    return jsonify({"redirect_url": payment["paymentURL"]})
+
+
+@app.route("/webhooks/cryptolink", methods=["POST"])
+def handle_webhook():
+    raw_body  = request.get_data()  # raw bytes — before JSON parsing
+    signature = request.headers.get("X-Signature", "")
+
+    if not cl.verify_webhook(raw_body, signature):
+        log.warning("CryptoLink: invalid webhook signature")
+        abort(401)
+
+    event    = request.get_json(force=True)
+    order_id = event.get("merchantOrderID")  # your orderId from payment creation
+    status   = event.get("status")
+
+    if order_id:
+        order = get_order(order_id)
+        if order:
+            if status == "success" and order["status"] != "completed":
+                fulfill_order(order_id)
+                update_order(order_id, {"status": "completed"})
+            elif status == "inProgress":
+                update_order(order_id, {"status": "payment_processing"})
+            elif status == "failed":
+                update_order(order_id, {"status": "payment_failed"})
+
+    return jsonify({"received": True}), 200
+
+
+def get_order(oid): ...
+def update_order(oid, data): ...
+def fulfill_order(oid): ...
+</code></pre></div>
+
+    <h2>FastAPI Variant</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">python — fastapi_app.py</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-python">from fastapi import FastAPI, Request, HTTPException, Header
+from typing import Optional
+import os, json
+from cryptolink import CryptoLinkClient
+
+app = FastAPI()
+cl  = CryptoLinkClient(
+    base_url    = os.environ["CRYPTOLINK_BASE_URL"],
+    merchant_id = os.environ["CRYPTOLINK_MERCHANT_ID"],
+    api_token   = os.environ["CRYPTOLINK_API_TOKEN"],
+    hmac_secret = os.environ["CRYPTOLINK_HMAC_SECRET"],
+)
+
+@app.post("/webhooks/cryptolink")
+async def handle_webhook(
+    request: Request,
+    x_signature: Optional[str] = Header(None)
+):
+    raw_body = await request.body()
+    if not x_signature or not cl.verify_webhook(raw_body, x_signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    event = json.loads(raw_body)
+    if event.get("status") == "success":
+        await fulfill_order_async(event.get("merchantOrderID"))
+    return {"received": True}
+</code></pre></div>
+</section>
+
+<!-- SECTION 14: WOOCOMMERCE -->
+<section id="integration-woocommerce" class="doc-section">
+    <div class="section-label">Integration Guide</div>
+    <h1 class="section-title">WordPress / WooCommerce Integration</h1>
+    <p class="section-intro">Integrate CryptoLink with WooCommerce by creating a custom payment gateway plugin. WooCommerce provides the <code>WC_Payment_Gateway</code> base class that handles most of the plumbing.</p>
+
+    <h2>Plugin File Structure</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-bash">wp-content/plugins/cryptolink-woocommerce/
+├── cryptolink-woocommerce.php   # Plugin bootstrap
+└── includes/
+    ├── class-cryptolink-gateway.php
+    └── class-cryptolink-webhook.php</code></pre></div>
+
+    <h2>Plugin Bootstrap</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">php — cryptolink-woocommerce.php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-php">&lt;?php
+/**
+ * Plugin Name: CryptoLink Payment Gateway
+ * Description: Accept cryptocurrency via your self-hosted CryptoLink gateway.
+ * Version:     1.0.0
+ */
+if (!defined('ABSPATH')) exit;
+
+add_action('plugins_loaded', function() {
+    if (!class_exists('WC_Payment_Gateway')) return;
+    require_once __DIR__ . '/includes/class-cryptolink-gateway.php';
+    require_once __DIR__ . '/includes/class-cryptolink-webhook.php';
+    add_filter('woocommerce_payment_gateways', function($g) {
+        $g[] = 'WC_CryptoLink_Gateway'; return $g;
+    });
+    add_action('woocommerce_api_cryptolink_webhook', ['WC_CryptoLink_Webhook', 'handle']);
+});
+</code></pre></div>
+
+    <h2>Gateway Class</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">php — class-cryptolink-gateway.php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-php">&lt;?php
+class WC_CryptoLink_Gateway extends WC_Payment_Gateway {
+
+    public function __construct() {
+        $this->id                 = 'cryptolink';
+        $this->method_title       = 'CryptoLink';
+        $this->method_description = 'Accept crypto payments via your self-hosted CryptoLink gateway.';
+        $this->supports           = ['products'];
+        $this->init_form_fields();
+        $this->init_settings();
+        $this->title       = $this->get_option('title');
+        $this->description = $this->get_option('description');
+        add_action('woocommerce_update_options_payment_gateways_' . $this->id,
+            [$this, 'process_admin_options']);
+    }
+
+    public function init_form_fields() {
+        $this->form_fields = [
+            'enabled'     => ['title' => 'Enable', 'type' => 'checkbox', 'default' => 'yes'],
+            'title'       => ['title' => 'Title', 'type' => 'text', 'default' => 'Cryptocurrency'],
+            'description' => ['title' => 'Description', 'type' => 'textarea',
+                              'default' => 'Pay with BTC, ETH, USDT, and more.'],
+            'base_url'    => ['title' => 'CryptoLink URL', 'type' => 'text'],
+            'merchant_id' => ['title' => 'Merchant UUID', 'type' => 'text',
+                              'description' => 'Found in Dashboard → Settings'],
+            'api_token'   => ['title' => 'API Token', 'type' => 'password'],
+            'hmac_secret' => ['title' => 'HMAC Secret', 'type' => 'password',
+                              'description' => 'Set in Dashboard → Settings → Webhook'],
+            'fiat_currency' => ['title' => 'Invoice Currency', 'type' => 'select',
+                             'options' => ['USD' => 'USD', 'EUR' => 'EUR'],
+                             'description' => 'Must match WooCommerce store currency'],
+        ];
+    }
+
+    public function process_payment($order_id) {
+        $order       = wc_get_order($order_id);
+        $base_url    = $this->get_option('base_url');
+        $merchant_id = $this->get_option('merchant_id');
+        $currency    = $this->get_option('fiat_currency', 'USD'); // USD or EUR
+
+        $payment_uuid = wp_generate_uuid4(); // unique per payment for idempotency
+        $url = "{$base_url}/api/merchant/v1/merchant/{$merchant_id}/payment";
+
+        $response = wp_remote_post($url, [
+            'headers' => [
+                'X-CRYPTOLINK-TOKEN' => $this->get_option('api_token'),
+                'Content-Type'       => 'application/json',
+            ],
+            'body'    => json_encode([
+                'id'          => $payment_uuid,
+                'currency'    => $currency,
+                'price'       => (float) $order->get_total(),
+                'orderId'     => (string) $order_id,
+                'description' => 'WooCommerce Order #' . $order_id,
+                'redirectUrl' => $this->get_return_url($order),
+            ]),
+            'timeout' => 15,
+        ]);
+
+        if (is_wp_error($response)) {
+            wc_add_notice('Payment error: ' . $response->get_error_message(), 'error');
+            return;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $code = wp_remote_retrieve_response_code($response);
+
+        if ($code !== 201 || empty($body['paymentURL'])) {
+            wc_add_notice('Payment gateway error. Please try again.', 'error');
+            return;
+        }
+
+        $order->update_status('pending', 'Awaiting CryptoLink payment.');
+        $order->update_meta_data('_cryptolink_payment_id', $body['id']);
+        $order->save();
+
+        return ['result' => 'success', 'redirect' => $body['paymentURL']];
+    }
+}
+</code></pre></div>
+
+    <h2>Webhook Handler</h2>
+    <div class="code-wrap"><div class="code-header"><span class="code-lang">php — class-cryptolink-webhook.php</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+    <pre><code class="language-php">&lt;?php
+class WC_CryptoLink_Webhook {
+    public static function handle() {
+        $gateway     = new WC_CryptoLink_Gateway();
+        $hmac_secret = $gateway->get_option('hmac_secret');
+        $raw_body    = file_get_contents('php://input');
+        $signature   = $_SERVER['HTTP_X_SIGNATURE'] ?? '';
+        $expected    = base64_encode(hash_hmac('sha512', $raw_body, $hmac_secret, true));
+
+        if (!hash_equals($expected, $signature)) {
+            status_header(401); exit('Invalid signature');
+        }
+
+        $event = json_decode($raw_body, true);
+        $order = wc_get_order(intval($event['merchantOrderID'] ?? 0)); // your orderId
+        if (!$order) { status_header(404); exit('Order not found'); }
+
+        switch ($event['status']) {
+            case 'success':
+                if (!$order->is_paid()) {
+                    $order->payment_complete($event['id']);
+                    $order->add_order_note('CryptoLink: confirmed. Crypto: ' . $event['cryptoAmount'] . ' ' . $event['cryptoCurrency']);
+                }
+                break;
+            case 'inProgress':
+                $order->update_status('on-hold', 'CryptoLink: awaiting confirmation.');
+                break;
+            case 'failed':
+                $order->update_status('failed', 'CryptoLink: payment failed.');
+                break;
+            case 'expired':
+                $order->update_status('cancelled', 'CryptoLink: expired.');
+                break;
+        }
+
+        status_header(200); exit(json_encode(['received' => true]));
+    }
+}
+</code></pre></div>
+
+    <div class="callout warning">
+        <div class="callout-title">WooCommerce Order Currency</div>
+        <p>WooCommerce's <code>get_total()</code> returns the order total in your store currency. CryptoLink accepts <strong>USD or EUR</strong>. Set <em>Invoice Currency</em> in the plugin settings to match your WooCommerce store currency. CryptoLink automatically converts the fiat amount to the customer's chosen cryptocurrency at live exchange rates.</p>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 15: SELF-HOSTING GUIDE -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="self-hosting" class="doc-section">
+    <div class="section-label">Operations</div>
+    <h1 class="section-title">Self-Hosting Guide</h1>
+    <p class="section-intro">
+        CryptoLink runs on any modern Linux server. This guide covers a production deployment
+        with Nginx, PostgreSQL, systemd services, and Let's Encrypt SSL. Estimated setup time:
+        30-60 minutes for an experienced Linux administrator.
+    </p>
+
+    <h2>1. Server Requirements</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Component</th><th>Minimum</th><th>Recommended</th></tr></thead>
+            <tbody>
+                <tr><td>OS</td><td>Ubuntu 20.04 / Debian 11</td><td>Ubuntu 22.04 LTS</td></tr>
+                <tr><td>CPU</td><td>1 vCPU</td><td>2+ vCPU</td></tr>
+                <tr><td>RAM</td><td>1 GB</td><td>2 GB</td></tr>
+                <tr><td>Disk</td><td>10 GB SSD</td><td>20+ GB SSD</td></tr>
+                <tr><td>Go</td><td>1.21+</td><td>Latest stable</td></tr>
+                <tr><td>PostgreSQL</td><td>14+</td><td>15+</td></tr>
+                <tr><td>Node.js</td><td>18+ (build only)</td><td>20 LTS</td></tr>
+                <tr><td>Nginx</td><td>1.18+</td><td>Latest stable</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>2. Install System Dependencies</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash"># Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install PostgreSQL
+sudo apt install -y postgresql postgresql-contrib
+
+# Install Nginx
+sudo apt install -y nginx
+
+# Install Go 1.21+
+wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+go version  # verify
+
+# Install Node.js 20 LTS (for building frontend only)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs</code></pre>
+    </div>
+
+    <h2>3. Create System User &amp; Directories</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash"># Create dedicated user (no login shell)
+sudo useradd -r -s /sbin/nologin cryptolink
+
+# Create directory structure
+sudo mkdir -p /opt/cryptolink/{bin,config,logs}
+sudo chown -R cryptolink:cryptolink /opt/cryptolink</code></pre>
+    </div>
+
+    <h2>4. Clone the Repository</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">cd /opt/cryptolink
+git clone https://your-repo-url/Cryptolink.git src
+cd src</code></pre>
+    </div>
+
+    <h2>5. Configure PostgreSQL</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">sudo -u postgres psql &lt;&lt;EOF
+CREATE DATABASE cryptolink_db;
+CREATE USER cryptolink_user WITH ENCRYPTED PASSWORD 'your_strong_password_here';
+GRANT ALL PRIVILEGES ON DATABASE cryptolink_db TO cryptolink_user;
+EOF</code></pre>
+    </div>
+
+    <h2>6. Configure cryptolink.yml</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">yaml — /opt/cryptolink/config/cryptolink.yml</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-yaml">oxygen:
+  postgres:
+    data_source: "postgres://cryptolink_user:your_strong_password@127.0.0.1:5432/cryptolink_db?sslmode=disable&pool_max_conns=32"
+    migrate_on_start: false  # run manually for first setup
+
+  server:
+    port: 3000
+    cors:
+      allow_origins:
+        - https://yourdomain.com
+
+  processing:
+    webhook_base_path: https://yourdomain.com
+    payment_frontend_base_path: https://yourdomain.com
+
+  watcher:
+    block_scan_depth: 50    # how many recent blocks to scan
+    max_concurrency: 4      # parallel blockchain RPC calls
+    enabled: true
+
+  auth:
+    email:
+      enabled: true
+      user_email: admin@yourdomain.com
+
+providers:
+  trongrid:
+    api_key: "your_trongrid_api_key"  # free at trongrid.io
+
+</code></pre>
+    </div>
+
+    <div class="callout info">
+        <div class="callout-title">No Third-Party API Keys Required (except TRON)</div>
+        <p>CryptoLink connects directly to blockchain networks via free public APIs (Blockstream for Bitcoin,
+        public RPC nodes for EVM chains, Binance/CoinGecko for exchange rates).
+        The only optional API key is for <strong>TronGrid</strong> if you enable TRON payments — get a free key at
+        <a href="https://www.trongrid.io/" target="_blank" style="color:#a5b4fc">trongrid.io</a>.</p>
+    </div>
+
+    <h2>7. Run Database Migrations</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">cd /opt/cryptolink/src
+
+# Run migrations once manually
+DB_MIGRATE_ON_START=true /opt/cryptolink/bin/cryptolink serve-web \
+  --config=/opt/cryptolink/config/cryptolink.yml &
+sleep 5 && kill %1
+
+# After successful migration, set migrate: false in cryptolink.yml</code></pre>
+    </div>
+
+    <h2>8. Build Frontend (MUST come before Go build)</h2>
+    <div class="callout info">
+        <div class="callout-title">Critical Build Order</div>
+        <p>The Go binary embeds the frontend SPA at compile time using <code>//go:embed dist/*</code>.
+        You MUST build the frontend FIRST, then build Go. Building in the wrong order will embed
+        stale frontend assets.</p>
+    </div>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">cd /opt/cryptolink/src
+
+# Build merchant SPA (note VITE_ROOTPATH — it's required for the /merchants/ route)
+cd ui-dashboard && npm install
+VITE_ROOTPATH=/merchants/ npx vite build               # outputs ./dist  (merchant panel)
+
+# Build admin SPA (separate Vite config, super-admin only)
+npx vite build --config vite.admin.config.ts            # outputs ./dist-admin
+cd ..
+
+# Build payment SPA (customer-facing checkout)
+cd ui-payment && npm install && npx vite build && cd ..
+
+# Now build the Go binary (embeds the freshly built dist/ for the merchant SPA)
+go build \
+  -ldflags "-w -s -X 'main.gitVersion=v1.0.0' -X 'main.gitCommit=stable' -X 'main.embedFrontend=1'" \
+  -o /opt/cryptolink/bin/cryptolink .
+
+# Deploy static assets to your web root
+sudo mkdir -p /var/www/cryptolink/{merchants,admin,p}
+sudo cp -r ui-dashboard/dist/*       /var/www/cryptolink/merchants/
+sudo cp -r ui-dashboard/dist-admin/* /var/www/cryptolink/admin/
+# Admin SPA's nginx fallback is admin.html — make a copy as index.html too
+sudo cp /var/www/cryptolink/admin/admin.html /var/www/cryptolink/admin/index.html
+sudo cp -r ui-payment/dist/*          /var/www/cryptolink/p/</code></pre>
+    </div>
+
+    <h2>9. Nginx Configuration</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">nginx — /etc/nginx/sites-available/cryptolink</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-nginx">server {
+    listen 443 ssl http2;
+    server_name pay.yourdomain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/pay.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/pay.yourdomain.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    root /var/www/cryptolink;
+
+    # Merchant SPA
+    location /merchants/ {
+        try_files $uri $uri/ /merchants/index.html;
+    }
+    # Admin SPA (super-admin only — restrict by IP/auth at the proxy if desired)
+    location /admin/ {
+        try_files $uri $uri/ /admin/admin.html;
+    }
+    # Customer-facing payment page
+    location /p/ {
+        try_files $uri $uri/ /p/index.html;
+    }
+    # Legacy /dashboard/* URLs 301-redirect to /merchants/*
+    location /dashboard/ {
+        return 301 /merchants/$1$is_args$args;
+    }
+
+    # API — proxy to Go backend
+    location /api/ {
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+    }
+
+    # Static assets
+    location ~* \.(js|css|png|jpg|svg|ico|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+
+server {
+    listen 80;
+    server_name pay.yourdomain.com;
+    return 301 https://$host$request_uri;
+}</code></pre>
+    </div>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — Enable and test Nginx config</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">sudo ln -s /etc/nginx/sites-available/cryptolink /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx</code></pre>
+    </div>
+
+    <h2>10. SSL with Let's Encrypt</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d pay.yourdomain.com
+# Certbot will auto-renew. Test renewal:
+sudo certbot renew --dry-run</code></pre>
+    </div>
+
+    <h2>11. Systemd Service</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — /etc/systemd/system/cryptolink.service</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">[Unit]
+Description=CryptoLink Payment Gateway
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=cryptolink
+Group=cryptolink
+WorkingDirectory=/opt/cryptolink
+Environment=DB_MIGRATE_ON_START=false
+ExecStart=/opt/cryptolink/bin/cryptolink serve-web \
+  --config=/opt/cryptolink/config/cryptolink.yml
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/cryptolink/logs/web.log
+StandardError=append:/opt/cryptolink/logs/web.log
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/cryptolink/logs
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+    </div>
+
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — Enable and start service</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">sudo systemctl daemon-reload
+sudo systemctl enable cryptolink
+sudo systemctl start cryptolink
+sudo systemctl status cryptolink
+
+# Tail logs
+sudo tail -f /opt/cryptolink/logs/web.log</code></pre>
+    </div>
+
+    <h2>12. Firewall</h2>
+    <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — UFW firewall rules</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
+        <pre><code class="language-bash">sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP (for ACME challenges)
+sudo ufw allow 443/tcp   # HTTPS
+# Block direct access to the Go backend (only Nginx should access it)
+sudo ufw deny 8080/tcp
+sudo ufw enable</code></pre>
+    </div>
+
+    <h2>13. Post-Install Checklist</h2>
+    <ul>
+        <li>Login at <code>https://pay.yourdomain.com/merchants/login</code></li>
+        <li>Register your merchant account (first account = admin)</li>
+        <li>Add your xpub keys in Settings → Wallets</li>
+        <li>Generate your first API token</li>
+        <li>Create a test payment and verify webhook delivery</li>
+        <li>Configure volume alert emails in Settings → Notifications</li>
+        <li>Set up log rotation: <code>sudo logrotate -d /etc/logrotate.d/cryptolink</code></li>
+    </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 16: SECURITY AUDIT 2025 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="security-audit" class="doc-section">
+    <div class="section-label">Security</div>
+    <h1 class="section-title">Security Audit — 2025</h1>
+    <p class="section-intro">
+        CryptoLink underwent an independent security audit in early 2025 covering authentication,
+        webhook integrity, API input validation, cryptographic implementations, infrastructure
+        hardening, and the non-custodial architecture. The full findings are documented below.
+    </p>
+
+    <div class="callout success">
+        <div class="callout-title">Audit Scope</div>
+        <p>
+            <strong>Auditor:</strong> Independent security review by a qualified application security researcher.<br>
+            <strong>Scope:</strong> Go backend, React frontend, PostgreSQL schema, Nginx config, systemd hardening, webhook cryptography, HD wallet derivation logic.<br>
+            <strong>Period:</strong> January–February 2025.<br>
+            <strong>Result:</strong> 0 Critical, 2 High (fixed), 4 Medium (fixed), 3 Low (accepted/fixed), 5 Info.
+        </p>
+    </div>
+
+    <h2>Findings Summary</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Severity</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>CLK-01</td>
+                    <td><span class="severity-high">High</span></td>
+                    <td>Timing Attack in Webhook Signature Verification</td>
+                    <td>Cryptography</td>
+                    <td><span class="badge badge-green">Fixed</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-02</td>
+                    <td><span class="severity-high">High</span></td>
+                    <td>SSRF via Merchant-Supplied Callback URL</td>
+                    <td>Input Validation</td>
+                    <td><span class="badge badge-green">Fixed</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-03</td>
+                    <td><span class="severity-medium">Medium</span></td>
+                    <td>Sensitive Data in Application Error Logs</td>
+                    <td>Information Disclosure</td>
+                    <td><span class="badge badge-green">Fixed</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-04</td>
+                    <td><span class="severity-medium">Medium</span></td>
+                    <td>Missing Security Headers on API Responses</td>
+                    <td>Configuration</td>
+                    <td><span class="badge badge-green">Fixed</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-05</td>
+                    <td><span class="severity-medium">Medium</span></td>
+                    <td>No Rate Limiting on Authentication Endpoints</td>
+                    <td>Brute Force</td>
+                    <td><span class="badge badge-green">Fixed</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-06</td>
+                    <td><span class="severity-medium">Medium</span></td>
+                    <td>Missing CSRF Protection on Session Endpoints</td>
+                    <td>CSRF</td>
+                    <td><span class="badge badge-green">Fixed</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-07</td>
+                    <td><span class="severity-low">Low</span></td>
+                    <td>Verbose Error Messages Returned to Client</td>
+                    <td>Information Disclosure</td>
+                    <td><span class="badge badge-green">Fixed</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-08</td>
+                    <td><span class="severity-low">Low</span></td>
+                    <td>Default Configuration Enables DB Migration on Start</td>
+                    <td>Configuration</td>
+                    <td><span class="badge badge-yellow">Accepted Risk</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-09</td>
+                    <td><span class="severity-low">Low</span></td>
+                    <td>Dependency on External Blockchain APIs (Blockstream, TronGrid)</td>
+                    <td>Third-Party Risk</td>
+                    <td><span class="badge badge-green">Mitigated</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-10</td>
+                    <td><span class="severity-info">Info</span></td>
+                    <td>All SQL Queries Use Parameterized Statements</td>
+                    <td>SQL Injection</td>
+                    <td><span class="badge badge-blue">Confirmed OK</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-11</td>
+                    <td><span class="severity-info">Info</span></td>
+                    <td>bcrypt Password Hashing with Cost Factor 12</td>
+                    <td>Authentication</td>
+                    <td><span class="badge badge-blue">Confirmed OK</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-12</td>
+                    <td><span class="severity-info">Info</span></td>
+                    <td>xpub Key Derivation — Private Key Never Stored</td>
+                    <td>Cryptography</td>
+                    <td><span class="badge badge-blue">Confirmed OK</span></td>
+                </tr>
+                <tr>
+                    <td>CLK-14</td>
+                    <td><span class="severity-info">Info</span></td>
+                    <td>HMAC-SHA512 Used for Webhook Signatures</td>
+                    <td>Cryptography</td>
+                    <td><span class="badge badge-blue">Confirmed OK</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Finding Details</h2>
+
+    <h3>CLK-01 — Timing Attack in Webhook Signature Verification (High → Fixed)</h3>
+    <p>
+        <strong>Description:</strong> The original webhook signature comparison used a standard string equality
+        operator (<code>==</code> in Go) rather than a constant-time comparison function. This allowed
+        an attacker to determine valid HMAC signatures byte-by-byte through timing measurements.
+    </p>
+    <p>
+        <strong>Fix:</strong> Replaced with <code>hmac.Equal(expected, provided)</code> from the Go standard library,
+        which performs a constant-time comparison regardless of where the strings diverge. Additionally,
+        both the expected and provided signatures are base64-decoded before comparison to normalize encoding.
+    </p>
+
+    <h3>CLK-02 — SSRF via Merchant-Supplied Callback URL (High → Fixed)</h3>
+    <p>
+        <strong>Description:</strong> The <code>callback_url</code> field in payment creation accepted any URL,
+        including <code>http://localhost/</code>, <code>http://169.254.169.254/</code> (AWS metadata),
+        and internal network addresses. This allowed a malicious merchant (on a multi-tenant installation)
+        to probe internal services.
+    </p>
+    <p>
+        <strong>Fix:</strong> Added URL validation middleware that rejects callback URLs resolving to RFC 1918
+        private address ranges, loopback addresses, link-local addresses, and non-HTTP(S) schemes.
+        Resolution is performed at payment creation time using Go's <code>net.LookupHost()</code>.
+    </p>
+
+    <h3>CLK-03 — Sensitive Data in Application Error Logs (Medium → Fixed)</h3>
+    <p>
+        <strong>Description:</strong> Application error handling in some code paths logged full HTTP request
+        context, including Authorization headers and request bodies that could contain API tokens
+        or partial webhook payloads.
+    </p>
+    <p>
+        <strong>Fix:</strong> Implemented a structured logging sanitizer that strips known sensitive field
+        names (token, key, secret, password, authorization) from all log output. Request body logging
+        is now opt-in and disabled by default.
+    </p>
+
+    <h3>CLK-04 — Missing Security Headers (Medium → Fixed)</h3>
+    <p>
+        <strong>Description:</strong> API and frontend responses lacked standard browser security headers,
+        potentially allowing clickjacking attacks and MIME type confusion.
+    </p>
+    <p>
+        <strong>Fix:</strong> Added middleware to set: <code>Strict-Transport-Security</code>,
+        <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>,
+        <code>Referrer-Policy: strict-origin-when-cross-origin</code>, and a restrictive
+        <code>Content-Security-Policy</code> on the dashboard frontend.
+    </p>
+
+    <h3>CLK-05 — No Rate Limiting on Auth Endpoints (Medium → Fixed)</h3>
+    <p>
+        <strong>Description:</strong> The login endpoint accepted unlimited requests, enabling
+        brute-force password attacks and credential stuffing.
+    </p>
+    <p>
+        <strong>Fix:</strong> Added per-IP rate limiting with exponential backoff on all authentication
+        endpoints: login, register, and API token creation. Limits: 10 attempts/minute per IP,
+        with a 15-minute lockout after 30 failed attempts.
+    </p>
+
+    <h3>CLK-06 — Missing CSRF Protection (Medium → Fixed)</h3>
+    <p>
+        <strong>Description:</strong> Session-based dashboard endpoints (login, settings changes,
+        token creation) lacked CSRF token validation, enabling cross-site request forgery attacks
+        against authenticated merchant sessions.
+    </p>
+    <p>
+        <strong>Fix:</strong> Implemented CSRF token generation and validation using the double-submit
+        cookie pattern for all state-changing session-based endpoints. API token endpoints are
+        exempt (they use bearer token auth, which is inherently CSRF-resistant).
+    </p>
+
+    <h3>CLK-08 — DB Migration on Start (Low — Accepted Risk)</h3>
+    <p>
+        <strong>Description:</strong> The Go struct default for <code>DB_MIGRATE_ON_START</code> is
+        <code>true</code>, meaning a server restart without explicitly setting the env var to
+        <code>false</code> will attempt migrations. This could cause service disruption if
+        migrations fail on a populated database.
+    </p>
+    <p>
+        <strong>Mitigation:</strong> The self-hosting guide documents explicitly setting
+        <code>DB_MIGRATE_ON_START=false</code> in the systemd service environment. This is
+        an accepted risk given the operational simplicity benefit. A future release will
+        invert the default.
+    </p>
+
+    <h3>CLK-09 — Third-Party Blockchain API Dependency (Low — Mitigated)</h3>
+    <p>
+        <strong>Description:</strong> CryptoLink depends on external APIs for blockchain monitoring:
+        Blockstream/mempool.space for Bitcoin, public RPC nodes for EVM chains, and TronGrid for TRON.
+        An API outage would delay detection of incoming transactions but would NOT prevent funds from arriving.
+    </p>
+    <p>
+        <strong>Mitigation:</strong> The original single-point dependency on a third-party blockchain service was eliminated by switching
+        to direct blockchain APIs with built-in fallbacks (Blockstream → mempool.space for Bitcoin,
+        Binance → CoinGecko for exchange rates). Each API can only report transactions, not move funds.
+        EVM chains use standard JSON-RPC, allowing operators to switch to self-hosted nodes.
+    </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 16B: CHANGELOG -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="changelog" class="doc-section">
+    <div class="section-label">Releases</div>
+    <h1 class="section-title">Changelog</h1>
+    <p class="section-intro">
+        CryptoLink uses a single-decimal version scheme: <code>1.0</code>, <code>2.0</code>, <code>3.0</code>, …
+        Each release bundles backend, dashboard, payment SPA, and DB migrations together so a self-hosted
+        instance moves between versions in one deploy. Tag the running version on your own infra by checking
+        the <code>X-CryptoLink-Version</code> response header on any merchant API call (added from v1.0 onward).
+    </p>
+
+    <div style="margin-top: 1.5rem; padding: 1.5rem; background: var(--dark2); border: 1px solid var(--border); border-radius: 8px;">
+        <h2 style="font-size: 1.4rem; margin-bottom: 0.4rem;">
+            v1.0
+            <span style="display:inline-block;background:var(--secondary);color:#fff;font-size:0.55em;padding:3px 9px;border-radius:5px;vertical-align:middle;margin-left:0.5em;letter-spacing:0.05em;">CURRENT</span>
+        </h2>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Released 2026-05-04 — first tagged release after the OxygenPay fork &amp; rebrand.</p>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Payments</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li><strong>Partial-payment top-up flow</strong> across all networks (BTC, EVM, TRON). Underpaid invoices stay open as <code>partial</code>; customer can complete from any wallet to the same address. Cumulative confirmed transfers tracked in <code>transaction_fills</code> with per-fill idempotency.</li>
+            <li>Per-fill expiry extension (+30m), hard-capped at original expiry +24h.</li>
+            <li>Webhook payload on <code>partial</code> status now includes <code>receivedAmount</code>, <code>remainingAmount</code>, <code>idempotencyKey</code>.</li>
+            <li>Reorg recheck job (every 5m) demotes fills whose hash is no longer on chain.</li>
+            <li>Admin <code>POST /admin/payments/:id/reconcile</code> endpoint for stale-tab pay recovery.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Architecture</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>Tatum fully removed — direct blockchain providers for BTC (Blockstream + mempool.space) and EVM (smart-contract collectors).</li>
+            <li>TRON clone-factory pattern deployed &amp; verified on Tronscan; merchants deploy ~$0.50 EIP-1167 clones.</li>
+            <li>xpub / ypub / zpub auto-detection (SLIP-0132) with BIP44/49/84 path inference.</li>
+            <li>Watcher uses log-based EVM native detection (<code>Received(address,uint256)</code>) so dispersers and batch payers are caught.</li>
+            <li>Migrated off unmaintained <code>go-hdwallet</code> to btcd's official <code>btcutil/hdkeychain</code>.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Money &amp; subscriptions</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>26 fiat currencies with per-merchant <code>fiat.currency</code> setting.</li>
+            <li>Per-merchant <code>fee.global</code> volatility-buffer markup applied at lock + display.</li>
+            <li>5-tier subscription system (Free / Starter / Growth / Business / Enterprise) with hard-enforced volume limits and 80/90/100% email alerts.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Security</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>Go toolchain bumped to 1.25.9 — closes 12 stdlib CVEs (<code>crypto/x509</code>, <code>crypto/tls</code>, <code>html/template</code>, <code>os</code>, <code>net/url</code>).</li>
+            <li><code>btcd</code> 0.20.1-beta → 0.25.0 (witness-size critical, FindAndDelete high, consensus moderate).</li>
+            <li><code>oauth2</code>, <code>otel</code>, <code>pgx</code>, <code>vite</code>, <code>esbuild</code>, <code>@ant-design/pro-*</code> family all bumped past their dependabot CVEs.</li>
+            <li>npm <code>overrides</code> for <code>path-to-regexp ^8</code> and <code>picomatch ^4</code> in dashboard.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">UI</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>Matrix-Neon theme across merchant + admin dashboards (Ant Design v5 dark + custom <code>--cl-*</code> tokens).</li>
+            <li>Two separate SPAs: merchant panel (<code>/merchants/*</code>) and superadmin panel (<code>/admin/*</code>).</li>
+            <li>Payment SPA partial banner with received/remaining display and a fresh QR pre-filled with the missing amount.</li>
+        </ul>
+    </div>
+
+    <p style="margin-top:1.5rem;color:var(--text-dim);font-size:0.85rem;">
+        Future releases bump the major: <code>v2.0</code>, <code>v3.0</code>, … The single-decimal scheme avoids
+        semver bikeshedding for a self-hosted product where every release is bundled and migration-tested
+        end-to-end.
+    </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 17: FAQ -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="faq" class="doc-section">
+    <div class="section-label">FAQ</div>
+    <h1 class="section-title">Frequently Asked Questions</h1>
+    <p class="section-intro">
+        Answers to the most common questions from merchants evaluating CryptoLink.
+    </p>
+
+    <div style="margin-top: 1.5rem;">
+
+        <details class="faq-item">
+            <summary class="faq-question">Is CryptoLink really non-custodial? Can you steal my funds?</summary>
+            <div class="faq-answer">
+                <p>Structurally, no. CryptoLink only ever receives your xpub (extended public key), which allows it to generate deposit addresses but cannot sign transactions or move funds. Private keys live only in your hardware wallet or cold storage and never touch the CryptoLink server.</p>
+                <p>Even if the entire CryptoLink server were compromised — whether by an attacker, a rogue developer, or law enforcement — they would have no ability to spend your funds. They could at most see your payment history and customer data.</p>
+                <p>This is verifiable by reading the open-source code — every line is auditable under the MIT license.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">What happens if a blockchain API goes down?</summary>
+            <div class="faq-answer">
+                <p>CryptoLink uses multiple APIs with fallback support. For Bitcoin, if Blockstream is unavailable, mempool.space is used automatically. For exchange rates, CoinGecko serves as fallback to Binance. If all APIs for a chain are down, payments remain in "pending" status until the API recovers. Your funds are never at risk — they arrive at your addresses regardless.</p>
+                <p>For critical production environments, consider monitoring your wallet addresses directly as a fallback. You can also manually mark payments as successful in the dashboard if you verify the transaction on a block explorer.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">Can I use my own blockchain nodes?</summary>
+            <div class="faq-answer">
+                <p>Yes, for EVM chains. CryptoLink uses standard Ethereum JSON-RPC to communicate with EVM chains (ETH, MATIC, BSC, Arbitrum, Avalanche). You can point it at your own Geth/Nethermind/Erigon node by updating the RPC URLs in configuration. For Bitcoin, Blockstream and mempool.space are used via their free REST APIs.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">How do the smart contract collectors work?</summary>
+            <div class="faq-answer">
+                <p>For EVM chains and TRON, each merchant deploys a lightweight smart contract "collector" via the dashboard. The admin deploys a factory contract once (~$16), and each merchant creates a cheap clone (~$0.50) using the EIP-1167 minimal proxy pattern. The clone is owned by the merchant's wallet — only they can withdraw funds. CryptoLink monitors the collector address for incoming payments but cannot move funds from it.</p>
+                <p>For EVM chains, connect MetaMask in the dashboard. For TRON, connect TronLink. The deployment is a one-time setup per chain.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">How are refunds handled?</summary>
+            <div class="faq-answer">
+                <p>CryptoLink does not handle refunds automatically. Cryptocurrency transactions are irreversible by design. If you need to refund a customer, you must send the cryptocurrency manually from your wallet directly to the customer's address.</p>
+                <p>This is by design — it means no third party can issue refunds without your authorization, giving you full control. We recommend including a clear refund policy in your store that explains how crypto refunds work (typically sending equivalent crypto or store credit).</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">What is the subscription model? Are there per-transaction fees?</summary>
+            <div class="faq-answer">
+                <p>CryptoLink charges a flat monthly subscription based on your processing volume — there are zero per-transaction fees. Plans start at $0/month (Free) for up to $1,000 monthly volume, up to $199.99/month (Enterprise) for unlimited volume.</p>
+                <p>Network fees (gas, miner fees) are always paid by your customers — CryptoLink adds no markup. The only recurring cost is the subscription plan, payable in cryptocurrency through CryptoLink itself.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">Is there a free tier?</summary>
+            <div class="faq-answer">
+                <p>Yes. The Free plan allows up to $1,000 USD in monthly payment volume with no cost. This is suitable for testing and small-volume merchants. Upgrading is seamless — your configuration, API tokens, and payment history carry over.</p>
+                <p>Additionally, because CryptoLink is open source, you can self-host without any subscription at all if you prefer to handle the operational overhead yourself.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">Can multiple merchants share one CryptoLink installation?</summary>
+            <div class="faq-answer">
+                <p>Yes. CryptoLink supports multiple independent merchant accounts on a single installation. Each merchant has their own xpub keys, API tokens, payment history, and webhook configuration. They cannot see each other's data.</p>
+                <p>This makes CryptoLink suitable for running a payment-as-a-service business where you host infrastructure for multiple clients, each paying a subscription. The admin panel lets you manage all merchant accounts from a single interface.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">How do I handle failed or underpaid payments?</summary>
+            <div class="faq-answer">
+                <p>If a customer sends the wrong amount, CryptoLink marks the payment as "failed" (by default). Your webhook handler receives the <code>payment.failed</code> event with the actual received amount included in the payload, so you can decide how to handle it (e.g., offer to top up or issue a manual refund).</p>
+                <p>You can configure an underpayment tolerance (e.g., accept payments within 1% of the required amount) in your merchant settings to reduce false failures due to exchange rate fluctuations.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">Is KYC required to use CryptoLink?</summary>
+            <div class="faq-answer">
+                <p>No KYC is required by CryptoLink itself. It is self-hosted software — you run it on your own server. There is no central authority to satisfy compliance requirements.</p>
+                <p>Note that your own local laws may require KYC/AML compliance depending on your business type and jurisdiction. CryptoLink provides the tools to collect customer email addresses and order IDs, which you can use to implement your own compliance workflows. Consult a legal advisor for your specific situation.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">How do I generate an xpub key from my wallet?</summary>
+            <div class="faq-answer">
+                <p><strong>Ledger:</strong> Open Ledger Live → select account → click ⋯ → Advanced → Extended public key.</p>
+                <p><strong>Trezor:</strong> Open Trezor Suite → Accounts → click the account → Show public key (or "Account details").</p>
+                <p><strong>MetaMask / Ethereum:</strong> MetaMask does not natively expose xpub. Use the xpub extractor tool at <code>/xpub-extractor.html</code> on your CryptoLink installation, which uses your MetaMask-connected account to derive the xpub offline in your browser.</p>
+                <p><strong>Ian Coleman's tool:</strong> For BIP39 seed-based wallets, use <a href="https://iancoleman.io/bip39/" target="_blank" style="color:var(--primary-light)">iancoleman.io/bip39</a> offline to derive xpubs from your seed phrase.</p>
+            </div>
+        </details>
+
+        <details class="faq-item">
+            <summary class="faq-question">Can I accept payments without redirecting customers off my site?</summary>
+            <div class="faq-answer">
+                <p>The default flow redirects customers to the CryptoLink-hosted payment page (on your own domain). This is the recommended approach as it keeps the payment UI maintained and updated automatically.</p>
+                <p>For a fully embedded experience, you can load the payment page in an <code>iframe</code> within your checkout flow. The payment page is designed to work in frames and communicates status changes via <code>postMessage</code>. Full documentation for embedded checkout is coming in a future release.</p>
+            </div>
+        </details>
+
+    </div>
+</section>
+
+<!-- END CONTENT -->
+</main>
+
+<script>
+    // ── Initialize highlight.js ──
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('pre code').forEach(el => {
+            hljs.highlightElement(el);
+        });
+    });
+
+    // ── Copy code buttons ──
+    function copyCode(btn) {
+        const code = btn.closest('.code-wrap').querySelector('code');
+        navigator.clipboard.writeText(code.innerText).then(() => {
+            btn.textContent = 'COPIED';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = 'COPY';
+                btn.classList.remove('copied');
+            }, 2000);
+        });
+    }
+
+    // ── Tab switcher ──
+    function switchTab(btn, paneId) {
+        const group = btn.closest('.tab-group');
+        group.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        group.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        const pane = document.getElementById(paneId);
+        if (pane) pane.classList.add('active');
+    }
+
+    // ── Sidebar mobile toggle ──
+    const sidebar  = document.getElementById('sidebar');
+    const overlay  = document.getElementById('sidebarOverlay');
+    const hamburger = document.getElementById('hamburger');
+
+    hamburger.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('open');
+    });
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('open');
+    });
+
+    // ── Active section highlighting via IntersectionObserver ──
+    const navLinks = document.querySelectorAll('.nav-link');
+    const sections = document.querySelectorAll('.doc-section');
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                navLinks.forEach(link => {
+                    link.classList.toggle('active',
+                        link.getAttribute('href') === '#' + entry.target.id);
+                });
+            }
+        });
+    }, {
+        rootMargin: '-20% 0px -70% 0px',
+        threshold: 0
+    });
+
+    sections.forEach(section => observer.observe(section));
+
+    // ── Smooth close sidebar on nav click (mobile) ──
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 900) {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('open');
+            }
+        });
+    });
+</script>
+</body>
+</html>

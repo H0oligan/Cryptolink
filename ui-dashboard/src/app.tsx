@@ -319,7 +319,16 @@ const App: React.FC = () => {
                                         <div className={b("logo")}>
                                             <img src={logoImg} alt="logo" className={b("logo-img")} />
                                             {routeCtx.isMobile ? null : (
-                                                <span className={b("logo-text")}>CryptoLink</span>
+                                                <span className={b("logo-text")}>
+                                                    CryptoLink{" "}
+                                                    <span style={{
+                                                        fontSize: "0.6em",
+                                                        opacity: 0.6,
+                                                        marginLeft: 4,
+                                                        fontWeight: 500,
+                                                        verticalAlign: "middle"
+                                                    }}>v{__CRYPTOLINK_VERSION__}</span>
+                                                </span>
                                             )}
                                         </div>
                                     )}
