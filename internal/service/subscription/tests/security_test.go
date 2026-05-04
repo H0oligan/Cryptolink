@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -18,8 +19,12 @@ import (
 // Tests for SQL injection, authorization bypass, and other security vulnerabilities
 
 func setupTestDB(t *testing.T) *pgxpool.Pool {
-	// Connect to test database
-	connString := "postgres://oxygen_user:br2pdRilIGAPhmC0dwo7jve0kv%2FRzJlI@127.0.0.1:5432/oxygen_db?sslmode=disable"
+	// DSN is read from CRYPTOLINK_TEST_DSN — never hard-code production
+	// credentials in source. The repo is public.
+	connString := os.Getenv("CRYPTOLINK_TEST_DSN")
+	if connString == "" {
+		t.Skip("skipping security test: CRYPTOLINK_TEST_DSN env var not set")
+	}
 
 	db, err := pgxpool.Connect(context.Background(), connString)
 	require.NoError(t, err, "Failed to connect to database")
