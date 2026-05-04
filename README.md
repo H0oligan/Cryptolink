@@ -12,14 +12,21 @@
 </p>
 
 <p align="center">
+  <strong>Current release: <code>v1.0</code></strong> — see the <a href="https://cryptolink.cc/docs/#changelog">changelog</a> for what's in this release.<br>
+  Single-decimal version scheme: <code>1.0</code> → <code>2.0</code> → <code>3.0</code>, bundled releases only.
+</p>
+
+<p align="center">
   <a href="https://cryptolink.cc">Website</a> ·
   <a href="https://cryptolink.cc/docs">Documentation</a> ·
+  <a href="https://cryptolink.cc/docs/#changelog">Changelog</a> ·
   <a href="https://cryptolink.cc/merchants/login?mode=register">Try It Free</a>
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/version-1.0-10b981.svg" alt="Version 1.0">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/go-1.21+-00ADD8.svg" alt="Go 1.21+">
+  <img src="https://img.shields.io/badge/go-1.25+-00ADD8.svg" alt="Go 1.25+">
   <img src="https://img.shields.io/badge/non--custodial-✓-10b981.svg" alt="Non-custodial">
   <img src="https://img.shields.io/badge/open%20source-✓-6366f1.svg" alt="Open Source">
 </p>
@@ -194,7 +201,7 @@ npx vite build                                        # outputs ./dist
 
 ```bash
 go build \
-  -ldflags "-w -s -X 'main.gitVersion=v1.0.0' -X 'main.embedFrontend=1'" \
+  -ldflags "-w -s -X 'main.gitVersion=v1.0' -X 'main.embedFrontend=1'" \
   -o ./bin/cryptolink .
 ```
 

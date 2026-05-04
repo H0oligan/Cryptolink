@@ -16,6 +16,10 @@ function globalPolyfill(): Plugin {
     };
 }
 
+// CryptoLink public release tag (single-decimal scheme: 1.0, 2.0, …).
+// Single source of truth for the merchant dashboard SPA.
+const CRYPTOLINK_VERSION = "1.0";
+
 // https://vitejs.dev/config/
 export default defineConfig({
     base: process.env.VITE_ROOTPATH || "/dashboard/",
@@ -28,6 +32,9 @@ export default defineConfig({
             src: path.resolve(__dirname, "/src"),
             buffer: "buffer/"
         }
+    },
+    define: {
+        __CRYPTOLINK_VERSION__: JSON.stringify(CRYPTOLINK_VERSION)
     },
     optimizeDeps: {
         esbuildOptions: {

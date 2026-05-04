@@ -15,6 +15,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/log"
 	"github.com/cryptolink/cryptolink/internal/scheduler"
 	httpServer "github.com/cryptolink/cryptolink/internal/server/http"
+	"github.com/cryptolink/cryptolink/internal/version"
 	"github.com/cryptolink/cryptolink/internal/server/http/internalapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/merchantapi"
 	merchantauth "github.com/cryptolink/cryptolink/internal/server/http/merchantapi/auth"
@@ -144,6 +145,7 @@ func (app *App) RunServer() {
 		app.config.Debug,
 		httpServer.WithRecover(),
 		httpServer.WithLogger(app.logger),
+		httpServer.WithVersionHeader(version.Release, app.config.GitCommit),
 		httpServer.WithMerchantAPI(merchantAPIHandler, app.services.TokenManagerService()),
 		httpServer.WithDashboardAPI(
 			app.config.Oxygen.Server,

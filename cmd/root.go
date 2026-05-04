@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/cryptolink/cryptolink/internal/config"
+	"github.com/cryptolink/cryptolink/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +16,11 @@ var (
 	configPath    = "config.yml"
 	skipConfig    = false
 )
+
+// Release re-exports the public CryptoLink release tag from internal/version
+// so existing cmd-level code can keep using cmd.Release. Single source of
+// truth lives in internal/version/version.go.
+var Release = version.Release
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{

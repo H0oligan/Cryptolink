@@ -110,6 +110,8 @@ const App: React.FC = () => {
                                     <a className="color-oxygen" target="_blank" href="https://cryptolink.cc">
                                         CryptoLink
                                     </a>
+                                    {" "}
+                                    <span className="text-gray-600">v{__CRYPTOLINK_VERSION__}</span>
                                 </p>
                             </div>
                         )}

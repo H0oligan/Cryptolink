@@ -158,6 +158,19 @@ func SecurityHeaders() echo.MiddlewareFunc {
 	}
 }
 
+// VersionHeader stamps every response with the public CryptoLink release
+// version (single-decimal scheme: 1.0, 2.0, 3.0, …). Self-hosted operators
+// can verify what they're running with `curl -I https://example.com/`
+// without shelling into the box.
+func VersionHeader(release string) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Response().Header().Set("X-CryptoLink-Version", release)
+			return next(c)
+		}
+	}
+}
+
 func parseSameSite(v string) http.SameSite {
 	switch v {
 	case "lax":
