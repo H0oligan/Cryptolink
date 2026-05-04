@@ -7,6 +7,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
+	"github.com/cryptolink/cryptolink/internal/service/processing"
 	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/cryptolink/cryptolink/internal/service/xpub"
@@ -22,6 +23,7 @@ type Handler struct {
 	merchants       *merchant.Service
 	tokens          *auth.TokenAuthManager
 	payments        *payment.Service
+	processing      *processing.Service
 	wallets         *wallet.Service
 	xpubService     *xpub.Service
 	evmCollector    *evmcollector.Service
@@ -35,6 +37,7 @@ func NewHandler(
 	merchants *merchant.Service,
 	tokens *auth.TokenAuthManager,
 	payments *payment.Service,
+	processingService *processing.Service,
 	wallets *wallet.Service,
 	xpubService *xpub.Service,
 	evmCollectorService *evmcollector.Service,
@@ -49,6 +52,7 @@ func NewHandler(
 		merchants:       merchants,
 		tokens:          tokens,
 		payments:        payments,
+		processing:      processingService,
 		wallets:         wallets,
 		xpubService:     xpubService,
 		evmCollector:    evmCollectorService,

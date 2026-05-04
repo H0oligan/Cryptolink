@@ -85,6 +85,13 @@ type Service struct {
 	// to detect incoming payments by balance change.
 	lastBTCBalance sync.Map // key: "address:isTest" -> value: int64
 
+	// confirmedFillSums is repopulated at the top of every poll cycle with
+	// per-tx confirmed-fill totals so chain-specific scanners can construct
+	// pendingInfo with the right remaining amount for the matcher. Reads
+	// happen single-threaded inside one PollPendingTransactions invocation,
+	// so a plain map is fine — the errgroup in PollPendingTransactions only
+	// fans out *after* this map is fully written.
+	confirmedFillSums map[int64]*big.Int
 }
 
 // New creates a new watcher service.
@@ -155,6 +162,22 @@ func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTran
 	if len(txs) == 0 {
 		return nil
 	}
+
+	// Pre-fetch confirmed-fill sums so partial-paid invoices have their
+	// `remaining` properly threaded into pendingInfo before matching.
+	// Avoids per-tx DB hits inside the chain-specific scanners and keeps
+	// bestMatchByAmount scoring against expected − received, not original.
+	txIDs := make([]int64, 0, len(txs))
+	for _, tx := range txs {
+		txIDs = append(txIDs, tx.ID)
+	}
+	confirmedSums, err := s.transactions.ConfirmedFillSumsByTxIDs(ctx, txIDs)
+	if err != nil {
+		// non-fatal: fall back to original-amount matching, just log it
+		s.logger.Warn().Err(err).Msg("unable to load confirmed fill sums; matcher will use original amounts")
+		confirmedSums = map[int64]*big.Int{}
+	}
+	s.confirmedFillSums = confirmedSums
 
 	s.logger.Info().Int("pending_count", len(txs)).Msg("polling pending transactions for incoming payments")
 
@@ -274,10 +297,52 @@ func (s *Service) pollChainTransactions(
 	}
 }
 
-// pendingInfo holds data for a watched address.
+// pendingInfo holds data for a watched address. Remaining is the amount the
+// invoice still needs to receive: tx.Amount minus the cumulative confirmed
+// fills already credited via the partial-fill flow. For a freshly-created
+// invoice with no fills, Remaining == tx.Amount. For a partially-paid invoice
+// it's strictly smaller, which is what bestMatchByAmount must score against
+// — otherwise an underpayment top-up of e.g. 0.3 BTC against an original
+// 1.0 BTC invoice (now 0.3 BTC remaining) looks like a 70% underpayment to
+// the matcher and would lose to any concurrent invoice asking for ~0.3 BTC.
 type pendingInfo struct {
-	tx       *transaction.Transaction
-	walletID *int64
+	tx        *transaction.Transaction
+	walletID  *int64
+	remaining *big.Int
+}
+
+// computeRemaining returns the per-invoice remaining amount = tx.Amount −
+// confirmedFillSums[txID]. Returns nil when nothing is partially paid yet,
+// which makes effectiveExpected fall back to tx.Amount.
+func (s *Service) computeRemaining(tx *transaction.Transaction) *big.Int {
+	if s.confirmedFillSums == nil {
+		return nil
+	}
+	confirmed, ok := s.confirmedFillSums[tx.ID]
+	if !ok || confirmed.Sign() == 0 {
+		return nil
+	}
+	expected, _ := tx.Amount.BigInt()
+	rem := new(big.Int).Sub(expected, confirmed)
+	if rem.Sign() <= 0 {
+		// already covered — leave it for the next poll, expirePartial will
+		// handle stuck cases. Returning a tiny positive forces the matcher
+		// to still consider this invoice if a re-detect arrives.
+		return big.NewInt(1)
+	}
+	return rem
+}
+
+// effectiveExpected returns the amount the matcher should compare against:
+// the per-invoice remaining when partial fills exist, otherwise the original
+// tx.Amount. Defensive: a zero or negative remaining defaults to the
+// original amount so a stale fill row can't hide an invoice from matching.
+func (p pendingInfo) effectiveExpected() *big.Int {
+	if p.remaining != nil && p.remaining.Sign() > 0 {
+		return new(big.Int).Set(p.remaining)
+	}
+	expected, _ := p.tx.Amount.BigInt()
+	return expected
 }
 
 // dustThresholdBps is the floor (in basis points) below which an on-chain
@@ -308,7 +373,7 @@ func bestMatchByAmount(pending []pendingInfo, onChainAmount *big.Int) (int, pend
 	bestScore := int64(1<<62 - 1) // max int64-ish
 
 	for i, p := range pending {
-		expected, _ := p.tx.Amount.BigInt()
+		expected := p.effectiveExpected()
 		if expected.Sign() <= 0 {
 			continue
 		}
@@ -336,7 +401,7 @@ func bestMatchByAmount(pending []pendingInfo, onChainAmount *big.Int) (int, pend
 	}
 
 	best := pending[bestIdx]
-	expected, _ := best.tx.Amount.BigInt()
+	expected := best.effectiveExpected()
 	if expected.Sign() > 0 {
 		// dust floor: onChainAmount * 10000 < expected * dustThresholdBps
 		lhs := new(big.Int).Mul(onChainAmount, big.NewInt(10000))
@@ -460,7 +525,7 @@ func (s *Service) pollEVMTransactions(
 		}
 
 		ethAddr := common.HexToAddress(addr)
-		info := pendingInfo{tx: tx, walletID: tx.RecipientWalletID}
+		info := pendingInfo{tx: tx, walletID: tx.RecipientWalletID, remaining: s.computeRemaining(tx)}
 
 		if tx.Currency.Type == money.Coin {
 			if info.walletID == nil {
@@ -1138,7 +1203,7 @@ func (s *Service) pollTRONTransactions(
 			continue
 		}
 		key := addrKey{addr: addr, isCoin: tx.Currency.Type == money.Coin}
-		grouped[key] = append(grouped[key], pendingInfo{tx: tx, walletID: tx.RecipientWalletID})
+		grouped[key] = append(grouped[key], pendingInfo{tx: tx, walletID: tx.RecipientWalletID, remaining: s.computeRemaining(tx)})
 	}
 
 	for key, pending := range grouped {

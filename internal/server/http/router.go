@@ -186,6 +186,10 @@ func WithDashboardAPI(
 		adminGroup.GET("/collector-factories/:blockchain", handler.GetCollectorFactory)
 		adminGroup.POST("/collector-factories", handler.UpsertCollectorFactory)
 
+		// Admin manual reconcile — attach an observed on-chain txid+amount
+		// to a payment when a customer paid the wrong/stale address.
+		adminGroup.POST("/payments/:paymentId/reconcile", handler.AdminReconcilePayment)
+
 		setupCommonMerchantRoutes(merchantGroup, handler)
 	}
 }

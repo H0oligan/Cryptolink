@@ -4,6 +4,7 @@ package processing
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -550,6 +551,77 @@ func (s *Service) createTransactionWithCollectorAddress(
 	}
 
 	return payment.MakeMethod(tx, currency), nil
+}
+
+// AdminReconcileFill records a synthetic confirmed fill against the latest
+// transaction on a payment. Used by superadmin when a customer paid the
+// wrong/stale address — funds physically arrived somewhere reconcilable
+// but the watcher never bound them to the invoice. The fill goes through
+// the same partial-fill aggregator as a normal top-up: if it brings the
+// cumulative confirmed sum to expected, the payment promotes; otherwise
+// it stays partial and the customer can still top up the rest.
+//
+// rawAmount is the smallest-unit string (e.g. satoshis for BTC).
+// notes is logged for audit purposes; not stored in the fill row itself.
+func (s *Service) AdminReconcileFill(
+	ctx context.Context,
+	merchantID, paymentID int64,
+	txHash, rawAmount, senderAddress, notes string,
+) error {
+	tx, err := s.transactions.GetLatestByPaymentID(ctx, paymentID)
+	if err != nil {
+		return errors.Wrap(err, "unable to get latest transaction for payment")
+	}
+
+	amountInt, ok := new(big.Int).SetString(rawAmount, 10)
+	if !ok {
+		return errors.New("invalid amount: must be smallest-unit decimal string")
+	}
+	amount, err := money.NewFromBigInt(money.Crypto, tx.Amount.Ticker(), amountInt, tx.Amount.Decimals())
+	if err != nil {
+		return errors.Wrap(err, "unable to construct amount")
+	}
+
+	networkID := tx.Currency.ChooseNetwork(tx.IsTest)
+	input := Input{
+		Currency:      tx.Currency,
+		Amount:        amount,
+		SenderAddress: senderAddress,
+		TransactionID: txHash,
+		NetworkID:     networkID,
+	}
+	if input.SenderAddress == "" {
+		// ProcessInboundTransaction.Input.validate() requires non-empty sender.
+		// Use a sentinel value so the flow accepts admin-attributed fills.
+		input.SenderAddress = "admin-reconcile"
+	}
+
+	s.logger.Warn().
+		Int64("payment_id", paymentID).
+		Int64("merchant_id", merchantID).
+		Str("tx_hash", txHash).
+		Str("amount", amount.String()).
+		Str("notes", notes).
+		Msg("AUDIT: admin reconcile recording synthetic fill")
+
+	return s.ProcessInboundTransaction(ctx, tx, nil, input)
+}
+
+// LatestFillIdempotencyKey returns "<network_id>:<tx_hash>:<vout_or_logidx>"
+// for the most recently observed fill on a payment's transaction, or empty
+// string when there are no fills. Used by the webhook handler so retried
+// deliveries for the same fill arrive with the same dedup key.
+func (s *Service) LatestFillIdempotencyKey(ctx context.Context, merchantID, paymentID int64) (string, error) {
+	tx, err := s.transactions.GetLatestByPaymentID(ctx, paymentID)
+	if err != nil {
+		return "", err
+	}
+	fills, err := s.transactions.ListFills(ctx, tx)
+	if err != nil || len(fills) == 0 {
+		return "", err
+	}
+	last := fills[len(fills)-1]
+	return fmt.Sprintf("%s:%s:%d", last.NetworkID, last.TransactionHash, last.VoutOrLogIdx), nil
 }
 
 // generateDustAmount returns a random amount visible at display precision for the given currency.

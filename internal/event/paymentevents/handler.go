@@ -68,6 +68,15 @@ type PaymentWebhook struct {
 	IsTest bool `json:"isTest"`
 
 	LinkID *string `json:"paymentLinkId"`
+
+	// Partial-fill payload — populated only when Status == "partial".
+	// Merchants should treat the `idempotencyKey` as a dedup token: it's
+	// "<network_id>:<tx_hash>:<vout_or_logidx>" of the most recent
+	// confirmed fill, so retried webhook deliveries for the same fill
+	// arrive with the same key.
+	ReceivedAmount  string `json:"receivedAmount,omitempty"`
+	RemainingAmount string `json:"remainingAmount,omitempty"`
+	IdempotencyKey  string `json:"idempotencyKey,omitempty"`
 }
 
 func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Message) error {
@@ -113,6 +122,15 @@ func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Me
 	if p.PaymentMethod != nil {
 		wh.SelectedBlockchain = p.PaymentMethod.Currency.Blockchain.String()
 		wh.SelectedCurrency = p.PaymentMethod.Currency.Ticker
+	}
+	// Partial-fill enrichment: include received/remaining amounts and a
+	// per-fill idempotency key so merchants can dedup retried deliveries.
+	if p.Payment.Status == payment.StatusPartial && p.PaymentInfo != nil {
+		wh.ReceivedAmount = p.PaymentInfo.ReceivedAmount
+		wh.RemainingAmount = p.PaymentInfo.RemainingAmount
+		if key, keyErr := h.processing.LatestFillIdempotencyKey(ctx, req.MerchantID, req.PaymentID); keyErr == nil {
+			wh.IdempotencyKey = key
+		}
 	}
 	if p.Payment.LinkID() != 0 {
 		link, err := h.payments.GetPaymentLinkByID(ctx, mt.ID, p.Payment.LinkID())

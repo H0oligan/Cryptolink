@@ -140,6 +140,46 @@ func (q *Queries) SumAllFillsForTx(ctx context.Context, transactionID int64) (pg
 	return sum, err
 }
 
+// MarkFillReorged flips a fill to status='reorged' so it stops counting in
+// SumConfirmedFillsForTx. Idempotent — calling twice is harmless.
+const markFillReorged = `
+UPDATE transaction_fills
+SET status = 'reorged'
+WHERE id = $1
+`
+
+func (q *Queries) MarkFillReorged(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, markFillReorged, id)
+	return err
+}
+
+// ListPartialPaymentTxIDs returns transaction ids of every parent transaction
+// linked to a payment currently in StatusPartial. Used by the reorg-recheck
+// poller to know which fills need re-verification on chain.
+const listPartialPaymentTxIDs = `
+SELECT t.id
+FROM transactions t
+JOIN payments p ON p.id = t.entity_id
+WHERE p.status = 'partial' AND t.type = 'incoming'
+`
+
+func (q *Queries) ListPartialPaymentTxIDs(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listPartialPaymentTxIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // FillExistsByHashAndRecipient is the watcher-side dedup guard. Returns true
 // when the (network_id, transaction_hash, recipient_address) tuple has already
 // been recorded as a fill against any pending/partial invoice. Recipient is

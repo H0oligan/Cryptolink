@@ -28,6 +28,7 @@ type ContextJobEnableTableLogger struct{}
 type ProcessingService interface {
 	BatchCheckIncomingTransactions(ctx context.Context, transactionIDs []int64) error
 	BatchExpirePayments(ctx context.Context, paymentsIDs []int64) error
+	RecheckPartialFills(ctx context.Context) error
 	ProcessInboundTransaction(
 		ctx context.Context,
 		tx *transaction.Transaction,
@@ -76,6 +77,14 @@ func (h *Handler) CheckIncomingTransactionsProgress(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// RecheckPartialFills re-verifies on-chain status of every fill belonging to
+// a payment in StatusPartial. Fills whose hash no longer confirms (and
+// which are past the reorg grace window) get flipped to status='reorged' so
+// they stop counting toward the cumulative confirmed sum.
+func (h *Handler) RecheckPartialFills(ctx context.Context) error {
+	return h.processing.RecheckPartialFills(ctx)
 }
 
 func (h *Handler) CancelExpiredPayments(ctx context.Context) error {
