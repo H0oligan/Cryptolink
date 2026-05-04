@@ -546,6 +546,48 @@ func (q *Queries) UpdatePayment(ctx context.Context, arg UpdatePaymentParams) (P
 	return i, err
 }
 
+// ExtendPaymentExpiry sets a new expires_at for a payment, hard-capped at
+// original_expires_at + 24h to prevent infinite extension via dust top-ups.
+// Also updates the status (typically to "partial"). Returns the actual
+// expires_at applied (may be earlier than requested due to the cap).
+const extendPaymentExpiry = `-- name: ExtendPaymentExpiry :one
+UPDATE payments
+SET status = $3,
+    updated_at = $4,
+    expires_at = LEAST(
+        $5::timestamp,
+        COALESCE(original_expires_at, expires_at) + INTERVAL '24 hours'
+    )
+WHERE id = $1 AND merchant_id = $2
+RETURNING id, expires_at
+`
+
+type ExtendPaymentExpiryParams struct {
+	ID                int64
+	MerchantID        int64
+	Status            string
+	UpdatedAt         time.Time
+	RequestedExpiresAt time.Time
+}
+
+type ExtendPaymentExpiryRow struct {
+	ID        int64
+	ExpiresAt sql.NullTime
+}
+
+func (q *Queries) ExtendPaymentExpiry(ctx context.Context, arg ExtendPaymentExpiryParams) (ExtendPaymentExpiryRow, error) {
+	row := q.db.QueryRow(ctx, extendPaymentExpiry,
+		arg.ID,
+		arg.MerchantID,
+		arg.Status,
+		arg.UpdatedAt,
+		arg.RequestedExpiresAt,
+	)
+	var r ExtendPaymentExpiryRow
+	err := row.Scan(&r.ID, &r.ExpiresAt)
+	return r, err
+}
+
 const updatePaymentCustomerID = `-- name: UpdatePaymentCustomerID :exec
 UPDATE payments set customer_id = $1 where id = $2
 `

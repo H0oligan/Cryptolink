@@ -191,7 +191,11 @@ func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTran
 	//
 	// Why we still need dedup at all: when several invoices share the *same*
 	// collector address (one merchant, multiple concurrent payments), only
-	// one detection should bind to a given on-chain transfer.
+	// one detection should bind to a given on-chain transfer. Partial-fill
+	// support adds a second dedup leg: a single fill recorded as a row in
+	// transaction_fills must not be double-counted on subsequent watcher
+	// cycles that re-observe the same on-chain transfer before its parent
+	// invoice has been finalized.
 	dedupOnDetected := func(ctx context.Context, d DetectedTransfer) error {
 		recipient := d.RecipientAddress
 		if recipient == "" && d.PendingTx != nil {
@@ -206,6 +210,16 @@ func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTran
 				Int64("pending_tx_id", d.PendingTx.ID).
 				Int64("existing_tx_id", existing.ID).
 				Msg("skipping duplicate: hash + recipient already bound to another transaction")
+			return nil
+		}
+		fillExists, fillErr := s.transactions.FillExistsByHashAndRecipient(ctx, d.NetworkID, d.TxHash, recipient)
+		if fillErr == nil && fillExists {
+			s.logger.Debug().
+				Str("tx_hash", d.TxHash).
+				Str("network_id", d.NetworkID).
+				Str("recipient", recipient).
+				Int64("pending_tx_id", d.PendingTx.ID).
+				Msg("skipping duplicate: hash + recipient already recorded as a partial fill")
 			return nil
 		}
 		return onDetected(ctx, d)
@@ -266,6 +280,13 @@ type pendingInfo struct {
 	walletID *int64
 }
 
+// dustThresholdBps is the floor (in basis points) below which an on-chain
+// transfer is considered dust relative to its best-matching pending invoice.
+// 2000 bp = 20%: any transfer worth less than 20% of the matched invoice's
+// expected amount is rejected so dust-spam transactions cannot "claim" a
+// pending invoice slot before the legitimate payment is observed.
+const dustThresholdBps = 2000
+
 // bestMatchByAmount finds the pending transaction whose expected amount best matches
 // the on-chain transfer. Uses percentage-based matching to handle underpayments
 // correctly — a $20 miss on a $100 invoice (20%) is preferred over a $17 miss on
@@ -278,7 +299,11 @@ type pendingInfo struct {
 //
 // Underpayments are penalized so that an exact match for invoice B is always
 // preferred over an underpayment that happens to be numerically closer to invoice A.
-func bestMatchByAmount(pending []pendingInfo, onChainAmount *big.Int) (int, pendingInfo) {
+//
+// Returns ok=false when the on-chain amount is below dustThresholdBps of the
+// best-matching invoice's expected amount; callers MUST skip such transfers
+// rather than binding them to any pending invoice.
+func bestMatchByAmount(pending []pendingInfo, onChainAmount *big.Int) (int, pendingInfo, bool) {
 	bestIdx := 0
 	bestScore := int64(1<<62 - 1) // max int64-ish
 
@@ -310,7 +335,18 @@ func bestMatchByAmount(pending []pendingInfo, onChainAmount *big.Int) (int, pend
 		}
 	}
 
-	return bestIdx, pending[bestIdx]
+	best := pending[bestIdx]
+	expected, _ := best.tx.Amount.BigInt()
+	if expected.Sign() > 0 {
+		// dust floor: onChainAmount * 10000 < expected * dustThresholdBps
+		lhs := new(big.Int).Mul(onChainAmount, big.NewInt(10000))
+		rhs := new(big.Int).Mul(expected, big.NewInt(dustThresholdBps))
+		if lhs.Cmp(rhs) < 0 {
+			return bestIdx, best, false
+		}
+	}
+
+	return bestIdx, best, true
 }
 
 // removePending removes element at index from a slice without preserving order.
@@ -525,7 +561,16 @@ func (s *Service) scanNativeTransfers(
 			}
 
 			// Match the on-chain amount to the closest pending invoice
-			bestIdx, info := bestMatchByAmount(pending, blockTx.Value())
+			bestIdx, info, ok := bestMatchByAmount(pending, blockTx.Value())
+			if !ok {
+				s.logger.Warn().
+					Str("hash", blockTx.Hash().Hex()).
+					Str("recipient", recipient.Hex()).
+					Str("amount", blockTx.Value().String()).
+					Str("expected", info.tx.Amount.String()).
+					Msg("skipping dust transfer (< 20% of expected) — likely spam attack")
+				continue
+			}
 
 			d, err := s.buildNativeDetection(ctx, client, bc, isTest, blockTx, info)
 			if err != nil {
@@ -639,7 +684,16 @@ func (s *Service) scanNativeTransfersByLog(
 
 			senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
 
-			bestIdx, info := bestMatchByAmount(pending, amount)
+			bestIdx, info, ok := bestMatchByAmount(pending, amount)
+			if !ok {
+				s.logger.Warn().
+					Str("hash", logEntry.TxHash.Hex()).
+					Str("recipient", recipientAddr.Hex()).
+					Str("amount", amount.String()).
+					Str("expected", info.tx.Amount.String()).
+					Msg("skipping dust native log (< 20% of expected) — likely spam attack")
+				continue
+			}
 
 			cryptoAmount, err := money.NewFromBigInt(
 				money.Crypto,
@@ -762,7 +816,16 @@ func (s *Service) scanTokenTransfers(
 				senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
 
 				// Match by closest amount to handle concurrent invoices at same address
-				bestIdx, info := bestMatchByAmount(pending, amount)
+				bestIdx, info, ok := bestMatchByAmount(pending, amount)
+				if !ok {
+					s.logger.Warn().
+						Str("hash", logEntry.TxHash.Hex()).
+						Str("recipient", recipientAddr.Hex()).
+						Str("amount", amount.String()).
+						Str("expected", info.tx.Amount.String()).
+						Msg("skipping dust token log (< 20% of expected) — likely spam attack")
+					continue
+				}
 
 				cryptoAmount, err := money.NewFromBigInt(
 					money.Crypto,
@@ -1126,7 +1189,16 @@ func (s *Service) pollTRONNativeForAddress(
 		}
 
 		onChainAmount := big.NewInt(rtx.Amount)
-		bestIdx, info := bestMatchByAmount(pending, onChainAmount)
+		bestIdx, info, ok := bestMatchByAmount(pending, onChainAmount)
+		if !ok {
+			s.logger.Warn().
+				Str("hash", rtx.TxID).
+				Str("recipient", addr).
+				Int64("sun", rtx.Amount).
+				Str("expected", info.tx.Amount.String()).
+				Msg("skipping dust TRON transfer (< 20% of expected) — likely spam attack")
+			continue
+		}
 
 		cryptoAmount, err := money.NewFromBigInt(
 			money.Crypto, info.tx.Currency.Ticker,
@@ -1227,7 +1299,16 @@ func (s *Service) pollTRONTokenForAddress(
 			}
 		}
 
-		bestSubIdx, info := bestMatchByAmount(tokenPending, amount)
+		bestSubIdx, info, ok := bestMatchByAmount(tokenPending, amount)
+		if !ok {
+			s.logger.Warn().
+				Str("hash", rtx.TxID).
+				Str("recipient", addr).
+				Str("amount", rtx.TokenAmount).
+				Str("expected", info.tx.Amount.String()).
+				Msg("skipping dust TRC20 transfer (< 20% of expected) — likely spam attack")
+			continue
+		}
 		bestIdx := tokenIndices[bestSubIdx]
 
 		cryptoAmount, err := money.NewFromBigInt(

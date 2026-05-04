@@ -33,6 +33,19 @@ type PaymentInfo struct {
 	// Actual amount received (for underpaid payments). Empty if not yet received.
 	FactAmountFormatted string `json:"factAmountFormatted,omitempty"`
 
+	// Cumulative amount received so far across all on-chain transfers
+	// contributing to this invoice. Set when status == "partial".
+	ReceivedAmount string `json:"receivedAmount,omitempty"`
+
+	// Remaining amount the customer must still send to the same recipient
+	// address to complete the payment. Set when status == "partial".
+	RemainingAmount string `json:"remainingAmount,omitempty"`
+
+	// Wallet deeplink (bitcoin:..., ethereum:...) pre-filled with
+	// RemainingAmount so the customer can scan a fresh QR for the top-up
+	// only. Set when status == "partial".
+	RemainingPaymentLink string `json:"remainingPaymentLink,omitempty"`
+
 	// Expiration duration in minutes
 	// Example: 20
 	// Required: true
@@ -180,7 +193,7 @@ var paymentInfoTypeStatusPropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["pending","inProgress","success","underpaid","failed"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["pending","partial","inProgress","success","underpaid","failed"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -192,6 +205,9 @@ const (
 
 	// PaymentInfoStatusPending captures enum value "pending"
 	PaymentInfoStatusPending string = "pending"
+
+	// PaymentInfoStatusPartial captures enum value "partial"
+	PaymentInfoStatusPartial string = "partial"
 
 	// PaymentInfoStatusInProgress captures enum value "inProgress"
 	PaymentInfoStatusInProgress string = "inProgress"

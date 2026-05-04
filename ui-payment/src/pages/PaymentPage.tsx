@@ -143,7 +143,10 @@ const PaymentPage: React.FC = () => {
                     payment
                 }
             });
-        } else if (payment.isLocked && payment.paymentInfo?.status === "pending") {
+        } else if (
+            payment.isLocked &&
+            (payment.paymentInfo?.status === "pending" || payment.paymentInfo?.status === "partial")
+        ) {
             setTimeout(updatePayment, 2000);
         } else if (
             payment.isLocked &&
@@ -297,7 +300,15 @@ const PaymentPage: React.FC = () => {
                 </>
             )}
 
-            {payment?.isLocked === true && payment.paymentInfo && payment.paymentMethod && !paymentProcessError && (
+            {payment?.isLocked === true && payment.paymentInfo && payment.paymentMethod && !paymentProcessError && (() => {
+                const isPartial = payment.paymentInfo.status === "partial";
+                const qrValue = isPartial && payment.paymentInfo.remainingPaymentLink
+                    ? payment.paymentInfo.remainingPaymentLink
+                    : payment.paymentInfo.paymentLink;
+                const amountToCopy = isPartial && payment.paymentInfo.remainingAmount
+                    ? payment.paymentInfo.remainingAmount
+                    : payment.paymentInfo.amountFormatted;
+                return (
                 <>
                     <ProgressCircle
                         expiresAt={payment.paymentInfo.expiresAt}
@@ -305,14 +316,31 @@ const PaymentPage: React.FC = () => {
                         error={paymentProcessError}
                     />
                     <span className="block font-medium text-center text-2xl mb-1">{getPrice()}</span>
+                    {isPartial && (
+                        <div className="mx-auto mb-4 max-w-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-center">
+                            <p className="text-sm font-semibold text-amber-300">
+                                Partial payment received
+                            </p>
+                            <p className="mt-1 text-xs text-amber-100/90">
+                                We received <strong>{payment.paymentInfo.receivedAmount} {payment.paymentMethod.displayName}</strong>.
+                            </p>
+                            <p className="mt-1 text-xs text-amber-100/90">
+                                Send the remaining <strong>{payment.paymentInfo.remainingAmount} {payment.paymentMethod.displayName}</strong> to the same address before the timer ends.
+                            </p>
+                        </div>
+                    )}
                     <h2 className="block mx-auto text-sm font-medium text-card-desc text-center mb-5 sm:mb-4 sm:hidden">
-                        Waiting for payment. Scan the QR code in your app or enter payment information manually
+                        {isPartial
+                            ? "Top up the missing amount. Scan the QR or copy the address below."
+                            : "Waiting for payment. Scan the QR code in your app or enter payment information manually"}
                     </h2>
                     <h2 className="block mx-auto text-sm font-medium text-card-desc text-center mb-5 sm:mb-4 lg:hidden">
-                        Waiting for payment. Please send required crypto amount to specified address below.
+                        {isPartial
+                            ? "Send the remaining amount to the address below."
+                            : "Waiting for payment. Please send required crypto amount to specified address below."}
                     </h2>
                     <div className="flex relative justify-center mb-7 sm:hidden">
-                        <QRCodeSVG size={180} level={"H"} value={payment.paymentInfo.paymentLink} />
+                        <QRCodeSVG size={180} level={"H"} value={qrValue} />
                         <Icon
                             name={getCryptoIconName(payment.paymentMethod.ticker)}
                             dir="crypto"
@@ -338,8 +366,8 @@ const PaymentPage: React.FC = () => {
                         displayText={payment.paymentInfo.recipientAddress}
                     />
                     <CopyButton
-                        textToCopy={payment.paymentInfo.amountFormatted}
-                        displayText={payment.paymentInfo.amountFormatted + " " + payment.paymentMethod.displayName}
+                        textToCopy={amountToCopy}
+                        displayText={amountToCopy + " " + payment.paymentMethod.displayName}
                     />
                     {payment.feePercent !== undefined && payment.feePercent > 0 && (
                         <p className="text-center text-xs text-card-desc mt-2 opacity-70">
@@ -347,7 +375,8 @@ const PaymentPage: React.FC = () => {
                         </p>
                     )}
                 </>
-            )}
+                );
+            })()}
 
             {payment && !payment.isLocked && (
                 <>

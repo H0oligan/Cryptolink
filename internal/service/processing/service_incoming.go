@@ -61,7 +61,21 @@ func (i Input) validate() error {
 	return nil
 }
 
-// ProcessInboundTransaction implements correct business logic for transaction processing
+// ProcessInboundTransaction processes a detected on-chain transfer against a
+// pending or partial invoice.
+//
+// Partial-fill flow: when the new transfer alone (or the cumulative amount
+// across all confirmed fills) is below the invoice's expected amount, the
+// transfer is recorded as a `transaction_fill` row and the parent transaction
+// is left in StatusPending so the watcher keeps polling the same destination
+// address. The payment is flipped to StatusPartial and its expiry is extended
+// (capped at original_expires_at + 24h). The customer can then top up from
+// any wallet to the same address.
+//
+// Promotion to StatusInProgress happens only when sum(confirmed fills) +
+// new transfer ≥ expected (with the standard $0.10 fiat tolerance). At that
+// moment the parent transaction's hash is set to the *triggering* fill's hash
+// so the existing receipt-confirmation poller drives it to completion.
 func (s *Service) ProcessInboundTransaction(
 	ctx context.Context,
 	tx *transaction.Transaction,
@@ -72,55 +86,218 @@ func (s *Service) ProcessInboundTransaction(
 		return err
 	}
 
-	if err := s.determineIncomingStatus(ctx, tx, input); err != nil {
+	// What's already been received and confirmed against this invoice.
+	prevConfirmed, err := s.transactions.SumConfirmedFills(ctx, tx)
+	if err != nil {
+		return errors.Wrap(err, "unable to sum confirmed fills")
+	}
+
+	// Combine: prev + new. If we cross the expected threshold, promote.
+	combined, err := prevConfirmed.Add(input.Amount)
+	if err != nil {
+		return errors.Wrap(err, "unable to combine fills")
+	}
+
+	crosses, err := s.crossesExpected(ctx, tx, combined)
+	if err != nil {
+		return errors.Wrap(err, "unable to evaluate combined amount vs expected")
+	}
+
+	if !crosses {
+		return s.recordPartialFill(ctx, tx, wt, input, prevConfirmed)
+	}
+
+	return s.promoteFromPartial(ctx, tx, wt, input, prevConfirmed, combined)
+}
+
+// crossesExpected returns true when `received` is at or above tx.Amount,
+// applying the standard $0.10 fiat rounding tolerance for underpayments.
+func (s *Service) crossesExpected(ctx context.Context, tx *transaction.Transaction, received money.Money) (bool, error) {
+	if received.GreaterThanOrEqual(tx.Amount) {
+		return true, nil
+	}
+
+	// Tolerance: $0.10 in the invoice's crypto currency, mirrors
+	// determineIncomingStatus's existing rounding allowance.
+	tenCents, err := money.USD.MakeAmount("10")
+	if err != nil {
+		return false, err
+	}
+	conv, err := s.blockchain.FiatToCrypto(ctx, tenCents, tx.Currency)
+	if err != nil {
+		return false, err
+	}
+
+	withTolerance, err := received.Add(conv.To)
+	if err != nil {
+		return false, err
+	}
+
+	return withTolerance.GreaterThanOrEqual(tx.Amount), nil
+}
+
+// recordPartialFill stores the new transfer as a fill, flips the payment to
+// StatusPartial, extends expiry, and leaves the parent transaction in
+// StatusPending so subsequent top-ups to the same address are detected.
+func (s *Service) recordPartialFill(
+	ctx context.Context,
+	tx *transaction.Transaction,
+	wt *wallet.Wallet,
+	input Input,
+	prevConfirmed money.Money,
+) error {
+	walletID := int64(0)
+	if wt != nil {
+		walletID = wt.ID
+	}
+
+	// Record the fill. Idempotent on (tx_id, network_id, hash, vout/logidx).
+	// vout/logidx is 0 for now — chain-specific detectors that need to
+	// distinguish multiple outputs in the same tx (e.g. a BTC payer with
+	// two outputs to the same address) can pass distinct values via input.
+	if _, err := s.transactions.RecordFill(
+		ctx,
+		tx,
+		input.NetworkID,
+		input.TransactionID,
+		0,
+		input.Amount,
+		input.SenderAddress,
+		0, // block_number unknown at this layer; fill in a follow-up
+		1, // confirmations: detection in the watcher already implies on-chain inclusion
+		transaction.FillStatusConfirmed,
+	); err != nil {
+		return errors.Wrap(err, "unable to record partial fill")
+	}
+
+	pt, err := s.payments.MarkPartial(ctx, tx.MerchantID, tx.EntityID)
+	if err != nil {
+		return errors.Wrap(err, "unable to mark payment partial")
+	}
+
+	combined, _ := prevConfirmed.Add(input.Amount)
+	remaining, _ := tx.Amount.SubNegative(combined)
+
+	s.logger.Info().
+		Int64("wallet_id", walletID).
+		Int64("transaction_id", tx.ID).
+		Int64("payment_id", pt.ID).
+		Str("expected", tx.Amount.String()).
+		Str("received_now", input.Amount.String()).
+		Str("received_total", combined.String()).
+		Str("remaining", remaining.String()).
+		Time("expires_at_extended_to", *pt.ExpiresAt).
+		Msg("partial payment recorded — awaiting top-up")
+
+	return nil
+}
+
+// promoteFromPartial finalizes the parent transaction. It calls Receive with
+// the *cumulative* fact_amount (all prior confirmed fills + this triggering
+// transfer), sets the parent's hash to this transfer's hash, and flips the
+// payment to StatusInProgress so the existing receipt poller takes over.
+func (s *Service) promoteFromPartial(
+	ctx context.Context,
+	tx *transaction.Transaction,
+	wt *wallet.Wallet,
+	input Input,
+	prevConfirmed money.Money,
+	combined money.Money,
+) error {
+	if err := s.determineIncomingStatusFromCombined(ctx, tx, combined); err != nil {
 		return err
 	}
 
-	// Step 1: Process transaction
+	// Also record the triggering transfer as a fill so the audit trail is
+	// complete (every observed on-chain transfer that funded this invoice
+	// has a row in transaction_fills).
+	if _, err := s.transactions.RecordFill(
+		ctx,
+		tx,
+		input.NetworkID,
+		input.TransactionID,
+		0,
+		input.Amount,
+		input.SenderAddress,
+		0,
+		1,
+		transaction.FillStatusConfirmed,
+	); err != nil {
+		return errors.Wrap(err, "unable to record finalizing fill")
+	}
+
 	tx, err := s.transactions.Receive(ctx, tx.MerchantID, tx.ID, transaction.ReceiveTransaction{
 		Status:          tx.Status,
 		SenderAddress:   input.SenderAddress,
 		TransactionHash: input.TransactionID,
-		FactAmount:      input.Amount,
+		FactAmount:      combined,
 		MetaData:        tx.MetaData,
 	})
 	if err != nil {
 		return errors.Wrap(err, "unable to update transaction")
 	}
 
-	paymentID := tx.EntityID
+	walletID := int64(0)
+	if wt != nil {
+		walletID = wt.ID
+	}
 
 	if tx.Status != transaction.StatusInProgress {
-		walletID := int64(0)
-		if wt != nil {
-			walletID = wt.ID
-		}
 		s.logger.Warn().
 			Int64("wallet_id", walletID).
 			Int64("transaction_id", tx.ID).
 			Str("expected_amount", tx.Amount.String()).
-			Str("actual_amount", input.Amount.String()).
-			Msg("received invalid transaction that has not expected amount")
-
+			Str("combined_amount", combined.String()).
+			Str("prev_confirmed", prevConfirmed.String()).
+			Msg("promoted payment did not reach inProgress status")
 		return nil
 	}
 
-	// Step 2: Process payment
-	pt, err := s.payments.GetByID(ctx, tx.MerchantID, paymentID)
+	pt, err := s.payments.GetByID(ctx, tx.MerchantID, tx.EntityID)
 	if err != nil {
 		return errors.Wrap(err, "unable to get payment")
 	}
 
-	_, err = s.payments.Update(ctx, tx.MerchantID, pt.ID, payment.UpdateProps{Status: payment.StatusInProgress})
-	if err != nil {
+	if _, err := s.payments.Update(ctx, tx.MerchantID, pt.ID, payment.UpdateProps{Status: payment.StatusInProgress}); err != nil {
 		return errors.Wrap(err, "unable to update payment")
 	}
 
 	s.logger.Info().
 		Int64("transaction_id", tx.ID).
-		Int64("payment_id", paymentID).
-		Msg("marked payment as in progress")
+		Int64("payment_id", pt.ID).
+		Str("combined_fact_amount", combined.String()).
+		Msg("payment promoted to inProgress (partial fills aggregated)")
 
+	return nil
+}
+
+// determineIncomingStatusFromCombined chooses StatusInProgress vs the
+// (legacy, no longer reached in normal flow) StatusInProgressInvalid based on
+// the cumulative combined amount rather than a single transfer. Kept for
+// belt-and-braces — promoteFromPartial only fires when crossesExpected is
+// already true, so this should always pick StatusInProgress.
+func (s *Service) determineIncomingStatusFromCombined(ctx context.Context, tx *transaction.Transaction, combined money.Money) error {
+	if combined.GreaterThan(tx.Amount) {
+		tx.Status = transaction.StatusInProgress
+		tx.MetaData[transaction.MetaComment] = "cumulative incoming amount is higher than expected"
+		return nil
+	}
+	if combined.Equals(tx.Amount) {
+		tx.Status = transaction.StatusInProgress
+		return nil
+	}
+
+	crosses, err := s.crossesExpected(ctx, tx, combined)
+	if err != nil {
+		return err
+	}
+	if crosses {
+		tx.Status = transaction.StatusInProgress
+		return nil
+	}
+
+	tx.Status = transaction.StatusInProgressInvalid
+	tx.MetaData[transaction.MetaErrorReason] = "cumulative incoming amount is less than expected"
 	return nil
 }
 
@@ -151,47 +328,31 @@ func (s *Service) createUnexpectedTransaction(ctx context.Context, wt *wallet.Wa
 	return nil
 }
 
-func (s *Service) determineIncomingStatus(ctx context.Context, tx *transaction.Transaction, input Input) error {
-	if input.Amount.Equals(tx.Amount) {
-		tx.Status = transaction.StatusInProgress
-		return nil
+// (legacy determineIncomingStatus removed — partial-fill flow in
+// ProcessInboundTransaction supersedes it. Cumulative-amount evaluation now
+// happens in determineIncomingStatusFromCombined.)
+
+// firstFillHash returns the hash of the earliest observed fill for a tx, or
+// empty string when no fills exist or the lookup fails. Used at expiry time
+// to attach a representative on-chain hash to a partial-then-expired tx so
+// the merchant has a starting point for manual reconciliation.
+func firstFillHash(ctx context.Context, s *Service, tx *transaction.Transaction) string {
+	fills, err := s.transactions.ListFills(ctx, tx)
+	if err != nil || len(fills) == 0 {
+		return ""
 	}
+	return fills[0].TransactionHash
+}
 
-	if input.Amount.GreaterThan(tx.Amount) {
-		tx.Status = transaction.StatusInProgress
-		tx.MetaData[transaction.MetaComment] = "incoming tx amount is higher than expected"
-
-		return nil
+func firstFillSender(ctx context.Context, s *Service, tx *transaction.Transaction) string {
+	fills, err := s.transactions.ListFills(ctx, tx)
+	if err != nil || len(fills) == 0 {
+		return ""
 	}
-
-	// If amount is less than expected we can tolerate $0.10 round error.
-	// Raw "10" = 10 cents = $0.10 (fiat uses 2 decimal places).
-	tenCents, err := money.USD.MakeAmount("10")
-	if err != nil {
-		return err
+	if fills[0].SenderAddress != nil {
+		return *fills[0].SenderAddress
 	}
-
-	conv, err := s.blockchain.FiatToCrypto(ctx, tenCents, tx.Currency)
-	if err != nil {
-		return err
-	}
-
-	amountWithTolerance, err := input.Amount.Add(conv.To)
-	if err != nil {
-		return err
-	}
-
-	if amountWithTolerance.GreaterThanOrEqual(tx.Amount) {
-		tx.Status = transaction.StatusInProgress
-		return nil
-	}
-
-	// Even when adding $0.10 in crypto to input.Amount it's still less than required.
-	// Mark tx as inProgressInvalid — will become "underpaid" after confirmation.
-	tx.Status = transaction.StatusInProgressInvalid
-	tx.MetaData[transaction.MetaErrorReason] = "incoming tx amount is less than expected"
-
-	return nil
+	return ""
 }
 
 func (s *Service) BatchCheckIncomingTransactions(ctx context.Context, transactionIDs []int64) error {
@@ -601,7 +762,7 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 		return errors.Errorf("invalid payment type %q", pt.Type)
 	}
 
-	if pt.Status != payment.StatusPending && pt.Status != payment.StatusLocked {
+	if pt.Status != payment.StatusPending && pt.Status != payment.StatusLocked && pt.Status != payment.StatusPartial {
 		return errors.Errorf("invalid payment status %q", pt.Status)
 	}
 
@@ -616,7 +777,7 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 
 	// 2. Grace period: if a pending transaction exists (customer selected crypto but hasn't
 	// paid yet or is paying late), extend the expiry by 30 minutes to catch late payments.
-	if tx != nil && tx.Status == transaction.StatusPending && pt.Status == payment.StatusLocked {
+	if tx != nil && tx.Status == transaction.StatusPending && (pt.Status == payment.StatusLocked || pt.Status == payment.StatusPartial) {
 		if pt.ExpiresAt != nil && time.Since(*pt.ExpiresAt) < gracePeriod {
 			s.logger.Info().
 				Int64("payment_id", paymentID).
@@ -626,7 +787,35 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 		}
 	}
 
-	// 3. Cancel transaction if exists
+	// 3. Partial payments that hit their hard-capped expiry: expose them as
+	// `underpaid` rather than `failed` so the merchant can resolve via the
+	// existing manual-resolve flow (credits the merchant balance with the
+	// fact_amount actually received). The transaction record is updated to
+	// completedInv so its fact_amount sums all confirmed fills.
+	if pt.Status == payment.StatusPartial {
+		if tx != nil {
+			confirmedSum, sumErr := s.transactions.SumConfirmedFills(ctx, tx)
+			if sumErr == nil && !confirmedSum.IsZero() {
+				if _, updErr := s.transactions.Receive(ctx, tx.MerchantID, tx.ID, transaction.ReceiveTransaction{
+					Status:          transaction.StatusInProgressInvalid,
+					SenderAddress:   firstFillSender(ctx, s, tx),
+					TransactionHash: firstFillHash(ctx, s, tx),
+					FactAmount:      confirmedSum,
+					MetaData:        tx.MetaData,
+				}); updErr != nil {
+					s.logger.Error().Err(updErr).Int64("payment_id", paymentID).
+						Msg("unable to mark partial transaction as inProgressInvalid on expiry")
+				}
+			}
+		}
+		if _, updErr := s.payments.Update(ctx, pt.MerchantID, pt.ID, payment.UpdateProps{Status: payment.StatusUnderpaid}); updErr != nil {
+			return errors.Wrap(updErr, "unable to mark partial payment as underpaid on expiry")
+		}
+		s.logger.Info().Int64("payment_id", paymentID).Msg("partial payment expired — flipped to underpaid for merchant review")
+		return nil
+	}
+
+	// 4. Cancel transaction if exists
 	if tx != nil && tx.Status != transaction.StatusCancelled {
 		errCancel := s.transactions.Cancel(ctx, tx, transaction.StatusCancelled, "payment expired", nil)
 		if errCancel != nil {
@@ -634,7 +823,7 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 		}
 	}
 
-	// 4. Cancel payment itself
+	// 5. Cancel payment itself
 	if errFail := s.payments.Fail(ctx, pt); errFail != nil {
 		return errors.Wrap(errFail, "unable to expire payment")
 	}

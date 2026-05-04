@@ -126,6 +126,22 @@ type PaymentInfo struct {
 	// FactAmountFormatted is what the customer actually sent (set for underpaid/completed payments).
 	FactAmountFormatted string
 
+	// ReceivedAmount is the cumulative amount observed across all fills
+	// (formatted, in the invoice's crypto currency). Non-empty when the
+	// payment is in StatusPartial — used by the customer-facing SPA to show
+	// "you've sent X, send Y more to the same address".
+	ReceivedAmount string
+
+	// RemainingAmount is tx.Amount - ReceivedAmount (formatted). Drives the
+	// new QR code shown in the partial-payment UI so the customer can scan
+	// to pay only the missing portion.
+	RemainingAmount string
+
+	// RemainingPaymentLink is a wallet-deeplink (bitcoin:..., ethereum:...)
+	// pre-filled with RemainingAmount so the customer can scan a fresh QR
+	// for the top-up portion only.
+	RemainingPaymentLink string
+
 	ExpiresAt             time.Time
 	ExpirationDurationMin int64
 
@@ -191,6 +207,26 @@ func (s *Service) GetDetailedPayment(ctx context.Context, merchantID, paymentID 
 			factAmountFormatted = tx.FactAmount.String()
 		}
 
+		// Partial-fill awareness: when the payment is StatusPartial, expose
+		// cumulative received + remaining amount so the SPA can render the
+		// "send the missing X to the same address" panel. ListFills/SumAllFills
+		// are cheap one-row queries; only worth running when partial.
+		var receivedFormatted, remainingFormatted, remainingLink string
+		if pt.Status == payment.StatusPartial {
+			receivedSum, sumErr := s.transactions.SumAllFills(ctx, tx)
+			if sumErr != nil {
+				return nil, errors.Wrap(sumErr, "unable to sum fills for partial payment")
+			}
+			receivedFormatted = receivedSum.String()
+
+			if remaining, subErr := tx.Amount.SubNegative(receivedSum); subErr == nil {
+				remainingFormatted = remaining.String()
+				if rl, linkErr := blockchain.CreatePaymentLink(tx.RecipientAddress, tx.Currency, remaining, tx.IsTest); linkErr == nil {
+					remainingLink = rl
+				}
+			}
+		}
+
 		result.PaymentInfo = &PaymentInfo{
 			Status:           pt.PublicStatus(),
 			PaymentLink:      paymentLink,
@@ -199,6 +235,10 @@ func (s *Service) GetDetailedPayment(ctx context.Context, merchantID, paymentID 
 			Amount:              tx.Amount.StringRaw(),
 			AmountFormatted:     tx.Amount.String(),
 			FactAmountFormatted: factAmountFormatted,
+
+			ReceivedAmount:       receivedFormatted,
+			RemainingAmount:      remainingFormatted,
+			RemainingPaymentLink: remainingLink,
 
 			ExpiresAt:             expiresAt,
 			ExpirationDurationMin: pt.ExpirationDurationMin(),
