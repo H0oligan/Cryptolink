@@ -73,6 +73,7 @@ func (app *App) RunServer() {
 		app.services.MerchantService(),
 		app.services.TokenManagerService(),
 		app.services.PaymentService(),
+		app.services.ProcessingService(),
 		app.services.WalletService(),
 		app.services.XpubService(),
 		app.services.EvmCollectorService(),
@@ -248,6 +249,8 @@ func (app *App) RunScheduler() {
 	register("@every 30s", "checkIncomingTransactionsProgress", jobs.CheckIncomingTransactionsProgress, false)
 
 	register("@every 2m", "cancelExpiredPayments", jobs.CancelExpiredPayments, false)
+
+	register("@every 5m", "recheckPartialFills", jobs.RecheckPartialFills, false)
 }
 
 func (app *App) registerEventHandlers() {

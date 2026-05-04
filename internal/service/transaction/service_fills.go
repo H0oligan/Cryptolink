@@ -125,6 +125,40 @@ func (s *Service) FillExistsByHashAndRecipient(ctx context.Context, networkID, t
 	return s.store.FillExistsByHashAndRecipient(ctx, networkID, txHash, recipient)
 }
 
+// MarkFillReorged flips a fill to reorged so it stops counting toward the
+// cumulative confirmed sum. Used by the periodic reorg recheck.
+func (s *Service) MarkFillReorged(ctx context.Context, fillID int64) error {
+	return s.store.MarkFillReorged(ctx, fillID)
+}
+
+// ListPartialPaymentTxIDs returns transaction ids belonging to invoices
+// currently in payment.StatusPartial. The reorg recheck iterates them.
+func (s *Service) ListPartialPaymentTxIDs(ctx context.Context) ([]int64, error) {
+	return s.store.ListPartialPaymentTxIDs(ctx)
+}
+
+// ConfirmedFillSumsByTxIDs returns the cumulative confirmed-fill amount for
+// each input transaction id as a raw big.Int (in the smallest unit of the
+// per-tx currency). Caller is responsible for interpreting the value with
+// the tx's own decimals — used by the watcher to compute remaining-amount
+// for the matcher without doing per-tx round trips. tx ids without any
+// fills do not appear in the returned map (caller treats absence as zero).
+func (s *Service) ConfirmedFillSumsByTxIDs(ctx context.Context, txIDs []int64) (map[int64]*big.Int, error) {
+	out := make(map[int64]*big.Int, len(txIDs))
+	for _, id := range txIDs {
+		num, err := s.store.SumConfirmedFillsForTx(ctx, id)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to sum confirmed fills for tx %d", id)
+		}
+		bi, biErr := repository.NumericToBigInt(num)
+		if biErr != nil || bi == nil || bi.Sign() == 0 {
+			continue
+		}
+		out[id] = bi
+	}
+	return out, nil
+}
+
 func (s *Service) fillFromRepo(parentTx *Transaction, r repository.TransactionFill) *Fill {
 	amount, _ := numericToCryptoSameDecimals(r.Amount, parentTx.Amount)
 

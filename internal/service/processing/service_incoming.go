@@ -332,6 +332,82 @@ func (s *Service) createUnexpectedTransaction(ctx context.Context, wt *wallet.Wa
 // ProcessInboundTransaction supersedes it. Cumulative-amount evaluation now
 // happens in determineIncomingStatusFromCombined.)
 
+// reorgGracePeriod is the minimum age a fill must reach before the reorg
+// recheck is willing to flag it as reorged. Buffers against transient RPC
+// flakes (returning ErrNotFound briefly when the node is catching up) and
+// against newly-broadcast fills that haven't propagated to every node yet.
+const reorgGracePeriod = 30 * time.Minute
+
+// RecheckPartialFills iterates every fill on every payment currently in
+// StatusPartial and re-verifies each fill's hash on chain. Fills whose
+// on-chain receipt no longer confirms (and which are at least
+// reorgGracePeriod old) are flipped to status='reorged' so they stop
+// counting toward the cumulative confirmed sum. Run on a periodic
+// scheduler — does NOT block the main watcher loop.
+func (s *Service) RecheckPartialFills(ctx context.Context) error {
+	txIDs, err := s.transactions.ListPartialPaymentTxIDs(ctx)
+	if err != nil {
+		return errors.Wrap(err, "unable to list partial-payment tx ids")
+	}
+	if len(txIDs) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	checked := 0
+	flagged := 0
+
+	for _, txID := range txIDs {
+		tx, err := s.transactions.GetByID(ctx, transaction.MerchantIDWildcard, txID)
+		if err != nil {
+			s.logger.Warn().Err(err).Int64("tx_id", txID).Msg("recheck: tx fetch failed")
+			continue
+		}
+
+		fills, err := s.transactions.ListFills(ctx, tx)
+		if err != nil {
+			s.logger.Warn().Err(err).Int64("tx_id", txID).Msg("recheck: list fills failed")
+			continue
+		}
+
+		for _, f := range fills {
+			checked++
+			if f.Status != transaction.FillStatusConfirmed {
+				continue
+			}
+			if now.Sub(f.ObservedAt) < reorgGracePeriod {
+				continue
+			}
+
+			receipt, recErr := s.blockchain.GetTransactionReceipt(ctx, tx.Currency.Blockchain, f.TransactionHash, tx.IsTest)
+			// Treat any "tx no longer on chain" signal as reorg evidence.
+			// Transient RPC errors don't get past the grace-period gate
+			// because they'd resolve on the next scheduler tick.
+			if recErr != nil || receipt == nil || !receipt.IsConfirmed {
+				if mErr := s.transactions.MarkFillReorged(ctx, f.ID); mErr != nil {
+					s.logger.Error().Err(mErr).Int64("fill_id", f.ID).
+						Msg("recheck: failed to mark fill reorged")
+					continue
+				}
+				flagged++
+				s.logger.Warn().
+					Int64("fill_id", f.ID).
+					Int64("tx_id", txID).
+					Str("hash", f.TransactionHash).
+					Msg("partial fill reorged off-chain — marked reorged, sum decremented")
+			}
+		}
+	}
+
+	s.logger.Info().
+		Int("partial_txs", len(txIDs)).
+		Int("fills_checked", checked).
+		Int("fills_flagged_reorged", flagged).
+		Msg("partial-fill reorg recheck completed")
+
+	return nil
+}
+
 // firstFillHash returns the hash of the earliest observed fill for a tx, or
 // empty string when no fills exist or the lookup fails. Used at expiry time
 // to attach a representative on-chain hash to a partial-then-expired tx so
@@ -787,31 +863,53 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 		}
 	}
 
-	// 3. Partial payments that hit their hard-capped expiry: expose them as
-	// `underpaid` rather than `failed` so the merchant can resolve via the
-	// existing manual-resolve flow (credits the merchant balance with the
-	// fact_amount actually received). The transaction record is updated to
-	// completedInv so its fact_amount sums all confirmed fills.
+	// 3. Partial payments that hit their hard-capped expiry split into two
+	// outcomes by whether anything actually confirmed on-chain:
+	//   - confirmedSum > 0 → flip to `underpaid` so the merchant can resolve
+	//     via the manual-resolve flow (credits balance with fact_amount).
+	//     Parent tx status moves to inProgressInvalid with the cumulative
+	//     confirmed amount as fact_amount.
+	//   - confirmedSum == 0 → no on-chain receipt actually settled. Cancel
+	//     the tx and fail the payment exactly like a never-paid invoice.
 	if pt.Status == payment.StatusPartial {
+		var confirmedSum money.Money
 		if tx != nil {
-			confirmedSum, sumErr := s.transactions.SumConfirmedFills(ctx, tx)
-			if sumErr == nil && !confirmedSum.IsZero() {
-				if _, updErr := s.transactions.Receive(ctx, tx.MerchantID, tx.ID, transaction.ReceiveTransaction{
-					Status:          transaction.StatusInProgressInvalid,
-					SenderAddress:   firstFillSender(ctx, s, tx),
-					TransactionHash: firstFillHash(ctx, s, tx),
-					FactAmount:      confirmedSum,
-					MetaData:        tx.MetaData,
-				}); updErr != nil {
-					s.logger.Error().Err(updErr).Int64("payment_id", paymentID).
-						Msg("unable to mark partial transaction as inProgressInvalid on expiry")
-				}
+			cs, sumErr := s.transactions.SumConfirmedFills(ctx, tx)
+			if sumErr == nil {
+				confirmedSum = cs
 			}
 		}
-		if _, updErr := s.payments.Update(ctx, pt.MerchantID, pt.ID, payment.UpdateProps{Status: payment.StatusUnderpaid}); updErr != nil {
-			return errors.Wrap(updErr, "unable to mark partial payment as underpaid on expiry")
+
+		if !confirmedSum.IsZero() && tx != nil {
+			if _, updErr := s.transactions.Receive(ctx, tx.MerchantID, tx.ID, transaction.ReceiveTransaction{
+				Status:          transaction.StatusInProgressInvalid,
+				SenderAddress:   firstFillSender(ctx, s, tx),
+				TransactionHash: firstFillHash(ctx, s, tx),
+				FactAmount:      confirmedSum,
+				MetaData:        tx.MetaData,
+			}); updErr != nil {
+				s.logger.Error().Err(updErr).Int64("payment_id", paymentID).
+					Msg("unable to mark partial transaction as inProgressInvalid on expiry")
+			}
+			if _, updErr := s.payments.Update(ctx, pt.MerchantID, pt.ID, payment.UpdateProps{Status: payment.StatusUnderpaid}); updErr != nil {
+				return errors.Wrap(updErr, "unable to mark partial payment as underpaid on expiry")
+			}
+			s.logger.Info().Int64("payment_id", paymentID).Str("received", confirmedSum.String()).
+				Msg("partial payment expired with confirmed fills — flipped to underpaid for merchant review")
+			return nil
 		}
-		s.logger.Info().Int64("payment_id", paymentID).Msg("partial payment expired — flipped to underpaid for merchant review")
+
+		// No confirmed fills — treat exactly like a never-paid expiry.
+		if tx != nil && tx.Status != transaction.StatusCancelled {
+			if errCancel := s.transactions.Cancel(ctx, tx, transaction.StatusCancelled, "payment expired (partial, zero confirmed)", nil); errCancel != nil {
+				return errors.Wrap(errCancel, "unable to cancel partial-zero transaction")
+			}
+		}
+		if errFail := s.payments.Fail(ctx, pt); errFail != nil {
+			return errors.Wrap(errFail, "unable to fail partial-zero payment")
+		}
+		s.logger.Info().Int64("payment_id", paymentID).
+			Msg("partial payment expired with zero confirmed fills — failed (no receipt to reconcile)")
 		return nil
 	}
 

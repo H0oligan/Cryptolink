@@ -172,6 +172,7 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 		merchantsService,
 		authTokenManager,
 		paymentsService,
+		processingService,
 		walletsService,
 		xpubService,
 		nil, // evmCollectorService (not needed in tests)

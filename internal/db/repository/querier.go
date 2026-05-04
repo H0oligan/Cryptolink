@@ -131,6 +131,8 @@ type Querier interface {
 	SumConfirmedFillsForTx(ctx context.Context, transactionID int64) (pgtype.Numeric, error)
 	SumAllFillsForTx(ctx context.Context, transactionID int64) (pgtype.Numeric, error)
 	FillExistsByHashAndRecipient(ctx context.Context, networkID, transactionHash, recipient string) (bool, error)
+	MarkFillReorged(ctx context.Context, id int64) error
+	ListPartialPaymentTxIDs(ctx context.Context) ([]int64, error)
 	UpdateRegistryItem(ctx context.Context, arg UpdateRegistryItemParams) (Registry, error)
 	UpdateSubscriptionPlan(ctx context.Context, arg UpdateSubscriptionPlanParams) error
 	UpdateTransaction(ctx context.Context, arg UpdateTransactionParams) (Transaction, error)

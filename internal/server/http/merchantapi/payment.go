@@ -210,6 +210,58 @@ func (h *Handler) ResolvePayment(c echo.Context) error {
 	))
 }
 
+// AdminReconcilePayment lets a superadmin attach an observed on-chain txid +
+// amount to a payment whose customer paid the wrong address (stale tab,
+// network confusion). It records a synthetic confirmed fill against the
+// payment's transaction so the existing partial-fill aggregator can
+// promote the invoice the same way a normal top-up would.
+//
+// Body: {"txHash": "...", "amount": "<smallest unit>", "senderAddress": "...", "notes": "..."}
+// Auth: protected by middleware.GuardsSuperAdmin at the route level.
+func (h *Handler) AdminReconcilePayment(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	paymentUUID, err := uuid.Parse(c.Param(paramPaymentID))
+	if err != nil {
+		return common.ValidationErrorResponse(c, "invalid payment id")
+	}
+
+	var req struct {
+		TxHash        string `json:"txHash"`
+		Amount        string `json:"amount"`
+		SenderAddress string `json:"senderAddress"`
+		Notes         string `json:"notes"`
+	}
+	if bindErr := c.Bind(&req); bindErr != nil {
+		return common.ValidationErrorResponse(c, "invalid request body")
+	}
+	if req.TxHash == "" || req.Amount == "" {
+		return common.ValidationErrorResponse(c, "txHash and amount are required")
+	}
+
+	pt, err := h.payments.GetByPublicID(ctx, paymentUUID)
+	if err != nil {
+		if errors.Is(err, payment.ErrNotFound) {
+			return common.NotFoundResponse(c, "payment not found")
+		}
+		return err
+	}
+
+	if err := h.processing.AdminReconcileFill(ctx, pt.MerchantID, pt.ID, req.TxHash, req.Amount, req.SenderAddress, req.Notes); err != nil {
+		h.logger.Error().Err(err).Int64("payment_id", pt.ID).Msg("admin reconcile failed")
+		return common.ErrorResponse(c, "internal_error")
+	}
+
+	h.logger.Warn().
+		Int64("payment_id", pt.ID).
+		Str("tx_hash", req.TxHash).
+		Str("amount", req.Amount).
+		Str("notes", req.Notes).
+		Msg("AUDIT: admin reconciled payment with manual fill")
+
+	return c.JSON(http.StatusOK, map[string]string{"status": "reconciled"})
+}
+
 func (h *Handler) DeclinePayment(c echo.Context) error {
 	ctx := c.Request().Context()
 
