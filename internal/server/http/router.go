@@ -253,7 +253,6 @@ func WithPaymentAPI(handler *paymentapi.Handler, cfg Config) Opt {
 			"/payment/:paymentId",
 			middleware.ResolvesPaymentByPublicID(paymentapi.ParamPaymentID, handler.PaymentService()),
 			middleware.GuardsPayment(),
-			middleware.RestrictsArchivedPayments(),
 		)
 
 		paymentGroup.GET("", handler.GetPayment)

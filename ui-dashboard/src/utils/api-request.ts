@@ -54,6 +54,8 @@ apiRequest.interceptors.response.use(undefined, async (error: AxiosError) => {
                 placement: "bottomRight"
             });
         }
+    } else if (error.response.status === 404) {
+        return Promise.reject(error);
     } else if (error.response.status === 403) {
         try {
             const newToken = await authProvider.getCookie();

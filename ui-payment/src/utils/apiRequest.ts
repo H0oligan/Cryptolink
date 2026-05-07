@@ -12,6 +12,9 @@ const apiRequest = axios.create({
 });
 
 apiRequest.interceptors.response.use(undefined, function (error: Error | AxiosError) {
+    if (axios.isAxiosError(error) && error.response) {
+        return Promise.reject(error);
+    }
     RenderErrorAlert(error.message);
     return Promise.reject(error);
 });

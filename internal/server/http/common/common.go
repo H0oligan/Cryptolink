@@ -93,7 +93,7 @@ func ValidationErrorItemResponse(c echo.Context, field, message string, args ...
 }
 
 func NotFoundResponse(c echo.Context, message string) error {
-	return c.JSON(http.StatusBadRequest, &model.ErrorResponse{
+	return c.JSON(http.StatusNotFound, &model.ErrorResponse{
 		Message: message,
 		Status:  "not_found",
 		Errors:  nil,
