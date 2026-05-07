@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -65,30 +64,4 @@ func ResolvePayment(c echo.Context) (*payment.Payment, error) {
 	}
 
 	return p, nil
-}
-
-// RestrictsArchivedPayments restricts user from accessing successful/failed payments
-// after certain time window.
-func RestrictsArchivedPayments() echo.MiddlewareFunc {
-	const window = time.Minute * 60
-
-	restrict := func(pt *payment.Payment) bool {
-		if pt.Status != payment.StatusSuccess && pt.Status != payment.StatusFailed {
-			return false
-		}
-
-		return time.Since(pt.UpdatedAt) > window
-	}
-
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			if pt, err := ResolvePayment(c); err == nil {
-				if restrict(pt) {
-					return common.NotFoundResponse(c, "payment is archived")
-				}
-			}
-
-			return next(c)
-		}
-	}
 }
