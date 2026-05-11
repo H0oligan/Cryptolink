@@ -617,9 +617,14 @@ func (s *Service) sendUnderpaidEmail(ctx context.Context, tx *transaction.Transa
 	fiatCode := mt.Settings().FiatCurrency()
 	fiatSymbol := money.FiatSymbol(money.FiatCurrency(fiatCode))
 
+	// Display precision: ETH/EVM fill amounts arrive with 18 native decimals;
+	// truncate to MaxDisplayDecimals so the email body reads "0.02521316" not
+	// "0.025213162071772454".
+	maxDisplay := tx.Currency.MaxDisplayDecimals()
+
 	factAmount := "0"
 	if tx.FactAmount != nil {
-		factAmount = tx.FactAmount.String()
+		factAmount = tx.FactAmount.TruncateDecimals(maxDisplay).String()
 	}
 
 	fiatPrice, _ := pt.Price.FiatToFloat64()
@@ -628,7 +633,7 @@ func (s *Service) sendUnderpaidEmail(ctx context.Context, tx *transaction.Transa
 		MerchantEmail:  merchantEmail,
 		MerchantName:   mt.Name,
 		PaymentID:      pt.PublicID.String(),
-		AmountExpected: tx.Amount.String(),
+		AmountExpected: tx.Amount.TruncateDecimals(maxDisplay).String(),
 		AmountReceived: factAmount,
 		Ticker:         tx.Currency.Ticker,
 		FiatSymbol:     fiatSymbol,

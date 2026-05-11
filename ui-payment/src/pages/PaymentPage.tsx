@@ -302,12 +302,22 @@ const PaymentPage: React.FC = () => {
 
             {payment?.isLocked === true && payment.paymentInfo && payment.paymentMethod && !paymentProcessError && (() => {
                 const isPartial = payment.paymentInfo.status === "partial";
+                const ticker = payment.paymentMethod.displayName;
                 const qrValue = isPartial && payment.paymentInfo.remainingPaymentLink
                     ? payment.paymentInfo.remainingPaymentLink
                     : payment.paymentInfo.paymentLink;
                 const amountToCopy = isPartial && payment.paymentInfo.remainingAmount
                     ? payment.paymentInfo.remainingAmount
                     : payment.paymentInfo.amountFormatted;
+                // Trim received/remaining defensively — backend truncates to
+                // MaxDisplayDecimals, but a stale poll result mid-navigation
+                // could still carry raw 18-decimal strings.
+                const receivedDisplay = renderConvertedResult(payment.paymentInfo.receivedAmount, ticker)
+                    || `${payment.paymentInfo.receivedAmount} ${ticker}`;
+                const remainingDisplay = renderConvertedResult(payment.paymentInfo.remainingAmount, ticker)
+                    || `${payment.paymentInfo.remainingAmount} ${ticker}`;
+                const amountToCopyDisplay = renderConvertedResult(amountToCopy, ticker)
+                    || `${amountToCopy} ${ticker}`;
                 return (
                 <>
                     <ProgressCircle
@@ -322,10 +332,10 @@ const PaymentPage: React.FC = () => {
                                 Partial payment received
                             </p>
                             <p className="mt-1 text-xs text-amber-100/90">
-                                We received <strong>{payment.paymentInfo.receivedAmount} {payment.paymentMethod.displayName}</strong>.
+                                We received <strong>{receivedDisplay}</strong>.
                             </p>
                             <p className="mt-1 text-xs text-amber-100/90">
-                                Send the remaining <strong>{payment.paymentInfo.remainingAmount} {payment.paymentMethod.displayName}</strong> to the same address before the timer ends.
+                                Send the remaining <strong>{remainingDisplay}</strong> to the same address before the timer ends.
                             </p>
                         </div>
                     )}
@@ -367,7 +377,7 @@ const PaymentPage: React.FC = () => {
                     />
                     <CopyButton
                         textToCopy={amountToCopy}
-                        displayText={amountToCopy + " " + payment.paymentMethod.displayName}
+                        displayText={amountToCopyDisplay}
                     />
                     {payment.feePercent !== undefined && payment.feePercent > 0 && (
                         <p className="text-center text-xs text-card-desc mt-2 opacity-70">

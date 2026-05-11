@@ -203,26 +203,36 @@ func (s *Service) GetDetailedPayment(ctx context.Context, merchantID, paymentID 
 			return nil, err
 		}
 
-		factAmountFormatted := ""
-		if tx.FactAmount != nil {
-			factAmountFormatted = tx.FactAmount.String()
+		// Display precision: native chain decimals (18 for ETH/EVM) leak raw
+		// fill amounts like "0.025213162071772454" into the SPA. Truncate every
+		// display string to MaxDisplayDecimals so customers see "0.02521316".
+		displayDecimals := tx.Currency.MaxDisplayDecimals()
+		displayAmount := func(m money.Money) string {
+			return m.TruncateDecimals(displayDecimals).String()
 		}
 
-		// Partial-fill awareness: when the payment is StatusPartial, expose
-		// cumulative received + remaining amount so the SPA can render the
-		// "send the missing X to the same address" panel. ListFills/SumAllFills
-		// are cheap one-row queries; only worth running when partial.
+		factAmountFormatted := ""
+		if tx.FactAmount != nil {
+			factAmountFormatted = displayAmount(*tx.FactAmount)
+		}
+
+		// Partial-fill awareness: also surfaced for StatusUnderpaid so the
+		// post-expiry page can show the same received/remaining/QR info as
+		// the live partial banner. The watcher no longer polls after the
+		// 24h cap, but the recipient address remains valid for merchant-
+		// approved manual reconcile.
 		var receivedFormatted, remainingFormatted, remainingLink string
-		if pt.Status == payment.StatusPartial {
+		if pt.Status == payment.StatusPartial || pt.Status == payment.StatusUnderpaid {
 			receivedSum, sumErr := s.transactions.SumAllFills(ctx, tx)
 			if sumErr != nil {
 				return nil, errors.Wrap(sumErr, "unable to sum fills for partial payment")
 			}
-			receivedFormatted = receivedSum.String()
+			receivedFormatted = displayAmount(receivedSum)
 
 			if remaining, subErr := tx.Amount.SubNegative(receivedSum); subErr == nil {
-				remainingFormatted = remaining.String()
-				if rl, linkErr := blockchain.CreatePaymentLink(tx.RecipientAddress, tx.Currency, remaining, tx.IsTest); linkErr == nil {
+				truncatedRemaining := remaining.TruncateDecimals(displayDecimals)
+				remainingFormatted = truncatedRemaining.String()
+				if rl, linkErr := blockchain.CreatePaymentLink(tx.RecipientAddress, tx.Currency, truncatedRemaining, tx.IsTest); linkErr == nil {
 					remainingLink = rl
 				}
 			}
@@ -234,7 +244,7 @@ func (s *Service) GetDetailedPayment(ctx context.Context, merchantID, paymentID 
 			RecipientAddress: tx.RecipientAddress,
 
 			Amount:              tx.Amount.StringRaw(),
-			AmountFormatted:     tx.Amount.String(),
+			AmountFormatted:     displayAmount(tx.Amount),
 			FactAmountFormatted: factAmountFormatted,
 
 			ReceivedAmount:       receivedFormatted,
