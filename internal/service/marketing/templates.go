@@ -4,11 +4,12 @@ import "fmt"
 
 // EmailTemplate represents a predefined marketing email template.
 type EmailTemplate struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Subject     string `json:"subject"`
-	BodyHTML    string `json:"body_html"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Subject     string   `json:"subject"`
+	BodyHTML    string   `json:"body_html"`
+	Tags        []string `json:"tags"`
 }
 
 // GetTemplates returns the 5 predefined marketing email templates.
@@ -90,6 +91,7 @@ func templateWelcome() EmailTemplate {
 		Description: "Introduction to CryptoLink — what it is, key features, and why it's different.",
 		Subject:     "Welcome to CryptoLink — Accept Crypto, Your Way",
 		BodyHTML:    body,
+		Tags:        []string{"welcome"},
 	}
 }
 
@@ -133,6 +135,7 @@ func templateNonCustodial() EmailTemplate {
 		Description: "Deep dive into the security and privacy benefits of non-custodial architecture.",
 		Subject:     "Your Funds, Your Control — Why Non-Custodial Matters",
 		BodyHTML:    body,
+		Tags:        []string{"non-custodial"},
 	}
 }
 
@@ -169,6 +172,7 @@ func templateFreePlan() EmailTemplate {
 		Description: "Highlight the free tier — what's included and why there's no catch.",
 		Subject:     "Start Accepting Crypto for Free — No Hidden Fees",
 		BodyHTML:    body,
+		Tags:        []string{"free-plan", "pricing"},
 	}
 }
 
@@ -220,6 +224,7 @@ func templateSubscriptionVsFees() EmailTemplate {
 		Description: "Compare CryptoLink's flat subscription to competitors' per-transaction fees with real math.",
 		Subject:     "Stop Paying 1-3% Per Transaction — There's a Better Way",
 		BodyHTML:    body,
+		Tags:        []string{"pricing"},
 	}
 }
 
@@ -247,19 +252,19 @@ func templateEnterprise() EmailTemplate {
             <td style="padding:12px;color:#e2e8f0;font-weight:600;">Starter</td>
             <td style="padding:12px;color:#10b981;text-align:center;">$9.99</td>
             <td style="padding:12px;color:#94a3b8;text-align:center;">$10K/mo</td>
-            <td style="padding:12px;color:#94a3b8;text-align:center;">3</td>
+            <td style="padding:12px;color:#94a3b8;text-align:center;">1</td>
           </tr>
           <tr style="border-bottom:1px solid #1e1e1e;">
             <td style="padding:12px;color:#e2e8f0;font-weight:600;">Growth</td>
             <td style="padding:12px;color:#10b981;text-align:center;">$29.99</td>
             <td style="padding:12px;color:#94a3b8;text-align:center;">$50K/mo</td>
-            <td style="padding:12px;color:#94a3b8;text-align:center;">10</td>
+            <td style="padding:12px;color:#94a3b8;text-align:center;">5</td>
           </tr>
           <tr style="border-bottom:1px solid #1e1e1e;">
             <td style="padding:12px;color:#e2e8f0;font-weight:600;">Business</td>
             <td style="padding:12px;color:#10b981;text-align:center;">$79.99</td>
             <td style="padding:12px;color:#94a3b8;text-align:center;">$250K/mo</td>
-            <td style="padding:12px;color:#94a3b8;text-align:center;">25</td>
+            <td style="padding:12px;color:#94a3b8;text-align:center;">15</td>
           </tr>
           <tr>
             <td style="padding:12px;color:#e2e8f0;font-weight:600;">Enterprise</td>
@@ -285,6 +290,7 @@ func templateEnterprise() EmailTemplate {
 		Description: "Showcase all plans with pricing table and the massive savings at scale.",
 		Subject:     "Scale Your Crypto Payments — From Free to Enterprise",
 		BodyHTML:    body,
+		Tags:        []string{"enterprise", "pricing"},
 	}
 }
 
