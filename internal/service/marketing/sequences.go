@@ -363,7 +363,7 @@ func (s *Service) GetSequenceStats(ctx context.Context, sequenceUUID string) (*S
 	return stats, nil
 }
 
-// sendStepEmail invokes the email service for a sequence step. (Wired by Task 6 worker.)
+// sendStepEmail invokes the email service for a sequence step.
 func (s *Service) sendStepEmail(ctx context.Context, to, subject, body string) error {
 	return s.emailService.SendEmail(ctx, email.SendEmailParams{
 		To:       to,
@@ -371,4 +371,192 @@ func (s *Service) sendStepEmail(ctx context.Context, to, subject, body string) e
 		Body:     body,
 		Template: "marketing_sequence",
 	})
+}
+
+// processSequenceTick fires due enrollments while respecting the daily quota.
+func (s *Service) processSequenceTick(ctx context.Context) {
+	remaining, err := s.getRemainingQuota(ctx)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("seq: failed to read quota")
+		return
+	}
+	if remaining <= 0 {
+		return
+	}
+	const batchPerTick = 10
+	if remaining > batchPerTick {
+		remaining = batchPerTick
+	}
+
+	rows, err := s.db.Query(ctx,
+		`SELECT e.id, e.sequence_id, e.email, e.current_step, e.attempt_count, s.skip_if_converted
+		 FROM marketing_sequence_enrollments e
+		 JOIN marketing_sequences s ON s.id = e.sequence_id
+		 WHERE e.status = 'active' AND s.status = 'running' AND e.next_send_at <= NOW()
+		 ORDER BY e.next_send_at ASC LIMIT $1`, remaining)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("seq: query due enrollments failed")
+		return
+	}
+	type dueRow struct {
+		enrollID        int64
+		sequenceID      int64
+		recipientEmail  string
+		currentStep     int
+		attempts        int
+		skipIfConverted bool
+	}
+	var due []dueRow
+	for rows.Next() {
+		var r dueRow
+		if err := rows.Scan(&r.enrollID, &r.sequenceID, &r.recipientEmail, &r.currentStep, &r.attempts, &r.skipIfConverted); err != nil {
+			continue
+		}
+		due = append(due, r)
+	}
+	rows.Close()
+
+	for _, d := range due {
+		s.processOneEnrollment(ctx, d.enrollID, d.sequenceID, d.recipientEmail, d.currentStep, d.attempts, d.skipIfConverted)
+	}
+}
+
+func (s *Service) processOneEnrollment(ctx context.Context, enrollID, sequenceID int64, recipientEmail string, currentStep, attempts int, skipIfConverted bool) {
+	// 1. Unsubscribe re-check
+	var unsubCount int
+	_ = s.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM marketing_unsubscribes WHERE LOWER(email) = LOWER($1)`,
+		recipientEmail).Scan(&unsubCount)
+	if unsubCount > 0 {
+		_, _ = s.db.Exec(ctx,
+			`UPDATE marketing_sequence_enrollments SET status = 'unsubscribed', updated_at = NOW() WHERE id = $1`,
+			enrollID)
+		return
+	}
+
+	// 2. Conversion check
+	if skipIfConverted {
+		var convertedCount int
+		_ = s.db.QueryRow(ctx,
+			`SELECT COUNT(*) FROM users u
+			 JOIN merchants m ON m.creator_id = u.id
+			 WHERE LOWER(u.email) = LOWER($1)`,
+			recipientEmail).Scan(&convertedCount)
+		if convertedCount > 0 {
+			_, _ = s.db.Exec(ctx,
+				`UPDATE marketing_sequence_enrollments SET status = 'converted', updated_at = NOW() WHERE id = $1`,
+				enrollID)
+			return
+		}
+	}
+
+	// 3. Load next step
+	nextStepIndex := currentStep + 1
+	var templateID string
+	var subjectOverride sql.NullString
+	var stepOffsetHours int
+	err := s.db.QueryRow(ctx,
+		`SELECT COALESCE(template_id, ''), subject_override, offset_hours
+		 FROM marketing_sequence_steps WHERE sequence_id = $1 AND step_index = $2`,
+		sequenceID, nextStepIndex,
+	).Scan(&templateID, &subjectOverride, &stepOffsetHours)
+	if err != nil {
+		_, _ = s.db.Exec(ctx,
+			`UPDATE marketing_sequence_enrollments SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+			enrollID)
+		_ = s.maybeCompleteSequence(ctx, sequenceID)
+		return
+	}
+
+	tmpl := GetTemplateByID(templateID)
+	if tmpl == nil {
+		s.markEnrollmentFailed(ctx, enrollID, attempts, errors.Errorf("template %q missing", templateID))
+		return
+	}
+	subject := tmpl.Subject
+	if subjectOverride.Valid && subjectOverride.String != "" {
+		subject = subjectOverride.String
+	}
+
+	// 4. Inject unsubscribe footer (reuse existing per-campaign helpers)
+	unsubToken := generateToken()
+	unsubLink := "https://cryptolink.cc/api/dashboard/v1/marketing/unsubscribe?token=" + unsubToken
+	_, _ = s.db.Exec(ctx,
+		`INSERT INTO marketing_unsubscribes (email, token) VALUES ($1, $2)
+		 ON CONFLICT (email) DO UPDATE SET token = $2`,
+		recipientEmail, unsubToken)
+	body := injectUnsubscribeFooter(tmpl.BodyHTML, unsubLink)
+
+	// 5. Send
+	if err := s.sendStepEmail(ctx, recipientEmail, subject, body); err != nil {
+		s.markEnrollmentFailed(ctx, enrollID, attempts, err)
+		return
+	}
+
+	// 6. Advance or complete
+	var nextOffsetHours int
+	err = s.db.QueryRow(ctx,
+		`SELECT offset_hours FROM marketing_sequence_steps WHERE sequence_id = $1 AND step_index = $2`,
+		sequenceID, nextStepIndex+1).Scan(&nextOffsetHours)
+	if err != nil {
+		_, _ = s.db.Exec(ctx,
+			`UPDATE marketing_sequence_enrollments
+			 SET current_step = $2, status = 'completed', updated_at = NOW(), last_error = NULL
+			 WHERE id = $1`,
+			enrollID, nextStepIndex)
+		_ = s.maybeCompleteSequence(ctx, sequenceID)
+		s.incrementQuota(ctx)
+		return
+	}
+
+	var startedAt sql.NullTime
+	_ = s.db.QueryRow(ctx,
+		`SELECT started_at FROM marketing_sequences WHERE id = $1`, sequenceID).Scan(&startedAt)
+	base := time.Now()
+	if startedAt.Valid {
+		base = startedAt.Time
+	}
+	newNextSendAt := base.Add(time.Duration(nextOffsetHours) * time.Hour)
+
+	_, _ = s.db.Exec(ctx,
+		`UPDATE marketing_sequence_enrollments
+		 SET current_step = $2, next_send_at = $3, updated_at = NOW(), last_error = NULL
+		 WHERE id = $1`,
+		enrollID, nextStepIndex, newNextSendAt)
+	s.incrementQuota(ctx)
+}
+
+func (s *Service) markEnrollmentFailed(ctx context.Context, enrollID int64, attempts int, err error) {
+	const maxAttempts = 3
+	newAttempts := attempts + 1
+	if newAttempts >= maxAttempts {
+		_, _ = s.db.Exec(ctx,
+			`UPDATE marketing_sequence_enrollments
+			 SET attempt_count = $2, last_error = $3, status = 'failed', updated_at = NOW()
+			 WHERE id = $1`,
+			enrollID, newAttempts, err.Error())
+	} else {
+		_, _ = s.db.Exec(ctx,
+			`UPDATE marketing_sequence_enrollments
+			 SET attempt_count = $2, last_error = $3, next_send_at = NOW() + INTERVAL '1 hour', updated_at = NOW()
+			 WHERE id = $1`,
+			enrollID, newAttempts, err.Error())
+	}
+	s.logger.Warn().Err(err).Int64("enrollment", enrollID).Int("attempt", newAttempts).Msg("seq: enrollment send failed")
+}
+
+func (s *Service) maybeCompleteSequence(ctx context.Context, sequenceID int64) error {
+	var activeCount int
+	if err := s.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM marketing_sequence_enrollments WHERE sequence_id = $1 AND status = 'active'`,
+		sequenceID).Scan(&activeCount); err != nil {
+		return err
+	}
+	if activeCount > 0 {
+		return nil
+	}
+	_, err := s.db.Exec(ctx,
+		`UPDATE marketing_sequences SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1`,
+		sequenceID)
+	return err
 }
