@@ -3,6 +3,7 @@ package contact
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,6 +45,13 @@ func New(db *pgxpool.Pool, logger *zerolog.Logger) *Service {
 
 // ResolveContact upserts a contact by email. If already exists, upgrades consent (never downgrades).
 func (s *Service) ResolveContact(ctx context.Context, email string, merchantID int64, marketingConsent bool, termsAccepted bool) (*Contact, error) {
+	// Normalize before any DB work so the case-insensitive functional index on
+	// LOWER(email) and the raw equality lookup below stay consistent.
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return nil, errors.New("email is required")
+	}
+
 	// Try to get existing
 	var contact Contact
 	var termsAt sql.NullTime

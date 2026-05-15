@@ -2,6 +2,7 @@ package paymentapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
@@ -83,6 +84,10 @@ func (h *Handler) CreateCustomer(c echo.Context) error {
 	if !req.TermsAccepted {
 		return common.ValidationErrorItemResponse(c, "termsAccepted", "You must accept the Terms of Service")
 	}
+
+	// Normalize email at the API boundary so per-merchant customers and global
+	// contacts cannot diverge by letter case (e.g. John@x.com vs john@x.com).
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
 	p, err := middleware.ResolvePayment(c)
 	if err != nil {
