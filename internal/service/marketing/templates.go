@@ -12,7 +12,7 @@ type EmailTemplate struct {
 	Tags        []string `json:"tags"`
 }
 
-// GetTemplates returns the 5 predefined marketing email templates.
+// GetTemplates returns all predefined marketing email templates.
 func GetTemplates() []EmailTemplate {
 	return []EmailTemplate{
 		templateWelcome(),
@@ -20,6 +20,9 @@ func GetTemplates() []EmailTemplate {
 		templateFreePlan(),
 		templateSubscriptionVsFees(),
 		templateEnterprise(),
+		templateDevDripHook(),
+		templateDevDripProof(),
+		templateDevDripMath(),
 	}
 }
 
@@ -291,6 +294,132 @@ func templateEnterprise() EmailTemplate {
 		Subject:     "Scale Your Crypto Payments — From Free to Enterprise",
 		BodyHTML:    body,
 		Tags:        []string{"enterprise", "pricing"},
+	}
+}
+
+func templateDevDripHook() EmailTemplate {
+	body := wrap("You paid in crypto — now accept it", `
+      <h2 style="color:#10b981;margin-top:0;font-size:20px;">The gateway you just used can be your gateway too</h2>
+      <p style="color:#e2e8f0;font-size:15px;line-height:1.6;">
+        You recently paid for something using <strong style="color:#10b981;">CryptoLink</strong>. That checkout you went through? Any developer can run it themselves in under 10 minutes — and never give up control of their funds.
+      </p>
+      <div style="background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:20px;margin:20px 0;">
+        <p style="color:#e2e8f0;font-size:15px;line-height:1.7;margin:0 0 14px;"><strong style="color:#10b981;">🔐 Non-custodial.</strong> Funds go straight to <em>your</em> wallet via a smart contract you deploy. We never appear in the flow.</p>
+        <p style="color:#e2e8f0;font-size:15px;line-height:1.7;margin:0 0 14px;"><strong style="color:#10b981;">🕶 Anonymous payers.</strong> No email, no name, no KYC required from your customers. They pay, you get paid.</p>
+        <p style="color:#e2e8f0;font-size:15px;line-height:1.7;margin:0;"><strong style="color:#10b981;">⛓ 17 coins / 7 chains.</strong> BTC, ETH, USDT, USDC across Ethereum, Polygon, BSC, Arbitrum, Avalanche, and TRON.</p>
+      </div>
+      <div style="margin:28px 0;text-align:center;">
+        <a href="https://cryptolink.cc/merchants/login?mode=register" style="display:inline-block;background:#10b981;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">→ Start free at cryptolink.cc</a>
+      </div>
+      <p style="color:#64748b;font-size:13px;text-align:center;line-height:1.6;margin-top:24px;">
+        Skeptical? <a href="https://github.com/H0oligan/Cryptolink" style="color:#10b981;">Audit the source on GitHub</a> before you trust us with anything.
+      </p>
+`)
+	return EmailTemplate{
+		ID:          "dev_drip_hook",
+		Name:        "Dev Drip 1 — Hook",
+		Description: "Opening email: 'you paid with crypto, now accept it', 3-bullet value prop, signup CTA.",
+		Subject:     "You paid in crypto — now accept it (without giving up control)",
+		BodyHTML:    body,
+		Tags:        []string{"dev-drip"},
+	}
+}
+
+func templateDevDripProof() EmailTemplate {
+	body := wrap("We literally cannot touch your money", `
+      <h2 style="color:#10b981;margin-top:0;font-size:20px;">How non-custodial actually works</h2>
+      <p style="color:#e2e8f0;font-size:15px;line-height:1.6;">
+        Most "crypto payment gateways" are custodial accounts with extra steps — funds sit on <em>their</em> servers until you withdraw. CryptoLink isn't. Here's the actual flow:
+      </p>
+      <div style="background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:24px;margin:20px 0;text-align:center;font-family:monospace;">
+        <div style="color:#94a3b8;font-size:13px;">👤 Customer wallet</div>
+        <div style="color:#10b981;font-size:18px;margin:8px 0;">↓</div>
+        <div style="color:#e2e8f0;font-size:13px;">🛡 Smart-contract collector clone (deployed by you)</div>
+        <div style="color:#10b981;font-size:18px;margin:8px 0;">↓</div>
+        <div style="color:#10b981;font-size:13px;">💰 Your wallet</div>
+        <div style="color:#64748b;font-size:11px;margin-top:14px;">CryptoLink server: reads the chain. Never holds the funds.</div>
+      </div>
+      <h3 style="color:#e2e8f0;font-size:16px;margin-top:24px;">Proof — verify it yourself:</h3>
+      <ul style="color:#94a3b8;font-size:14px;line-height:1.9;padding-left:20px;">
+        <li>Verified clone factory on Tronscan: <a href="https://tronscan.org/#/contract/TCRxfPMSR8aPCxWm9RJDFL5uVyGCuhb88F" style="color:#10b981;font-family:monospace;">TCRx...88F</a></li>
+        <li>Implementation contract: <a href="https://tronscan.org/#/contract/TTYcEvAUR1kpWf6Q6tsUiitDcptrftJFPW" style="color:#10b981;font-family:monospace;">TTYc...JFPW</a></li>
+        <li>Full source on GitHub: <a href="https://github.com/H0oligan/Cryptolink" style="color:#10b981;">github.com/H0oligan/Cryptolink</a></li>
+      </ul>
+      <p style="color:#e2e8f0;font-size:15px;line-height:1.6;margin-top:20px;">
+        We're so confident the architecture is auditable that we <strong>ask</strong> you to read the code. If you like what you see, drop a star — it helps other developers find us.
+      </p>
+      <div style="margin:28px 0;text-align:center;">
+        <a href="https://tronscan.org/#/contract/TCRxfPMSR8aPCxWm9RJDFL5uVyGCuhb88F" style="display:inline-block;background:#10b981;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">→ See the contract on Tronscan</a>
+      </div>
+`)
+	return EmailTemplate{
+		ID:          "dev_drip_proof",
+		Name:        "Dev Drip 2 — Proof",
+		Description: "Second email. Visual diagram of the non-custodial flow + Tronscan/GitHub links.",
+		Subject:     "We literally cannot touch your money — here's the proof",
+		BodyHTML:    body,
+		Tags:        []string{"dev-drip"},
+	}
+}
+
+func templateDevDripMath() EmailTemplate {
+	body := wrap("The math: $9/mo vs hundreds in fees", `
+      <h2 style="color:#10b981;margin-top:0;font-size:20px;">Stop bleeding 1.5%% on every transaction</h2>
+      <p style="color:#e2e8f0;font-size:15px;line-height:1.6;">
+        Stripe crypto, Coinbase Commerce, NOWPayments — all charge a percentage of every transaction. CryptoLink charges a flat monthly subscription. That's the entire difference. Here's what it costs you:
+      </p>
+      <div style="background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:20px;margin:20px 0;">
+        <table style="width:100%%;border-collapse:collapse;font-size:14px;">
+          <tr style="border-bottom:1px solid #1e1e1e;">
+            <td style="padding:10px;color:#64748b;">Monthly crypto volume</td>
+            <td style="padding:10px;color:#ef4444;text-align:center;"><strong>Typical (1.5%%)</strong></td>
+            <td style="padding:10px;color:#10b981;text-align:center;"><strong>CryptoLink</strong></td>
+            <td style="padding:10px;color:#10b981;text-align:center;"><strong>You keep</strong></td>
+          </tr>
+          <tr style="border-bottom:1px solid #1e1e1e;">
+            <td style="padding:10px;color:#e2e8f0;">$1,000</td>
+            <td style="padding:10px;color:#ef4444;text-align:center;">$15/mo gone</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$0 (Free)</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$15</td>
+          </tr>
+          <tr style="border-bottom:1px solid #1e1e1e;">
+            <td style="padding:10px;color:#e2e8f0;">$10,000</td>
+            <td style="padding:10px;color:#ef4444;text-align:center;">$150/mo gone</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$9.99 (Starter)</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$140</td>
+          </tr>
+          <tr style="border-bottom:1px solid #1e1e1e;">
+            <td style="padding:10px;color:#e2e8f0;">$50,000</td>
+            <td style="padding:10px;color:#ef4444;text-align:center;">$750/mo gone</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$29.99 (Growth)</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$720</td>
+          </tr>
+          <tr>
+            <td style="padding:10px;color:#e2e8f0;">$250,000</td>
+            <td style="padding:10px;color:#ef4444;text-align:center;">$3,750/mo gone</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$79.99 (Business)</td>
+            <td style="padding:10px;color:#10b981;text-align:center;">$3,670</td>
+          </tr>
+        </table>
+      </div>
+      <p style="color:#e2e8f0;font-size:15px;line-height:1.6;">
+        And we <strong style="color:#10b981;">don't take a cut of any transaction</strong>. The subscription is the only line item. You can verify that promise — the code is open source.
+      </p>
+      <div style="margin:28px 0;text-align:center;">
+        <a href="https://cryptolink.cc/merchants/login?mode=register" style="display:inline-block;background:#10b981;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">→ Claim your free plan</a>
+        <div style="margin-top:14px;"><a href="https://github.com/H0oligan/Cryptolink" style="color:#10b981;font-size:13px;text-decoration:none;">→ Or star us on GitHub</a></div>
+      </div>
+      <p style="color:#64748b;font-size:13px;line-height:1.6;margin-top:24px;">
+        <strong>P.S.</strong> Reply to this email — a real engineer reads them, not a support bot.
+      </p>
+`)
+	return EmailTemplate{
+		ID:          "dev_drip_math",
+		Name:        "Dev Drip 3 — Math",
+		Description: "Closing email. Comparison table, signup + GitHub-star CTAs, P.S. reply hook.",
+		Subject:     "Stop bleeding 1.5% per transaction. The math says $9/mo.",
+		BodyHTML:    body,
+		Tags:        []string{"dev-drip", "pricing"},
 	}
 }
 
