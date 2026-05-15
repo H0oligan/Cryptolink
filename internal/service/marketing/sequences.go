@@ -478,13 +478,14 @@ func (s *Service) processOneEnrollment(ctx context.Context, enrollID, sequenceID
 		subject = subjectOverride.String
 	}
 
-	// 4. Inject unsubscribe footer (reuse existing per-campaign helpers)
+	// 4. Inject unsubscribe footer (reuse existing per-campaign helpers).
+	// Lowercase enforced by marketing_unsubscribes_email_lowercase_chk.
 	unsubToken := generateToken()
 	unsubLink := "https://cryptolink.cc/api/dashboard/v1/marketing/unsubscribe?token=" + unsubToken
 	_, _ = s.db.Exec(ctx,
 		`INSERT INTO marketing_unsubscribes (email, token) VALUES ($1, $2)
 		 ON CONFLICT (email) DO UPDATE SET token = $2`,
-		recipientEmail, unsubToken)
+		strings.ToLower(strings.TrimSpace(recipientEmail)), unsubToken)
 	body := injectUnsubscribeFooter(tmpl.BodyHTML, unsubLink)
 
 	// 5. Send

@@ -380,11 +380,13 @@ func (s *Service) processQueue(ctx context.Context) {
 			unsubToken := generateToken()
 			unsubLink := fmt.Sprintf("https://cryptolink.cc/api/dashboard/v1/marketing/unsubscribe?token=%s", unsubToken)
 
-			// Store unsubscribe token (upsert — ignore if already exists)
+			// Store unsubscribe token (upsert — ignore if already exists).
+			// Lowercase enforced by marketing_unsubscribes_email_lowercase_chk.
+			recipientEmail := strings.ToLower(strings.TrimSpace(r.Email))
 			_, _ = s.db.Exec(ctx,
 				`INSERT INTO marketing_unsubscribes (email, token) VALUES ($1, $2)
 				 ON CONFLICT (email) DO UPDATE SET token = $2`,
-				r.Email, unsubToken)
+				recipientEmail, unsubToken)
 
 			// Inject unsubscribe footer into the email body
 			bodyWithUnsub := injectUnsubscribeFooter(c.BodyHTML, unsubLink)
