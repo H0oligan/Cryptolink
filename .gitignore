@@ -47,3 +47,26 @@ contracts/artifacts/
 contracts/deployments/
 contracts/.openzeppelin/
 contracts/node_modules/
+
+# Internal strategy and brainstorming — confidential.
+# Code (templates.go, migrations, services) stays public for auditability,
+# but business strategy docs, campaign plans, audience lists, and AI brainstorm
+# mockups are private.
+docs/superpowers/specs/
+docs/superpowers/plans/
+docs/superpowers/private/
+.superpowers/
+*.private.md
+*.confidential.md
+
+# Data dumps / exports that may contain customer PII.
+# Customer / contact data lives in PostgreSQL and must NEVER reach git.
+*.sql.dump
+*.dump.sql
+*.pg_dump
+backups/
+exports/
+*-contacts*.csv
+*-recipients*.csv
+*-merchants*.csv
+*-emails*.csv
