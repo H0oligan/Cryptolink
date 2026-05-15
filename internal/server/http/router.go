@@ -177,6 +177,8 @@ func WithDashboardAPI(
 		adminGroup.GET("/marketing/campaigns/:campaignId/recipients", marketingHandler.GetCampaignRecipients)
 		adminGroup.POST("/marketing/campaigns/:campaignId/send", marketingHandler.SendCampaign)
 		adminGroup.GET("/marketing/quota", marketingHandler.GetQuota)
+		adminGroup.GET("/marketing/settings", marketingHandler.GetSettings)
+		adminGroup.PUT("/marketing/settings", marketingHandler.UpdateSettings)
 
 		// Public unsubscribe route (no auth)
 		dashboardAPI.GET("/marketing/unsubscribe", marketingHandler.Unsubscribe)

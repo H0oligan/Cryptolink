@@ -179,3 +179,30 @@ func unsubPage(title, message, color string) string {
 </body>
 </html>`, title, color, title, message)
 }
+
+// GetSettings returns the current marketing settings (daily cap).
+func (h *Handler) GetSettings(c echo.Context) error {
+	settings, err := h.service.GetSettings(c.Request().Context())
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to load marketing settings")
+		return common.ErrorResponse(c, "internal_error")
+	}
+	return c.JSON(http.StatusOK, settings)
+}
+
+type updateSettingsRequest struct {
+	DailyLimit int `json:"daily_limit"`
+}
+
+// UpdateSettings updates the daily marketing send limit.
+func (h *Handler) UpdateSettings(c echo.Context) error {
+	var req updateSettingsRequest
+	if err := c.Bind(&req); err != nil {
+		return common.ErrorResponse(c, "invalid request")
+	}
+	settings, err := h.service.UpdateSettings(c.Request().Context(), req.DailyLimit)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, settings)
+}

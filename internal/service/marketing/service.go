@@ -16,8 +16,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// Daily marketing email limit (reserve 100 of Brevo's 300 for transactional)
-const DailyMarketingLimit = 200
+// DailyMarketingLimit is the fallback floor used when the marketing_settings row
+// is unavailable. The effective limit is normally read from DB via effectiveDailyLimit().
+// Brevo plan ceiling is 300/day; reservation for transactional is 50, so the configured
+// value is clamped to [50, 250] by the settings module.
+const DailyMarketingLimit = 250
 
 // Madrid timezone for quota reset at 17:00
 var madridTZ *time.Location
@@ -446,15 +449,19 @@ func (s *Service) getRemainingQuota(ctx context.Context) (int, error) {
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
 			// First query of the day — create row
+			effective := s.effectiveDailyLimit(ctx)
 			_, err = s.db.Exec(ctx,
 				`INSERT INTO marketing_email_quota (quota_date, sent_count, daily_limit) VALUES ($1, 0, $2)
-				 ON CONFLICT (quota_date) DO NOTHING`, qd, DailyMarketingLimit)
+				 ON CONFLICT (quota_date) DO NOTHING`, qd, effective)
 			if err != nil {
 				return 0, err
 			}
-			return DailyMarketingLimit, nil
+			return effective, nil
 		}
 		return 0, err
+	}
+	if configured := s.effectiveDailyLimit(ctx); configured < dailyLimit {
+		dailyLimit = configured
 	}
 	return dailyLimit - sentCount, nil
 }
@@ -465,7 +472,7 @@ func (s *Service) incrementQuota(ctx context.Context) {
 		`INSERT INTO marketing_email_quota (quota_date, sent_count, daily_limit, updated_at)
 		 VALUES ($1, 1, $2, NOW())
 		 ON CONFLICT (quota_date) DO UPDATE SET sent_count = marketing_email_quota.sent_count + 1, updated_at = NOW()`,
-		qd, DailyMarketingLimit)
+		qd, s.effectiveDailyLimit(ctx))
 }
 
 // GetQuotaStatus returns current day's remaining quota for the API
@@ -476,7 +483,7 @@ func (s *Service) GetQuotaStatus(ctx context.Context) (sent int, limit int, rese
 	).Scan(&sent, &limit)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
-			return 0, DailyMarketingLimit, nextResetTime(), nil
+			return 0, s.effectiveDailyLimit(ctx), nextResetTime(), nil
 		}
 		return
 	}
