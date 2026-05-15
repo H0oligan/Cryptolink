@@ -2,16 +2,38 @@ import * as React from "react";
 import {PageContainer} from "@ant-design/pro-components";
 import {
     Button, Table, Typography, Row, Tag, Modal, Form, Input, Select, Card,
-    Drawer, Progress, Statistic, Space, Tabs, notification, Tooltip, Radio
+    Drawer, Progress, Statistic, Space, Tabs, notification, Tooltip, Radio,
+    Checkbox, Col
 } from "antd";
 import {
     SendOutlined, PlusOutlined, EyeOutlined, ReloadOutlined,
-    MailOutlined, TeamOutlined, UserOutlined
+    MailOutlined, TeamOutlined, UserOutlined, FileTextOutlined, SettingOutlined
 } from "@ant-design/icons";
-import adminProvider from "src/providers/admin-provider";
+import adminProvider, {Sequence, SequenceStats, MarketingTemplate, MarketingSettings} from "src/providers/admin-provider";
 
 const {TextArea} = Input;
 const {Text} = Typography;
+
+const SequencesTab: React.FC = () => (
+    <div style={{padding: 24, color: "#94a3b8"}}>
+        <Typography.Title level={4} style={{color: "#10b981"}}>Sequences</Typography.Title>
+        <Typography.Paragraph>Drip orchestration — coming in Task 10.</Typography.Paragraph>
+    </div>
+);
+
+const TemplatesTab: React.FC<{templates: MarketingTemplate[]}> = ({templates}) => (
+    <div style={{padding: 24, color: "#94a3b8"}}>
+        <Typography.Title level={4} style={{color: "#10b981"}}>Templates ({templates.length})</Typography.Title>
+        <Typography.Paragraph>Card grid — coming in Task 11.</Typography.Paragraph>
+    </div>
+);
+
+const SettingsTab: React.FC = () => (
+    <div style={{padding: 24, color: "#94a3b8"}}>
+        <Typography.Title level={4} style={{color: "#10b981"}}>Settings</Typography.Title>
+        <Typography.Paragraph>Daily-limit + quota — coming in Task 12.</Typography.Paragraph>
+    </div>
+);
 
 interface EmailTemplate {
     id: string;
@@ -236,17 +258,8 @@ const MarketingPage: React.FC = () => {
         {title: "Error", dataIndex: "error_message", key: "error_message", ellipsis: true, render: (v: string | null) => v || "—"}
     ];
 
-    return (
-        <PageContainer header={{title: "", breadcrumb: {}}}>
-            {contextHolder}
-            <Row align="middle" justify="space-between" style={{marginBottom: 16}}>
-                <Typography.Title level={3} style={{margin: 0}}>Marketing Campaigns</Typography.Title>
-                <Space>
-                    <Button icon={<ReloadOutlined />} onClick={loadData}>Refresh</Button>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>New Campaign</Button>
-                </Space>
-            </Row>
-
+    const campaignsTab = (
+        <>
             {quota && (
                 <Card size="small" style={{marginBottom: 16}}>
                     <Row justify="space-around">
@@ -256,7 +269,12 @@ const MarketingPage: React.FC = () => {
                     </Row>
                 </Card>
             )}
-
+            <Row align="middle" justify="end" style={{marginBottom: 12}}>
+                <Space>
+                    <Button icon={<ReloadOutlined />} onClick={loadData}>Refresh</Button>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>New Campaign</Button>
+                </Space>
+            </Row>
             <Table
                 columns={columns}
                 dataSource={campaigns}
@@ -264,6 +282,25 @@ const MarketingPage: React.FC = () => {
                 loading={loading}
                 pagination={{total, pageSize: 20}}
                 size="middle"
+            />
+        </>
+    );
+
+    return (
+        <PageContainer header={{title: "", breadcrumb: {}}}>
+            {contextHolder}
+            <Row align="middle" justify="space-between" style={{marginBottom: 16}}>
+                <Typography.Title level={3} style={{margin: 0}}>Marketing</Typography.Title>
+            </Row>
+
+            <Tabs
+                defaultActiveKey="campaigns"
+                items={[
+                    {key: "campaigns", label: <span><MailOutlined /> Campaigns</span>, children: campaignsTab},
+                    {key: "sequences", label: <span><SendOutlined /> Sequences</span>, children: <SequencesTab />},
+                    {key: "templates", label: <span><FileTextOutlined /> Templates</span>, children: <TemplatesTab templates={templates as unknown as MarketingTemplate[]} />},
+                    {key: "settings", label: <span><SettingOutlined /> Settings</span>, children: <SettingsTab />}
+                ]}
             />
 
             {/* Create Campaign Drawer */}
