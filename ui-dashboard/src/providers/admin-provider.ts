@@ -74,6 +74,63 @@ export interface EmailLogEntry {
     created_at: string;
 }
 
+export interface MarketingTemplate {
+    id: string;
+    name: string;
+    description: string;
+    subject: string;
+    body_html: string;
+    tags: string[];
+}
+
+export interface MarketingSettings {
+    daily_limit: number;
+    updated_at: string;
+}
+
+export interface SequenceStep {
+    id: number;
+    sequence_id: number;
+    step_index: number;
+    template_id: string;
+    subject_override: string | null;
+    offset_hours: number;
+}
+
+export interface Sequence {
+    id: number;
+    uuid: string;
+    name: string;
+    audience: string;
+    status: "draft" | "running" | "paused" | "completed" | "cancelled";
+    skip_if_converted: boolean;
+    start_at: string | null;
+    created_at: string;
+    updated_at: string;
+    started_at: string | null;
+    completed_at: string | null;
+    steps: SequenceStep[];
+}
+
+export interface SequenceStats {
+    sequence: Sequence;
+    total_enrolled: number;
+    active: number;
+    converted: number;
+    unsubscribed: number;
+    completed: number;
+    failed: number;
+    step_breakdown: {step_index: number; sent: number; pending: number}[];
+}
+
+export interface CreateSequenceParams {
+    name: string;
+    audience: string;
+    skip_if_converted: boolean;
+    start_at?: string;
+    steps: {template_id: string; offset_hours: number; subject_override?: string}[];
+}
+
 export interface SystemStats {
     total_merchants: number;
     total_users: number;
@@ -271,6 +328,54 @@ const adminProvider = {
     async getMarketingQuota(): Promise<{sent: number; limit: number; remaining: number; reset_at: string}> {
         const response = await apiRequest.get(withApiPath("/admin/marketing/quota"));
         return response.data;
+    },
+
+    async getMarketingSettings(): Promise<MarketingSettings> {
+        const response = await apiRequest.get(withApiPath("/admin/marketing/settings"));
+        return response.data;
+    },
+
+    async updateMarketingSettings(dailyLimit: number): Promise<MarketingSettings> {
+        const response = await apiRequest.put(withApiPath("/admin/marketing/settings"), {daily_limit: dailyLimit});
+        return response.data;
+    },
+
+    async listSequences(limit?: number, offset?: number): Promise<PaginatedResponse<Sequence>> {
+        const response = await apiRequest.get(withApiPath("/admin/marketing/sequences"), {
+            params: {limit: limit || 20, offset: offset || 0}
+        });
+        return response.data;
+    },
+
+    async getSequence(sequenceId: string): Promise<Sequence> {
+        const response = await apiRequest.get(withApiPath(`/admin/marketing/sequences/${sequenceId}`));
+        return response.data;
+    },
+
+    async getSequenceStats(sequenceId: string): Promise<SequenceStats> {
+        const response = await apiRequest.get(withApiPath(`/admin/marketing/sequences/${sequenceId}/stats`));
+        return response.data;
+    },
+
+    async createSequence(params: CreateSequenceParams): Promise<Sequence> {
+        const response = await apiRequest.post(withApiPath("/admin/marketing/sequences"), params);
+        return response.data;
+    },
+
+    async launchSequence(sequenceId: string): Promise<void> {
+        await apiRequest.post(withApiPath(`/admin/marketing/sequences/${sequenceId}/launch`));
+    },
+
+    async pauseSequence(sequenceId: string): Promise<void> {
+        await apiRequest.post(withApiPath(`/admin/marketing/sequences/${sequenceId}/pause`));
+    },
+
+    async resumeSequence(sequenceId: string): Promise<void> {
+        await apiRequest.post(withApiPath(`/admin/marketing/sequences/${sequenceId}/resume`));
+    },
+
+    async cancelSequence(sequenceId: string): Promise<void> {
+        await apiRequest.post(withApiPath(`/admin/marketing/sequences/${sequenceId}/cancel`));
     }
 };
 
