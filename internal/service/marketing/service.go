@@ -286,6 +286,7 @@ func (s *Service) StartQueueProcessor(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.processQueue(ctx)
+			s.processSequenceTick(ctx)
 		}
 	}
 }
