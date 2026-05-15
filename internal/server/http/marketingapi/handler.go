@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
@@ -205,4 +206,108 @@ func (h *Handler) UpdateSettings(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, settings)
+}
+
+// --- Sequence handlers ---
+
+type createSequenceStepReq struct {
+	TemplateID      string `json:"template_id"`
+	SubjectOverride string `json:"subject_override"`
+	OffsetHours     int    `json:"offset_hours"`
+}
+
+type createSequenceReq struct {
+	Name            string                  `json:"name"`
+	Audience        string                  `json:"audience"`
+	SkipIfConverted bool                    `json:"skip_if_converted"`
+	StartAt         string                  `json:"start_at"`
+	Steps           []createSequenceStepReq `json:"steps"`
+}
+
+func (h *Handler) CreateSequence(c echo.Context) error {
+	var req createSequenceReq
+	if err := c.Bind(&req); err != nil {
+		return common.ErrorResponse(c, "invalid request")
+	}
+	params := marketing.CreateSequenceParams{
+		Name:            req.Name,
+		Audience:        req.Audience,
+		SkipIfConverted: req.SkipIfConverted,
+	}
+	if req.StartAt != "" {
+		parsed, err := time.Parse(time.RFC3339, req.StartAt)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "start_at must be RFC3339"})
+		}
+		params.StartAt = &parsed
+	}
+	for _, st := range req.Steps {
+		params.Steps = append(params.Steps, marketing.CreateSequenceStepInput{
+			TemplateID:      st.TemplateID,
+			SubjectOverride: st.SubjectOverride,
+			OffsetHours:     st.OffsetHours,
+		})
+	}
+	seq, err := h.service.CreateSequence(c.Request().Context(), params)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusCreated, seq)
+}
+
+func (h *Handler) ListSequences(c echo.Context) error {
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+	sequences, total, err := h.service.ListSequences(c.Request().Context(), limit, offset)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to list sequences")
+		return common.ErrorResponse(c, "internal_error")
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"results": sequences, "total": total, "limit": limit, "offset": offset,
+	})
+}
+
+func (h *Handler) GetSequenceHandler(c echo.Context) error {
+	seq, err := h.service.GetSequence(c.Request().Context(), c.Param("sequenceId"))
+	if err != nil {
+		return common.ErrorResponse(c, "sequence not found")
+	}
+	return c.JSON(http.StatusOK, seq)
+}
+
+func (h *Handler) GetSequenceStats(c echo.Context) error {
+	stats, err := h.service.GetSequenceStats(c.Request().Context(), c.Param("sequenceId"))
+	if err != nil {
+		return common.ErrorResponse(c, "sequence not found")
+	}
+	return c.JSON(http.StatusOK, stats)
+}
+
+func (h *Handler) LaunchSequence(c echo.Context) error {
+	if err := h.service.LaunchSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "sequence launched"})
+}
+
+func (h *Handler) PauseSequence(c echo.Context) error {
+	if err := h.service.PauseSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "sequence paused"})
+}
+
+func (h *Handler) ResumeSequence(c echo.Context) error {
+	if err := h.service.ResumeSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "sequence resumed"})
+}
+
+func (h *Handler) CancelSequence(c echo.Context) error {
+	if err := h.service.CancelSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "sequence cancelled"})
 }

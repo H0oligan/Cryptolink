@@ -180,6 +180,16 @@ func WithDashboardAPI(
 		adminGroup.GET("/marketing/settings", marketingHandler.GetSettings)
 		adminGroup.PUT("/marketing/settings", marketingHandler.UpdateSettings)
 
+		// Admin marketing sequences
+		adminGroup.GET("/marketing/sequences", marketingHandler.ListSequences)
+		adminGroup.POST("/marketing/sequences", marketingHandler.CreateSequence)
+		adminGroup.GET("/marketing/sequences/:sequenceId", marketingHandler.GetSequenceHandler)
+		adminGroup.GET("/marketing/sequences/:sequenceId/stats", marketingHandler.GetSequenceStats)
+		adminGroup.POST("/marketing/sequences/:sequenceId/launch", marketingHandler.LaunchSequence)
+		adminGroup.POST("/marketing/sequences/:sequenceId/pause", marketingHandler.PauseSequence)
+		adminGroup.POST("/marketing/sequences/:sequenceId/resume", marketingHandler.ResumeSequence)
+		adminGroup.POST("/marketing/sequences/:sequenceId/cancel", marketingHandler.CancelSequence)
+
 		// Public unsubscribe route (no auth)
 		dashboardAPI.GET("/marketing/unsubscribe", marketingHandler.Unsubscribe)
 
