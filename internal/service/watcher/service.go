@@ -5,12 +5,10 @@ package watcher
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -1109,13 +1107,21 @@ func (s *Service) pollBTCTransactions(
 			wt, _ = s.wallets.GetByID(ctx, *tx.RecipientWalletID)
 		}
 
-		// Query recent transactions to find the actual tx hash and sender
+		// Query recent transactions to find the actual tx hash and sender.
+		// We only consider CONFIRMED transactions here — an unconfirmed mempool
+		// tx may be evicted (RBF, low fee, propagation failure), and recording
+		// its hash would strand the payment in inProgress forever. Detection
+		// uses confirmed balance (see provider.parseAddressResponse), so if we
+		// got here the funds are already mined; the matching confirmed tx must
+		// be in the recent history.
 		txHash := ""
 		senderAddress := ""
 		recentTxs, txErr := s.bitcoin.GetRecentTransactions(ctx, addr, isTest)
 		if txErr == nil && len(recentTxs) > 0 {
-			// Find the most recent transaction that sends TO our address
 			for _, rtx := range recentTxs {
+				if !rtx.Confirmed {
+					continue
+				}
 				for _, out := range rtx.Outputs {
 					if out.Address == addr && out.Value > 0 {
 						txHash = rtx.TxID
@@ -1134,7 +1140,18 @@ func (s *Service) pollBTCTransactions(
 			senderAddress = "unknown" // Fallback — some BTC inputs may not have parseable addresses
 		}
 		if txHash == "" {
-			txHash = fmt.Sprintf("balance-detect-%s-%d", addr[:8], time.Now().Unix())
+			// No confirmed match yet (e.g. provider index lag right after a block).
+			// Skip this poll cycle and let the next tick retry once the indexer
+			// catches up — avoids writing a synthetic "balance-detect-*" hash
+			// that the receipt poller can never look up.
+			s.logger.Debug().
+				Str("address", addr).
+				Int64("tx_id", tx.ID).
+				Int64("satoshis", receivedSatoshis).
+				Msg("BTC balance increased but no confirmed tx hash found yet, retrying next poll")
+			// Roll back the cached balance so the next poll re-detects.
+			s.lastBTCBalance.Store(cacheKey, lastBalance)
+			continue
 		}
 
 		d := DetectedTransfer{

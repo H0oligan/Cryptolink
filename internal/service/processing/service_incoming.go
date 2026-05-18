@@ -494,6 +494,19 @@ func (s *Service) checkIncomingTransaction(ctx context.Context, txID int64) erro
 
 	receipt, err := s.blockchain.GetTransactionReceipt(ctx, tx.Currency.Blockchain, *tx.HashID, tx.IsTest)
 	if err != nil {
+		// Defense-in-depth: a persistent receipt-fetch failure (most commonly
+		// a 404 because the tx vanished from the mempool before mining, or a
+		// chain reorg orphaned it) used to keep the payment in inProgress
+		// forever because we returned the error before reaching the timeout
+		// check below. Honour the same 24h ceiling here so stuck transactions
+		// always self-cancel instead of spamming the scheduler indefinitely.
+		if time.Since(tx.UpdatedAt) > inProgressTimeout {
+			s.logger.Warn().Err(err).
+				Int64("transaction_id", tx.ID).
+				Str("hash", *tx.HashID).
+				Msg("transaction timed out after 24h with persistent receipt-fetch failure")
+			return s.cancelIncomingTransaction(ctx, tx)
+		}
 		return errors.Wrap(err, "unable to get transaction receipt")
 	}
 

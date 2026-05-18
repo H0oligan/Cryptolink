@@ -145,13 +145,17 @@ const PaymentPage: React.FC = () => {
             });
         } else if (
             payment.isLocked &&
-            (payment.paymentInfo?.status === "pending" || payment.paymentInfo?.status === "partial")
+            (payment.paymentInfo?.status === "pending"
+                || payment.paymentInfo?.status === "partial"
+                || payment.paymentInfo?.status === "inProgress")
         ) {
+            // inProgress = tx detected on chain, awaiting required confirmations.
+            // Keep polling so the user is redirected once the payment fully clears.
+            // We deliberately do NOT navigate to /success/ here — that would falsely
+            // claim "Payment successful!" for an unconfirmed (and potentially
+            // dropped) mempool transaction.
             setTimeout(updatePayment, 2000);
-        } else if (
-            payment.isLocked &&
-            (payment.paymentInfo?.status === "success" || payment.paymentInfo?.status === "inProgress")
-        ) {
+        } else if (payment.isLocked && payment.paymentInfo?.status === "success") {
             navigate(`/success/${payment.id}`, {
                 state: {
                     payment
@@ -302,6 +306,7 @@ const PaymentPage: React.FC = () => {
 
             {payment?.isLocked === true && payment.paymentInfo && payment.paymentMethod && !paymentProcessError && (() => {
                 const isPartial = payment.paymentInfo.status === "partial";
+                const isInProgress = payment.paymentInfo.status === "inProgress";
                 const ticker = payment.paymentMethod.displayName;
                 const qrValue = isPartial && payment.paymentInfo.remainingPaymentLink
                     ? payment.paymentInfo.remainingPaymentLink
@@ -336,6 +341,16 @@ const PaymentPage: React.FC = () => {
                             </p>
                             <p className="mt-1 text-xs text-amber-100/90">
                                 Send the remaining <strong>{remainingDisplay}</strong> to the same address before the timer ends.
+                            </p>
+                        </div>
+                    )}
+                    {isInProgress && (
+                        <div className="mx-auto mb-4 max-w-sm rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-center">
+                            <p className="text-sm font-semibold text-emerald-300">
+                                Payment detected
+                            </p>
+                            <p className="mt-1 text-xs text-emerald-100/90">
+                                Waiting for blockchain confirmation. Do not send again — this page will update automatically once your payment clears.
                             </p>
                         </div>
                     )}
