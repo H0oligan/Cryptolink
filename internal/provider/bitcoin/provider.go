@@ -261,10 +261,15 @@ func (p *Provider) parseAddressResponse(ctx context.Context, url, address string
 	}
 
 	return &AddressInfo{
-		Address:       address,
+		Address: address,
+		// Balance counts CONFIRMED funds only. Mempool funds are exposed via
+		// MempoolFunded for visibility, but must not drive payment detection:
+		// mempool transactions can be evicted (low fee, RBF, propagation
+		// failure), and detecting from mempool means we capture a tx hash
+		// that may later vanish — leaving payments permanently stuck.
 		FundedSum:     resp.ChainStats.FundedTxoSum,
 		SpentSum:      resp.ChainStats.SpentTxoSum,
-		Balance:       resp.ChainStats.FundedTxoSum - resp.ChainStats.SpentTxoSum + resp.MempoolStats.FundedTxoSum - resp.MempoolStats.SpentTxoSum,
+		Balance:       resp.ChainStats.FundedTxoSum - resp.ChainStats.SpentTxoSum,
 		TxCount:       resp.ChainStats.TxCount,
 		MempoolTxs:    resp.MempoolStats.TxCount,
 		MempoolFunded: resp.MempoolStats.FundedTxoSum,
