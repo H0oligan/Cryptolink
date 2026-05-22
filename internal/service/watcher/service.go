@@ -58,6 +58,18 @@ type Config struct {
 	// up progressively over multiple cycles.
 	MaxBlocksPerCycle int64 `yaml:"max_blocks_per_cycle" env:"WATCHER_MAX_BLOCKS_PER_CYCLE" env-default:"100"`
 
+	// MaxCursorStaleness caps how far behind chain head the per-chain cursor is
+	// allowed to fall before it is fast-forwarded. Public RPC endpoints (especially
+	// on BSC) prune log history aggressively; once the cursor falls past the prune
+	// horizon every scan returns "history pruned" / "limit exceeded" and the
+	// cursor deadlocks. Fast-forwarding admits we lose any payment that fell into
+	// the skipped window (those blocks were already unservable anyway) and lets
+	// the watcher resume detecting new payments. Set to 0 to disable.
+	// 2000 blocks ≈ 1.7h on BSC, ≈6.7h on ETH, ≈1.1h on Polygon. Should be
+	// large enough to ride out short RPC outages and small enough to bound the
+	// worst-case missed-payment window.
+	MaxCursorStaleness int64 `yaml:"max_cursor_staleness" env:"WATCHER_MAX_CURSOR_STALENESS" env-default:"2000"`
+
 	// MaxConcurrency limits parallel RPC calls per poll cycle.
 	MaxConcurrency int `yaml:"max_concurrency" env:"WATCHER_MAX_CONCURRENCY" env-default:"4"`
 
@@ -427,7 +439,7 @@ func (s *Service) pollEVMTransactions(
 	txs []*transaction.Transaction,
 	onDetected OnTransferDetected,
 ) (int64, []int64) {
-	client, err := s.getEVMClient(ctx, bc, isTest)
+	client, rpcURL, err := s.getEVMClient(ctx, bc, isTest)
 	if err != nil {
 		s.logger.Error().Err(err).
 			Str("blockchain", bc.String()).
@@ -461,17 +473,55 @@ func (s *Service) pollEVMTransactions(
 		safeHead = 0
 	}
 
-	// Determine scan range
-	fromBlock := int64(safeHead) - s.config.BlockScanDepth
-	if fromBlock < 0 {
-		fromBlock = 0
+	// Determine scan range.
+	//
+	// safeHead - BlockScanDepth is a COLD-START floor only: when we have no
+	// cursor yet (fresh process, fresh chain), it tells us how far back to
+	// look initially. Once we have a cursor, fromBlock MUST anchor to
+	// lastScannedBlock+1 — otherwise a prolonged RPC outage that holds the
+	// cursor still while the head advances past the lookback window would
+	// silently abandon every block in between (the "blocks will be re-scanned"
+	// promise from the failure branch only holds if we never let the window
+	// fast-forward past the cursor). MaxBlocksPerCycle below caps catch-up
+	// scans so unbounded ranges can't blow up a single cycle.
+	cacheKey := bc.String() + ":" + boolStr(isTest)
+	var fromBlock int64
+	if last, ok := s.lastScannedBlock.Load(cacheKey); ok {
+		if lastBlock, ok := last.(int64); ok {
+			fromBlock = lastBlock + 1
+		}
+	} else {
+		fromBlock = int64(safeHead) - s.config.BlockScanDepth
+		if fromBlock < 0 {
+			fromBlock = 0
+		}
 	}
 
-	// Check if we've scanned further — use last scanned block if available
-	cacheKey := bc.String() + ":" + boolStr(isTest)
-	if last, ok := s.lastScannedBlock.Load(cacheKey); ok {
-		if lastBlock, ok := last.(int64); ok && lastBlock > fromBlock {
-			fromBlock = lastBlock + 1
+	// Cap cursor staleness. If the cursor has fallen further behind chain head
+	// than MaxCursorStaleness, fast-forward it. This breaks the deadlock where
+	// public RPC endpoints have pruned the cursor's blocks and every scan
+	// fails with "history pruned" / "limit exceeded" — without this cap the
+	// cursor stays anchored forever and no new payment is ever detected.
+	// We log at ERROR level so the staleness event surfaces in alerts: any
+	// payment in the skipped window is lost (though those blocks were already
+	// unservable by every RPC, so no scanner could have found them anyway).
+	if s.config.MaxCursorStaleness > 0 && int64(safeHead)-fromBlock > s.config.MaxCursorStaleness {
+		newFrom := int64(safeHead) - s.config.BlockScanDepth
+		if newFrom < 0 {
+			newFrom = 0
+		}
+		if newFrom > fromBlock {
+			s.logger.Error().
+				Str("blockchain", bc.String()).
+				Bool("is_test", isTest).
+				Int64("stale_from_block", fromBlock).
+				Int64("safe_head", int64(safeHead)).
+				Int64("staleness_blocks", int64(safeHead)-fromBlock).
+				Int64("fast_forward_to", newFrom).
+				Int64("blocks_skipped", newFrom-fromBlock).
+				Msg("cursor stale beyond RPC prune horizon — fast-forwarding (BLOCKS SKIPPED)")
+			fromBlock = newFrom
+			s.lastScannedBlock.Store(cacheKey, fromBlock-1)
 		}
 	}
 
@@ -567,6 +617,19 @@ func (s *Service) pollEVMTransactions(
 		detected += d
 		failedIDs = append(failedIDs, f...)
 		tokenRPCFailed = rpcErr
+	}
+
+	// If any log-based scan failed, demote the endpoint so the next dial
+	// rotates to the failover. This catches endpoints that pass BlockNumber
+	// health checks but reject eth_getLogs (rate limit, paid-tier required).
+	if (nativeLogRPCFailed || tokenRPCFailed) && rpcURL != "" {
+		s.rpc.MarkUnhealthy(rpcURL)
+		s.logger.Warn().
+			Str("blockchain", bc.String()).
+			Str("url", rpcURL).
+			Bool("native_log_failed", nativeLogRPCFailed).
+			Bool("token_log_failed", tokenRPCFailed).
+			Msg("demoting RPC endpoint after log-scan failure — next dial will try failover")
 	}
 
 	// Only advance lastScannedBlock if all log-based scans succeeded (or were
@@ -1017,8 +1080,13 @@ func (s *Service) getRecipientAddress(ctx context.Context, tx *transaction.Trans
 	return ""
 }
 
-// getEVMClient returns the appropriate ethclient for the given blockchain.
-func (s *Service) getEVMClient(ctx context.Context, bc money.Blockchain, isTest bool) (*ethclient.Client, error) {
+// getEVMClient returns the appropriate ethclient for the given blockchain,
+// along with the endpoint URL it connected to. The URL is propagated so
+// per-call failures (eth_getLogs rate limits etc.) can demote the endpoint
+// via rpc.Provider.MarkUnhealthy — otherwise an endpoint that passes the
+// dial-time BlockNumber health check but rejects log queries would keep
+// being picked over and over.
+func (s *Service) getEVMClient(ctx context.Context, bc money.Blockchain, isTest bool) (*ethclient.Client, string, error) {
 	switch kms.Blockchain(bc) {
 	case kms.ETH:
 		return s.rpc.EthereumRPC(ctx, isTest)
@@ -1031,7 +1099,7 @@ func (s *Service) getEVMClient(ctx context.Context, bc money.Blockchain, isTest 
 	case kms.AVAX:
 		return s.rpc.AvalancheRPC(ctx, isTest)
 	default:
-		return nil, errors.Errorf("unsupported EVM blockchain: %s", bc)
+		return nil, "", errors.Errorf("unsupported EVM blockchain: %s", bc)
 	}
 }
 
