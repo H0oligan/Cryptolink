@@ -395,3 +395,79 @@ func mustCreateUSD(value string) Money {
 
 	return m
 }
+
+// TestMoney_TruncateDecimals locks in the display-only truncation behavior
+// (rounds toward zero). Pairs with TestMoney_CeilDecimals below.
+func TestMoney_TruncateDecimals(t *testing.T) {
+	tests := []struct {
+		name        string
+		rawValue    string
+		decimals    int64
+		maxDecimals int64
+		expectRaw   string
+	}{
+		{"ETH 18dec → 8dec drops fraction", "27345678912345678", 18, 8, "27345670000000000"},
+		{"ETH 18dec → 8dec exact (no remainder)", "27345670000000000", 18, 8, "27345670000000000"},
+		{"USDT 6dec → 6dec no-op", "1234567", 6, 6, "1234567"},
+		{"BTC 8dec → 8dec no-op", "12345678", 8, 8, "12345678"},
+		{"maxDecimals > current is no-op", "100", 6, 20, "100"},
+		{"maxDecimals = 0 truncates entire fraction", "1234567890000000000", 18, 0, "1000000000000000000"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := mustCreateCrypto(tc.rawValue, tc.decimals)
+			got := m.TruncateDecimals(tc.maxDecimals)
+			assert.Equal(t, tc.expectRaw, got.StringRaw(), "raw value mismatch")
+			assert.Equal(t, tc.decimals, got.Decimals(), "internal decimals must be preserved")
+		})
+	}
+}
+
+// TestMoney_CeilDecimals locks in the invoice-lock rounding behavior (rounds
+// AWAY from zero). The merchant must never lose sub-cent fractions, so any
+// non-zero remainder bumps the displayed amount up to the next visible unit.
+func TestMoney_CeilDecimals(t *testing.T) {
+	tests := []struct {
+		name        string
+		rawValue    string
+		decimals    int64
+		maxDecimals int64
+		expectRaw   string
+	}{
+		// The headline case: ETH amount with 18 decimals of dust, ceiled to 8.
+		// 0.027345678912345678 → 0.02734568 (last visible digit +1).
+		{"ETH 18dec → 8dec rounds up", "27345678912345678", 18, 8, "27345680000000000"},
+
+		// Already aligned: no rounding needed.
+		{"ETH 18dec → 8dec exact (no remainder)", "27345670000000000", 18, 8, "27345670000000000"},
+
+		// Tiny dust bumps the visible amount by 1 ulp.
+		{"ETH 18dec → 8dec dust bumps", "27345670000000001", 18, 8, "27345680000000000"},
+
+		// Currencies that already fit (USDT 6dec, BTC 8dec) must be no-ops.
+		{"USDT 6dec → 6dec no-op", "1234567", 6, 6, "1234567"},
+		{"BTC 8dec → 8dec no-op", "12345678", 8, 8, "12345678"},
+
+		// maxDecimals >= current decimals: no rounding to apply.
+		{"maxDecimals > current is no-op", "100", 6, 20, "100"},
+
+		// Ceil to whole units (maxDecimals=0): 1.234... → 2.
+		{"maxDecimals = 0 ceils to whole unit", "1234567890000000000", 18, 0, "2000000000000000000"},
+
+		// Zero stays zero.
+		{"zero is unchanged", "0", 18, 8, "0"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := mustCreateCrypto(tc.rawValue, tc.decimals)
+			got := m.CeilDecimals(tc.maxDecimals)
+			assert.Equal(t, tc.expectRaw, got.StringRaw(), "raw value mismatch")
+			assert.Equal(t, tc.decimals, got.Decimals(), "internal decimals must be preserved")
+
+			// Invariant: ceiled amount is always >= original.
+			assert.True(t, got.GreaterThanOrEqual(m), "ceil result must be >= original")
+		})
+	}
+}

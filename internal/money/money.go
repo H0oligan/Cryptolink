@@ -433,8 +433,10 @@ func (m Money) IsPositive() bool {
 }
 
 // TruncateDecimals zeroes out digits beyond maxDecimals, rounding toward zero.
-// This ensures the displayed/stored amount never exceeds the industry-standard
-// precision (e.g. 8 for ETH) while keeping the internal decimal count unchanged.
+// Use this for DISPLAY ONLY (post-payment views, balances, email amounts) so the
+// rendered string never exceeds the industry-standard precision (e.g. 8 for ETH).
+// Do NOT use this when locking an invoice amount the customer must send — see
+// CeilDecimals for that, otherwise the merchant loses sub-cent fractions per payment.
 // Example: 0.027345678912345678 ETH (18 dec) truncated to 8 → 0.02734567 ETH
 func (m Money) TruncateDecimals(maxDecimals int64) Money {
 	if maxDecimals >= m.decimals || maxDecimals < 0 {
@@ -445,6 +447,30 @@ func (m Money) TruncateDecimals(maxDecimals int64) Money {
 	truncated := new(big.Int).Div(m.val(), scale)
 	truncated.Mul(truncated, scale)
 	result, _ := NewFromBigInt(m.moneyType, m.ticker, truncated, m.decimals)
+	return result
+}
+
+// CeilDecimals rounds the amount UP to maxDecimals precision (away from zero
+// for positive values). This is the invoice-locking counterpart of TruncateDecimals:
+// when the merchant is owed $100 worth of ETH, the customer must be charged the
+// smallest displayable amount that still covers that value — otherwise the
+// merchant loses the sub-precision fraction on every payment.
+// Example: 0.027345678912345678 ETH (18 dec) ceiled to 8 → 0.02734568 ETH.
+// If the value already fits within maxDecimals (no remainder), it is returned
+// unchanged. Negative values round toward zero (same magnitude as truncation).
+func (m Money) CeilDecimals(maxDecimals int64) Money {
+	if maxDecimals >= m.decimals || maxDecimals < 0 {
+		return m
+	}
+	drop := m.decimals - maxDecimals
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(drop), nil)
+	v := m.val()
+	quot, rem := new(big.Int).QuoRem(v, scale, new(big.Int))
+	if rem.Sign() > 0 {
+		quot.Add(quot, big.NewInt(1))
+	}
+	quot.Mul(quot, scale)
+	result, _ := NewFromBigInt(m.moneyType, m.ticker, quot, m.decimals)
 	return result
 }
 

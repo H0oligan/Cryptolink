@@ -43,7 +43,7 @@ func (h *Handler) balanceToResponse(b *wallet.Balance) *model.MerchantBalance {
 		Name:                       currency.DisplayName(),
 		Currency:                   currency.Name,
 		Ticker:                     currency.Ticker,
-		Amount:                     b.Amount.String(),
+		Amount:                     b.Amount.TruncateDecimals(currency.MaxDisplayDecimals()).String(),
 		UsdAmount:                  usdAmount,
 		MinimalWithdrawalAmountUSD: minWithdrawal.String(),
 	}

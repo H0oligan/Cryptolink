@@ -258,9 +258,11 @@ func (h *Handler) GetExchangeRate(c echo.Context) error {
 	fiatAmount, _ := conv.From.FiatToFloat64()
 	crypto, _ := h.blockchain.GetCurrencyByTicker(to)
 
-	// Truncate to display precision so the payment page shows clean amounts
+	// Round UP to display precision so the preview matches what the customer will
+	// actually be asked to pay at lock-time (see processing.Service createIncomingTransaction).
+	// Truncating here would advertise a slightly lower amount than the locked invoice.
 	if crypto.Decimals > 0 {
-		cryptoAmount = cryptoAmount.TruncateDecimals(crypto.MaxDisplayDecimals())
+		cryptoAmount = cryptoAmount.CeilDecimals(crypto.MaxDisplayDecimals())
 	}
 
 	return c.JSON(http.StatusOK, &model.CurrencyExchangeRate{
