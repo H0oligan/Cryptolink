@@ -397,9 +397,12 @@ func (s *Service) createIncomingTransaction(
 		}
 	}
 
-	// Truncate to industry-standard display precision (max 8 decimals for native coins).
-	// This rounds down so the customer never underpays when sending the displayed amount.
-	cryptoAmount = cryptoAmount.TruncateDecimals(currency.MaxDisplayDecimals())
+	// Round UP to industry-standard display precision (max 8 decimals for native coins).
+	// Ceil (not Truncate) is mandatory at lock-time: the customer must pay an amount
+	// expressible at display precision, AND the merchant must not lose the sub-cent
+	// fraction. The trade-off is that the customer pays at most one ulp more than the
+	// raw conversion (e.g. ~$0.00002 of ETH on a typical invoice).
+	cryptoAmount = cryptoAmount.CeilDecimals(currency.MaxDisplayDecimals())
 
 	var cryptoServiceFee money.Money
 	if s.config.DefaultServiceFee > 0 {

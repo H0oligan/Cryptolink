@@ -343,10 +343,13 @@ func paymentToResponse(pr payment.PaymentWithRelations, feePercent float64) *mod
 			info.SelectedCurrency = util.Ptr(tx.Currency.DisplayName())
 			info.ServiceFee = util.Ptr(tx.ServiceFee.String())
 
-			// Crypto amount received (use FactAmount if available, else expected Amount)
-			cryptoAmt := tx.Amount.String()
+			// Crypto amount received (use FactAmount if available, else expected Amount).
+			// Truncate to display precision so the dashboard never shows raw 18-decimal
+			// EVM amounts (display-only — the actual settled amount is unchanged).
+			maxDisplay := tx.Currency.MaxDisplayDecimals()
+			cryptoAmt := tx.Amount.TruncateDecimals(maxDisplay).String()
 			if tx.FactAmount != nil {
-				cryptoAmt = tx.FactAmount.String()
+				cryptoAmt = tx.FactAmount.TruncateDecimals(maxDisplay).String()
 			}
 			info.CryptoAmount = util.Ptr(cryptoAmt)
 			info.CryptoTicker = util.Ptr(tx.Currency.Ticker)
