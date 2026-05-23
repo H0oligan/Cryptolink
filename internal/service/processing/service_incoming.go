@@ -704,9 +704,10 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 			txHash = *tx.HashID
 		}
 
-		factAmount := tx.Amount.String()
+		maxDisplay := tx.Currency.MaxDisplayDecimals()
+		factAmount := tx.Amount.TruncateDecimals(maxDisplay).String()
 		if tx.FactAmount != nil {
-			factAmount = tx.FactAmount.String()
+			factAmount = tx.FactAmount.TruncateDecimals(maxDisplay).String()
 		}
 
 		// Fetch payer email (best-effort)
@@ -747,9 +748,10 @@ func (s *Service) sendConfirmationEmails(ctx context.Context, tx *transaction.Tr
 		txHash = *tx.HashID
 	}
 
-	factAmount := tx.Amount.String()
+	maxDisplay := tx.Currency.MaxDisplayDecimals()
+	factAmount := tx.Amount.TruncateDecimals(maxDisplay).String()
 	if tx.FactAmount != nil {
-		factAmount = tx.FactAmount.String()
+		factAmount = tx.FactAmount.TruncateDecimals(maxDisplay).String()
 	}
 
 	// Customer email shows the original invoice amount (no fees)

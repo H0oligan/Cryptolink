@@ -317,11 +317,16 @@ func (s *Service) sendPaymentReceivedEmail(ctx context.Context, merchantID int64
 		}
 	}
 
+	displayAmount := wh.Amount
+	if parsed, parseErr := money.CryptoFromStringFloat(currency.Ticker, wh.Amount, currency.Decimals); parseErr == nil {
+		displayAmount = parsed.TruncateDecimals(currency.MaxDisplayDecimals()).String()
+	}
+
 	params := email.PaymentReceivedParams{
 		MerchantEmail:    merchantEmail,
 		MerchantName:     mt.Name,
 		TxHash:           wh.TransactionID,
-		Amount:           wh.Amount,
+		Amount:           displayAmount,
 		Ticker:           currency.Ticker,
 		USDAmount:        merchantFiatStr,
 		FiatSymbol:       fiatSymbol,
