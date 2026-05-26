@@ -23,7 +23,7 @@ type Broadcaster interface {
 func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blockchain, rawTX string, isTest bool) (string, error) {
 	switch kms.Blockchain(blockchain) {
 	case kms.ETH:
-		rpcClient, err := s.providers.RPC.EthereumRPC(ctx, isTest)
+		rpcClient, _, err := s.providers.RPC.EthereumRPC(ctx, isTest)
 		if err != nil {
 			return "", errors.Wrap(err, "unable to get Ethereum RPC")
 		}
@@ -31,7 +31,7 @@ func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blo
 		return s.broadcastRawTransaction(ctx, rpcClient, rawTX)
 
 	case kms.MATIC:
-		rpcClient, err := s.providers.RPC.MaticRPC(ctx, isTest)
+		rpcClient, _, err := s.providers.RPC.MaticRPC(ctx, isTest)
 		if err != nil {
 			return "", errors.Wrap(err, "unable to get Polygon RPC")
 		}
@@ -39,7 +39,7 @@ func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blo
 		return s.broadcastRawTransaction(ctx, rpcClient, rawTX)
 
 	case kms.BSC:
-		rpcClient, err := s.providers.RPC.BinanceSmartChainRPC(ctx, isTest)
+		rpcClient, _, err := s.providers.RPC.BinanceSmartChainRPC(ctx, isTest)
 		if err != nil {
 			return "", errors.Wrap(err, "unable to get BSC RPC")
 		}
@@ -50,7 +50,7 @@ func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blo
 		return s.providers.Trongrid.BroadcastTransaction(ctx, []byte(rawTX), isTest)
 
 	case kms.ARBITRUM:
-		rpcClient, err := s.providers.RPC.ArbitrumRPC(ctx, isTest)
+		rpcClient, _, err := s.providers.RPC.ArbitrumRPC(ctx, isTest)
 		if err != nil {
 			return "", errors.Wrap(err, "unable to get Arbitrum RPC")
 		}
@@ -58,7 +58,7 @@ func (s *Service) BroadcastTransaction(ctx context.Context, blockchain money.Blo
 		return s.broadcastRawTransaction(ctx, rpcClient, rawTX)
 
 	case kms.AVAX:
-		rpcClient, err := s.providers.RPC.AvalancheRPC(ctx, isTest)
+		rpcClient, _, err := s.providers.RPC.AvalancheRPC(ctx, isTest)
 		if err != nil {
 			return "", errors.Wrap(err, "unable to get Avalanche RPC")
 		}
@@ -126,7 +126,7 @@ func (s *Service) getTransactionReceipt(
 
 	switch kms.Blockchain(blockchain) {
 	case kms.ETH:
-		rpc, err := s.providers.RPC.EthereumRPC(ctx, isTest)
+		rpc, _, err := s.providers.RPC.EthereumRPC(ctx, isTest)
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +134,7 @@ func (s *Service) getTransactionReceipt(
 
 		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, ethConfirmations, isTest)
 	case kms.MATIC:
-		rpc, err := s.providers.RPC.MaticRPC(ctx, isTest)
+		rpc, _, err := s.providers.RPC.MaticRPC(ctx, isTest)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func (s *Service) getTransactionReceipt(
 
 		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, maticConfirmations, isTest)
 	case kms.BSC:
-		rpc, err := s.providers.RPC.BinanceSmartChainRPC(ctx, isTest)
+		rpc, _, err := s.providers.RPC.BinanceSmartChainRPC(ctx, isTest)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +150,7 @@ func (s *Service) getTransactionReceipt(
 
 		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, bscConfirmations, isTest)
 	case kms.ARBITRUM:
-		rpc, err := s.providers.RPC.ArbitrumRPC(ctx, isTest)
+		rpc, _, err := s.providers.RPC.ArbitrumRPC(ctx, isTest)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +158,7 @@ func (s *Service) getTransactionReceipt(
 
 		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, arbitrumConfirmations, isTest)
 	case kms.AVAX:
-		rpc, err := s.providers.RPC.AvalancheRPC(ctx, isTest)
+		rpc, _, err := s.providers.RPC.AvalancheRPC(ctx, isTest)
 		if err != nil {
 			return nil, err
 		}
