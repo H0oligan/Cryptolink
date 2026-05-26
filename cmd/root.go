@@ -83,4 +83,7 @@ func init() {
 
 	topupBalanceSetup(topupBalanceCommand)
 	rootCmd.AddCommand(topupBalanceCommand)
+
+	recoverPaymentSetup(recoverPaymentCommand)
+	rootCmd.AddCommand(recoverPaymentCommand)
 }

@@ -43,7 +43,7 @@ func TestBitcoinSupport(t *testing.T) {
 	// Test 4: Payment link generation
 	addr := "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
 	// 0.001 BTC = 100000 satoshis
-	amount, err := money.CryptoFromStringFloat(money.Blockchain("BTC"), "BTC", "0.001", 8)
+	amount, err := money.CryptoFromStringFloat("BTC", "0.001", 8)
 	require.NoError(t, err)
 
 	link, err := blockchain.CreatePaymentLink(addr, btc, amount, false)

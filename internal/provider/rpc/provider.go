@@ -49,37 +49,64 @@ type endpointHealth struct {
 const healthRecoveryInterval = 2 * time.Minute
 
 // DefaultConfig returns config with free public RPC endpoints and failover alternatives.
+//
+// Each endpoint was verified to respond to JSON-RPC requests (eth_blockNumber,
+// and for ETH also eth_getLogs — the call most likely to be rate-limited).
+// Endpoints requiring an API key (ankr.com, infura, alchemy) are deliberately
+// excluded so a fresh install works without configuration.
 func DefaultConfig() Config {
 	return Config{
 		ETH: ChainRPC{
 			Mainnet:  "https://ethereum-rpc.publicnode.com",
 			Testnet:  "https://rpc.sepolia.org",
 			Fallback: "https://1rpc.io/eth",
-			Extra:    []string{"https://eth.llamarpc.com", "https://rpc.ankr.com/eth"},
+			Extra: []string{
+				"https://rpc.flashbots.net",
+				"https://rpc.mevblocker.io",
+				"https://eth-pokt.nodies.app",
+				"https://0xrpc.io/eth",
+			},
 		},
 		MATIC: ChainRPC{
 			Mainnet:  "https://polygon-bor-rpc.publicnode.com",
 			Testnet:  "https://rpc-mumbai.maticvigil.com",
 			Fallback: "https://1rpc.io/matic",
-			Extra:    []string{"https://polygon-rpc.com"},
+			Extra: []string{
+				"https://polygon.drpc.org",
+				"https://polygon-pokt.nodies.app",
+				"https://polygon.gateway.tenderly.co",
+			},
 		},
 		BSC: ChainRPC{
 			Mainnet:  "https://bsc-rpc.publicnode.com",
 			Testnet:  "https://data-seed-prebsc-1-s1.binance.org:8545",
 			Fallback: "https://1rpc.io/bnb",
-			Extra:    []string{"https://bsc-dataseed.binance.org", "https://bsc-dataseed1.defibit.io"},
+			Extra: []string{
+				"https://bsc-dataseed.binance.org",
+				"https://bsc-dataseed1.defibit.io",
+				"https://bsc-dataseed1.ninicoin.io",
+				"https://bsc.drpc.org",
+				"https://bsc-pokt.nodies.app",
+			},
 		},
 		ARBITRUM: ChainRPC{
 			Mainnet:  "https://arb1.arbitrum.io/rpc",
 			Testnet:  "https://sepolia-rollup.arbitrum.io/rpc",
-			Fallback: "https://rpc.ankr.com/arbitrum",
-			Extra:    []string{"https://arbitrum-one-rpc.publicnode.com", "https://1rpc.io/arb"},
+			Fallback: "https://arbitrum-one-rpc.publicnode.com",
+			Extra: []string{
+				"https://1rpc.io/arb",
+				"https://arbitrum.drpc.org",
+				"https://arbitrum-one.public.blastapi.io",
+			},
 		},
 		AVAX: ChainRPC{
 			Mainnet:  "https://api.avax.network/ext/bc/C/rpc",
 			Testnet:  "https://api.avax-test.network/ext/bc/C/rpc",
-			Fallback: "https://rpc.ankr.com/avalanche",
-			Extra:    []string{"https://avalanche-c-chain-rpc.publicnode.com", "https://1rpc.io/avax/c"},
+			Fallback: "https://avalanche-c-chain-rpc.publicnode.com",
+			Extra: []string{
+				"https://1rpc.io/avax/c",
+				"https://avalanche.drpc.org",
+			},
 		},
 		ConnTimeout: 15,
 	}
@@ -124,36 +151,51 @@ func applyChainDefaults(cfg, defaults *ChainRPC) {
 	}
 }
 
-// EthereumRPC returns an Ethereum JSON-RPC client.
-func (p *Provider) EthereumRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
+// EthereumRPC returns an Ethereum JSON-RPC client and the endpoint URL it
+// connected to. The URL is returned so callers can demote it via MarkUnhealthy
+// after operation-level failures (e.g. eth_getLogs rate limits) that the
+// dial-time BlockNumber health check cannot detect.
+func (p *Provider) EthereumRPC(ctx context.Context, isTest bool) (*ethclient.Client, string, error) {
 	return p.dialWithFailover(ctx, p.config.ETH, isTest)
 }
 
-// MaticRPC returns a Polygon JSON-RPC client.
-func (p *Provider) MaticRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
+// MaticRPC returns a Polygon JSON-RPC client and the endpoint URL it connected to.
+func (p *Provider) MaticRPC(ctx context.Context, isTest bool) (*ethclient.Client, string, error) {
 	return p.dialWithFailover(ctx, p.config.MATIC, isTest)
 }
 
-// BinanceSmartChainRPC returns a BSC JSON-RPC client.
-func (p *Provider) BinanceSmartChainRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
+// BinanceSmartChainRPC returns a BSC JSON-RPC client and the endpoint URL it connected to.
+func (p *Provider) BinanceSmartChainRPC(ctx context.Context, isTest bool) (*ethclient.Client, string, error) {
 	return p.dialWithFailover(ctx, p.config.BSC, isTest)
 }
 
-// ArbitrumRPC returns an Arbitrum JSON-RPC client.
-func (p *Provider) ArbitrumRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
+// ArbitrumRPC returns an Arbitrum JSON-RPC client and the endpoint URL it connected to.
+func (p *Provider) ArbitrumRPC(ctx context.Context, isTest bool) (*ethclient.Client, string, error) {
 	return p.dialWithFailover(ctx, p.config.ARBITRUM, isTest)
 }
 
-// AvalancheRPC returns an Avalanche C-Chain JSON-RPC client.
-func (p *Provider) AvalancheRPC(ctx context.Context, isTest bool) (*ethclient.Client, error) {
+// AvalancheRPC returns an Avalanche C-Chain JSON-RPC client and the endpoint URL it connected to.
+func (p *Provider) AvalancheRPC(ctx context.Context, isTest bool) (*ethclient.Client, string, error) {
 	return p.dialWithFailover(ctx, p.config.AVAX, isTest)
+}
+
+// MarkUnhealthy demotes the given endpoint URL so the next dial skips it for
+// healthRecoveryInterval. Use after operation-level failures (eth_getLogs etc.)
+// that succeed dial + BlockNumber check but fail on actual workload.
+func (p *Provider) MarkUnhealthy(url string) {
+	if url == "" {
+		return
+	}
+	p.markUnhealthy(url)
 }
 
 // dialWithFailover tries all endpoints in order: primary, fallback, then extras.
 // Endpoints marked unhealthy are skipped unless enough time has passed for recovery.
 // After dialing, a BlockNumber health-check call is made to detect rate-limiting
 // or other HTTP-level errors that only surface after a successful TCP connection.
-func (p *Provider) dialWithFailover(ctx context.Context, chain ChainRPC, isTest bool) (*ethclient.Client, error) {
+// Returns the connected client and the URL it picked (so the caller can demote
+// it via MarkUnhealthy after operation-level failures).
+func (p *Provider) dialWithFailover(ctx context.Context, chain ChainRPC, isTest bool) (*ethclient.Client, string, error) {
 	timeout := time.Duration(p.config.ConnTimeout) * time.Second
 
 	// Build ordered endpoint list
@@ -203,14 +245,14 @@ func (p *Provider) dialWithFailover(ctx context.Context, chain ChainRPC, isTest 
 		}
 
 		p.markHealthy(url)
-		return client, nil
+		return client, url, nil
 	}
 
 	if lastErr == nil {
 		lastErr = fmt.Errorf("no endpoints available")
 	}
 
-	return nil, fmt.Errorf("all RPC endpoints exhausted for chain: %w", lastErr)
+	return nil, "", fmt.Errorf("all RPC endpoints exhausted for chain: %w", lastErr)
 }
 
 // isHealthy returns true if the endpoint can be tried.

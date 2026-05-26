@@ -138,7 +138,7 @@ func (s *Service) ethFee(ctx context.Context, baseCurrency, currency money.Crypt
 	}
 
 	// 1. Connect to ETH node
-	client, err := s.providers.RPC.EthereumRPC(ctx, isTest)
+	client, _, err := s.providers.RPC.EthereumRPC(ctx, isTest)
 	if err != nil {
 		return Fee{}, errors.Wrap(err, "unable to setup RPC")
 	}
@@ -236,7 +236,7 @@ func (s *Service) maticFee(ctx context.Context, baseCurrency, currency money.Cry
 	}
 
 	// 1. Connect to MATIC node
-	client, err := s.providers.RPC.MaticRPC(ctx, isTest)
+	client, _, err := s.providers.RPC.MaticRPC(ctx, isTest)
 	if err != nil {
 		return Fee{}, errors.Wrap(err, "unable to setup RPC")
 	}
@@ -330,7 +330,7 @@ func (s *Service) bscFee(ctx context.Context, baseCurrency, currency money.Crypt
 	)
 
 	// 1. Connect to BSC node
-	client, err := s.providers.RPC.BinanceSmartChainRPC(ctx, isTest)
+	client, _, err := s.providers.RPC.BinanceSmartChainRPC(ctx, isTest)
 	if err != nil {
 		return Fee{}, errors.Wrap(err, "unable to setup RPC")
 	}
@@ -480,7 +480,7 @@ func (s *Service) arbitrumFee(ctx context.Context, baseCurrency, currency money.
 		return money.NewFromBigInt(money.Crypto, baseCurrency.Ticker, i, baseCurrency.Decimals)
 	}
 
-	client, err := s.providers.RPC.ArbitrumRPC(ctx, isTest)
+	client, _, err := s.providers.RPC.ArbitrumRPC(ctx, isTest)
 	if err != nil {
 		return Fee{}, errors.Wrap(err, "unable to setup Arbitrum RPC")
 	}
@@ -572,7 +572,7 @@ func (s *Service) avaxFee(ctx context.Context, baseCurrency, currency money.Cryp
 		return money.NewFromBigInt(money.Crypto, baseCurrency.Ticker, i, baseCurrency.Decimals)
 	}
 
-	client, err := s.providers.RPC.AvalancheRPC(ctx, isTest)
+	client, _, err := s.providers.RPC.AvalancheRPC(ctx, isTest)
 	if err != nil {
 		return Fee{}, errors.Wrap(err, "unable to setup Avalanche RPC")
 	}
