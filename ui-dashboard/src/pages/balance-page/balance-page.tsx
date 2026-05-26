@@ -13,13 +13,15 @@ import {
     Tooltip,
     Empty,
 } from "antd";
-import {WalletOutlined, LinkOutlined, CopyOutlined, ReloadOutlined} from "@ant-design/icons";
+import {WalletOutlined, LinkOutlined, CopyOutlined, ReloadOutlined, DollarOutlined} from "@ant-design/icons";
 import evmCollectorProvider, {EvmCollector, CollectorBalance} from "src/providers/evm-collector-provider";
+import balancesProvider from "src/providers/balance-provider";
 import {EVM_CHAINS, KNOWN_TOKENS, TRON_CHAIN, TRON_KNOWN_TOKENS} from "src/constants/merchant-collector";
 import {isMetaMaskAvailable, connectWallet, switchChain, withdrawAll} from "src/utils/evm-wallet";
 import {isTronLinkAvailable, connectTronWallet, withdrawAllTron} from "src/utils/tron-wallet";
 import useSharedMerchantId from "src/hooks/use-merchant-id";
 import useSharedMerchant from "src/hooks/use-merchant";
+import useMerchantCurrency from "src/hooks/use-merchant-currency";
 import Icon from "src/components/icon/icon";
 import {PaymentMethod} from "src/types";
 
@@ -73,11 +75,23 @@ interface TokenRowProps {
     blockchain: string;
     displayName: string;
     amount: string | null;
+    fiatEquivalent: string | null;
+    fiatLoading: boolean;
     loading: boolean;
 }
 
-const TokenRow: React.FC<TokenRowProps> = ({ticker, blockchain, displayName, amount, loading}) => {
+const TokenRow: React.FC<TokenRowProps> = ({
+    ticker,
+    blockchain,
+    displayName,
+    amount,
+    fiatEquivalent,
+    fiatLoading,
+    loading,
+}) => {
     const iconName = tickerToIcon(ticker);
+    const amountIsZero = amount !== null && parseFloat(amount) === 0;
+
     return (
         <div className="balance-page__token-row">
             <div className="balance-page__token-info">
@@ -92,7 +106,18 @@ const TokenRow: React.FC<TokenRowProps> = ({ticker, blockchain, displayName, amo
                 {loading ? (
                     <Spin size="small" />
                 ) : amount !== null ? (
-                    <Text strong style={{fontSize: 16}}>{amount}</Text>
+                    <>
+                        <Text strong style={{fontSize: 16}}>{amount}</Text>
+                        <div className="balance-page__token-fiat">
+                            {amountIsZero ? (
+                                <Text type="secondary" style={{fontSize: 12}}>—</Text>
+                            ) : fiatLoading ? (
+                                <Text type="secondary" style={{fontSize: 12}}>…</Text>
+                            ) : fiatEquivalent ? (
+                                <Text type="secondary" style={{fontSize: 12}}>≈ {fiatEquivalent}</Text>
+                            ) : null}
+                        </div>
+                    </>
                 ) : (
                     <Text type="secondary">—</Text>
                 )}
@@ -114,6 +139,8 @@ interface NetworkCardProps {
     onWithdraw: () => void;
     withdrawing: boolean;
     onRefresh: () => void;
+    fiatValues: Record<string, string>;
+    fiatLoading: boolean;
 }
 
 const NetworkCard: React.FC<NetworkCardProps> = ({
@@ -125,6 +152,8 @@ const NetworkCard: React.FC<NetworkCardProps> = ({
     onWithdraw,
     withdrawing,
     onRefresh,
+    fiatValues,
+    fiatLoading,
 }) => {
     const meta = NETWORK_META[blockchain];
     if (!meta) return null;
@@ -212,6 +241,8 @@ const NetworkCard: React.FC<NetworkCardProps> = ({
                             blockchain={blockchain}
                             displayName={row.displayName}
                             amount={hasCollector ? row.amount : null}
+                            fiatEquivalent={fiatValues[row.ticker] || null}
+                            fiatLoading={fiatLoading}
                             loading={loadingBalance}
                         />
                     ))
@@ -277,6 +308,7 @@ const NetworkCard: React.FC<NetworkCardProps> = ({
 const BalancePage: React.FC = () => {
     const {merchantId} = useSharedMerchantId();
     const {merchant} = useSharedMerchant();
+    const {currencyCode, currencyName, formatFiat} = useMerchantCurrency();
     const [api, contextHolder] = notification.useNotification();
 
     const [collectors, setCollectors] = React.useState<EvmCollector[]>([]);
@@ -284,6 +316,13 @@ const BalancePage: React.FC = () => {
     const [loadingCollectors, setLoadingCollectors] = React.useState(true);
     const [loadingBalances, setLoadingBalances] = React.useState<Record<string, boolean>>({});
     const [withdrawing, setWithdrawing] = React.useState<Record<string, boolean>>({});
+
+    // Per-blockchain map of ticker -> formatted fiat string (e.g. "$123.45").
+    // Outer key = blockchain (matches the per-network card), inner key = full ticker like "ETH_USDT".
+    const [fiatByNetwork, setFiatByNetwork] = React.useState<Record<string, Record<string, string>>>({});
+    // Raw numeric values used for the portfolio total, keyed the same way.
+    const [fiatNumericByNetwork, setFiatNumericByNetwork] = React.useState<Record<string, Record<string, number>>>({});
+    const [loadingFiat, setLoadingFiat] = React.useState(false);
 
     // Fetch collectors on mount
     React.useEffect(() => {
@@ -311,6 +350,85 @@ const BalancePage: React.FC = () => {
             .catch(() => {})
             .finally(() => setLoadingBalances((prev) => ({...prev, [blockchain]: false})));
     };
+
+    // Fan out crypto -> fiat conversion requests whenever balances or fiat currency change.
+    // Backend rejects amount <= 0, so we filter zero-balance rows before firing requests.
+    // We iterate over enabled payment methods (chain-prefixed tickers like "ETH_USDT") rather
+    // than balance.tokens (which uses short form "USDT" that backend Convert can't disambiguate).
+    React.useEffect(() => {
+        if (!merchantId || !merchant?.supportedPaymentMethods) return;
+        const blockchainsWithBalances = Object.keys(balances);
+        if (blockchainsWithBalances.length === 0) return;
+
+        type Job = {blockchain: string; ticker: string; amount: string};
+        const jobs: Job[] = [];
+
+        for (const method of merchant.supportedPaymentMethods) {
+            if (!method.enabled) continue;
+            const bal = balances[method.blockchain];
+            if (!bal) continue;
+
+            const parts = method.ticker.split("_");
+            const isNative = parts.length === 1;
+            let amount: string;
+            if (isNative) {
+                amount = bal.native.amount;
+            } else {
+                const shortTicker = parts[1];
+                const found = bal.tokens.find((t) => t.ticker.toUpperCase() === shortTicker.toUpperCase());
+                if (!found) continue;
+                amount = found.amount;
+            }
+            if (parseFloat(amount) > 0) {
+                jobs.push({blockchain: method.blockchain, ticker: method.ticker, amount});
+            }
+        }
+
+        if (jobs.length === 0) {
+            setFiatByNetwork({});
+            setFiatNumericByNetwork({});
+            return;
+        }
+
+        setLoadingFiat(true);
+        // silent:true — this is a best-effort fan-out (one convert per enabled
+        // token, often 5-10 in parallel). A single upstream pricefeed hiccup
+        // would otherwise spam the user with one "Something went wrong" toast
+        // per failed token even though the page itself handles the rejection
+        // (the token simply shows no fiat equivalent).
+        Promise.allSettled(
+            jobs.map((j) =>
+                balancesProvider
+                    .getCurrencyExchangeRate(
+                        merchantId,
+                        {
+                            from: j.ticker as any,
+                            to: currencyCode as any,
+                            amount: j.amount,
+                        },
+                        {silent: true}
+                    )
+                    .then((res) => ({job: j, res}))
+            )
+        )
+            .then((results) => {
+                const formatted: Record<string, Record<string, string>> = {};
+                const numeric: Record<string, Record<string, number>> = {};
+                for (const r of results) {
+                    if (r.status !== "fulfilled") continue;
+                    const {job, res} = r.value;
+                    const num = parseFloat(res.convertedAmount);
+                    if (!isFinite(num)) continue;
+                    if (!formatted[job.blockchain]) formatted[job.blockchain] = {};
+                    if (!numeric[job.blockchain]) numeric[job.blockchain] = {};
+                    formatted[job.blockchain][job.ticker] = formatFiat(num, {useLocale: true});
+                    numeric[job.blockchain][job.ticker] = num;
+                }
+                setFiatByNetwork(formatted);
+                setFiatNumericByNetwork(numeric);
+            })
+            .finally(() => setLoadingFiat(false));
+    }, [balances, currencyCode, merchantId, merchant?.supportedPaymentMethods]);
 
     // Withdraw handler
     const handleWithdraw = async (blockchain: string) => {
@@ -399,6 +517,19 @@ const BalancePage: React.FC = () => {
         return aHas - bHas;
     });
 
+    // Sum all fiat values across all networks for the portfolio total.
+    const portfolioTotal = React.useMemo(() => {
+        let sum = 0;
+        for (const network of Object.values(fiatNumericByNetwork)) {
+            for (const v of Object.values(network)) sum += v;
+        }
+        return sum;
+    }, [fiatNumericByNetwork]);
+
+    const anyBalancesLoading =
+        loadingCollectors || Object.values(loadingBalances).some(Boolean) || loadingFiat;
+    const hasAnyCollector = collectors.some((c) => c.isActive);
+
     return (
         <PageContainer header={{title: "", breadcrumb: {}}}>
             {contextHolder}
@@ -411,6 +542,34 @@ const BalancePage: React.FC = () => {
                     </Text>
                 </div>
             </div>
+
+            {hasAnyCollector && (
+                <Card className="balance-page__summary" bodyStyle={{padding: 24}}>
+                    <div className="balance-page__summary-inner">
+                        <div className="balance-page__summary-icon">
+                            <DollarOutlined />
+                        </div>
+                        <div className="balance-page__summary-text">
+                            <Text type="secondary" style={{fontSize: 13, letterSpacing: 1, textTransform: "uppercase"}}>
+                                Total Portfolio Value
+                            </Text>
+                            <div className="balance-page__summary-value">
+                                {anyBalancesLoading ? (
+                                    <Spin />
+                                ) : (
+                                    <Title level={1} style={{margin: 0}}>
+                                        {formatFiat(portfolioTotal, {useLocale: true})}
+                                    </Title>
+                                )}
+                            </div>
+                            <Text type="secondary" style={{fontSize: 12}}>
+                                Valued in {currencyCode} ({currencyName}).
+                                {" "}Live conversion across all enabled networks and tokens.
+                            </Text>
+                        </div>
+                    </div>
+                </Card>
+            )}
 
             {loadingCollectors ? (
                 <div style={{textAlign: "center", padding: 60}}>
@@ -445,6 +604,8 @@ const BalancePage: React.FC = () => {
                                 onWithdraw={() => handleWithdraw(blockchain)}
                                 withdrawing={!!withdrawing[blockchain]}
                                 onRefresh={() => fetchBalance(blockchain)}
+                                fiatValues={fiatByNetwork[blockchain] || {}}
+                                fiatLoading={loadingFiat}
                             />
                         );
                     })}
