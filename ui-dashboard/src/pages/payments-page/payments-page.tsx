@@ -183,16 +183,38 @@ const PaymentsPage: React.FC = () => {
     };
 
     const exportCSV = () => {
-        const headers = ["Date", "Status", "Fiat Amount", "Currency", "Crypto Amount", "Crypto Ticker", "Crypto", "TxHash", "Sender", "OrderID", "Description"];
+        const headers = [
+            "Date",
+            "Payment ID",
+            "Status",
+            "Customer Email",
+            "Fiat Amount",
+            "Currency",
+            "Crypto Amount",
+            "Crypto Ticker",
+            "Crypto",
+            "Service Fee",
+            "Network Fee",
+            "Tx Hash",
+            "Explorer Link",
+            "Sender Address",
+            "Order ID",
+            "Description"
+        ];
         const rows = payments.map((p) => [
             p.createdAt,
+            p.id,
             p.status,
+            p.additionalInfo?.payment?.customerEmail || "",
             p.price,
             p.currency,
             p.additionalInfo?.payment?.cryptoAmount || "",
             p.additionalInfo?.payment?.cryptoTicker || "",
             p.additionalInfo?.payment?.selectedCurrency || "",
+            p.additionalInfo?.payment?.serviceFee || "",
+            p.additionalInfo?.payment?.networkFee || "",
             p.additionalInfo?.payment?.transactionHash || "",
+            p.additionalInfo?.payment?.explorerLink || "",
             p.additionalInfo?.payment?.senderAddress || "",
             p.orderId || "",
             p.description || ""
