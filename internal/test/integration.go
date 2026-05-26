@@ -208,7 +208,6 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 
 	srv := httpServer.New(
 		webConfig,
-		false,
 		httpServer.WithLogger(&logger),
 		httpServer.WithDashboardAPI(
 			webConfig,

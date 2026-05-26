@@ -161,16 +161,32 @@ func (p *Provider) GetExchangeRate(ctx context.Context, desired, selected string
 	binanceRate, binanceErr := p.getBinanceRate(ctx, selected, desired)
 	binanceOK := binanceErr == nil && validateRate(binanceRate)
 	if binanceErr != nil {
-		p.logger.Warn().Err(binanceErr).Str("selected", selected).Msg("Binance rate fetch failed")
+		p.logger.Warn().Err(binanceErr).
+			Str("selected", selected).Str("desired", desired).
+			Msg("Binance rate fetch failed")
 	} else if !binanceOK {
-		p.logger.Warn().Str("selected", selected).Str("rate", binanceRate.Value).Msg("Binance rate failed validation")
+		p.logger.Warn().
+			Str("selected", selected).Str("desired", desired).
+			Str("rate", binanceRate.Value).
+			Msg("Binance rate failed validation")
 	}
 
 	// Try CoinGecko (for cross-validation or as fallback)
 	geckoRate, geckoErr := p.getCoinGeckoRate(ctx, selected, desired)
 	geckoOK := geckoErr == nil && validateRate(geckoRate)
 	if geckoErr != nil {
-		p.logger.Debug().Err(geckoErr).Str("selected", selected).Msg("CoinGecko rate fetch failed")
+		// WARN, not DEBUG: when CoinGecko fails silently it masks the second
+		// half of our dual-source pricing. A run where Binance is also down
+		// becomes a hard 500 with no log trail — promoting this keeps the
+		// fallback path observable.
+		p.logger.Warn().Err(geckoErr).
+			Str("selected", selected).Str("desired", desired).
+			Msg("CoinGecko rate fetch failed")
+	} else if !geckoOK {
+		p.logger.Warn().
+			Str("selected", selected).Str("desired", desired).
+			Str("rate", geckoRate.Value).
+			Msg("CoinGecko rate failed validation")
 	}
 
 	// Cross-validate if both sources returned valid rates
@@ -204,13 +220,18 @@ func (p *Provider) GetExchangeRate(ctx context.Context, desired, selected string
 
 // getBinanceRate fetches price from Binance public ticker.
 // GET /api/v3/ticker/price?symbol=ETHUSDT
+//
+// For pairs where Binance only lists the inverse (notably stablecoin / non-USD
+// fiat like USDTEUR — which is unlisted, while EURUSDT exists), the resolver
+// returns Invert=true and we 1/x the reported price so the caller always gets
+// "<desired> per 1 <selected>".
 func (p *Provider) getBinanceRate(ctx context.Context, selected, desired string) (ExchangeRate, error) {
-	symbol := resolveBinanceSymbol(selected, desired)
-	if symbol == "" {
+	pair, ok := resolveBinanceSymbol(selected, desired)
+	if !ok {
 		return ExchangeRate{}, errors.Errorf("no Binance symbol mapping for %s/%s", selected, desired)
 	}
 
-	url := fmt.Sprintf("%s/api/v3/ticker/price?symbol=%s", p.config.BinanceBaseURL, symbol)
+	url := fmt.Sprintf("%s/api/v3/ticker/price?symbol=%s", p.config.BinanceBaseURL, pair.Symbol)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -237,8 +258,20 @@ func (p *Provider) getBinanceRate(ctx context.Context, selected, desired string)
 		return ExchangeRate{}, errors.Wrap(err, "binance response decode failed")
 	}
 
+	value := result.Price
+	if pair.Invert {
+		priceFloat, err := strconv.ParseFloat(result.Price, 64)
+		if err != nil {
+			return ExchangeRate{}, errors.Wrapf(err, "binance price parse failed for %s", pair.Symbol)
+		}
+		if priceFloat == 0 {
+			return ExchangeRate{}, errors.Errorf("binance returned zero price for %s", pair.Symbol)
+		}
+		value = strconv.FormatFloat(1/priceFloat, 'f', -1, 64)
+	}
+
 	return ExchangeRate{
-		Value:     result.Price,
+		Value:     value,
 		Timestamp: float64(time.Now().UnixMilli()),
 	}, nil
 }
@@ -298,7 +331,16 @@ var binanceTickerAliases = map[string]string{
 	"TRON": "TRX",
 }
 
-func resolveBinanceSymbol(selected, desired string) string {
+// binancePair is the result of mapping a (selected, desired) pair to a
+// concrete Binance symbol. When Invert is true, the rate reported by Binance
+// is "selected per desired" and the caller must take 1/rate to obtain the
+// requested "desired per selected" quote.
+type binancePair struct {
+	Symbol string
+	Invert bool
+}
+
+func resolveBinanceSymbol(selected, desired string) (binancePair, bool) {
 	// Resolve the base crypto ticker (e.g. "ETH_USDT" -> "USDT", "ETH" -> "ETH")
 	baseTicker := selected
 	if parts := strings.Split(selected, "_"); len(parts) == 2 {
@@ -310,23 +352,32 @@ func resolveBinanceSymbol(selected, desired string) string {
 		baseTicker = alias
 	}
 
-	// For non-USD fiat currencies (EUR, GBP, etc.), construct the pair directly.
-	// Binance supports pairs like ETHEUR, BTCEUR, USDTEUR, etc.
-	if desired != "" && desired != "USD" && desired != "USDT" && desired != "USDC" && isFiat(desired) {
-		return baseTicker + desired
+	nonUSDFiat := desired != "" && desired != "USD" && desired != "USDT" && desired != "USDC" && isFiat(desired)
+
+	// Stablecoin → non-USD fiat: Binance does not list USDTEUR/USDCEUR/etc.,
+	// but lists EURUSDT, GBPUSDT, TRYUSDT and so on. Since USDC ≈ USDT ≈ 1 USD
+	// on Binance's own books, both stablecoins use the USDT-quoted pair and we
+	// invert the rate to express "fiat per stablecoin".
+	if nonUSDFiat && isStablecoin(baseTicker) {
+		return binancePair{Symbol: desired + "USDT", Invert: true}, true
 	}
 
-	// Direct lookup for USD/USDT pairs
+	// Crypto → non-USD fiat: direct pair (e.g. ETHEUR, BTCEUR).
+	if nonUSDFiat {
+		return binancePair{Symbol: baseTicker + desired}, true
+	}
+
+	// Direct USD/USDT lookup from the table.
 	if sym, ok := binanceSymbols[selected]; ok {
-		return sym
+		return binancePair{Symbol: sym}, true
 	}
 
-	// Try constructing the pair: e.g. ETH + USDT = ETHUSDT
+	// Fallback: pair the resolved base against USDT (e.g. ETH + USDT = ETHUSDT).
 	if desired == "USD" || desired == "USDT" {
-		return selected + "USDT"
+		return binancePair{Symbol: baseTicker + "USDT"}, true
 	}
 
-	return ""
+	return binancePair{}, false
 }
 
 func resolveCoinGeckoID(selected string) string {

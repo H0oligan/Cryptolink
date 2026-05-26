@@ -142,9 +142,8 @@ func (app *App) RunServer() {
 
 	srv := httpServer.New(
 		app.config.Oxygen.Server,
-		app.config.Debug,
-		httpServer.WithRecover(),
 		httpServer.WithLogger(app.logger),
+		httpServer.WithRecover(),
 		httpServer.WithVersionHeader(version.Release, app.config.GitCommit),
 		httpServer.WithMerchantAPI(merchantAPIHandler, app.services.TokenManagerService()),
 		httpServer.WithDashboardAPI(

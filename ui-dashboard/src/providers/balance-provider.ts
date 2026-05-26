@@ -20,8 +20,15 @@ const balancesProvider = {
         return;
     },
 
-    async getCurrencyExchangeRate(merchantId: string, params: ConvertParams): Promise<ConvertResult> {
-        const response = await apiRequest.get(withApiPath(`/merchant/${merchantId}/currency-convert`), {params});
+    async getCurrencyExchangeRate(
+        merchantId: string,
+        params: ConvertParams,
+        opts?: {silent?: boolean}
+    ): Promise<ConvertResult> {
+        const response = await apiRequest.get(withApiPath(`/merchant/${merchantId}/currency-convert`), {
+            params,
+            silent: opts?.silent,
+        });
         return response.data;
     }
 };

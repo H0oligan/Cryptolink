@@ -24,10 +24,9 @@ type Config struct {
 }
 
 type Server struct {
-	echo        *echo.Echo
-	address     string
-	logger      *zerolog.Logger
-	logRequests bool
+	echo    *echo.Echo
+	address string
+	logger  *zerolog.Logger
 }
 
 type Opt func(s *Server)
@@ -44,14 +43,13 @@ func When(cond bool, opt Opt) Opt {
 	return opt
 }
 
-func New(cfg Config, logRequests bool, opts ...Opt) *Server {
+func New(cfg Config, opts ...Opt) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
 	srv := &Server{
-		echo:        e,
-		address:     cfg.Address + ":" + cfg.Port,
-		logRequests: logRequests,
+		echo:    e,
+		address: cfg.Address + ":" + cfg.Port,
 	}
 
 	// obligatory middlewares
@@ -72,15 +70,19 @@ func WithRecover() Opt {
 	}
 }
 
+// WithLogger wires the structured zerolog logger into echo and installs an
+// always-on access-log middleware that records method, path, status, latency
+// and request_id for every API request (the SPA prefixes and /health are
+// skipped to keep the signal clean). Body dumping is a separate concern —
+// register WithBodyDump explicitly when you need request/response payloads
+// (debug only — payloads can contain secrets).
 func WithLogger(logger *zerolog.Logger) Opt {
 	return func(s *Server) {
 		l := logger.With().Str("channel", "web_server").Logger()
 		s.logger = &l
 
-		if !s.logRequests {
-			s.echo.Logger = lecho.From(zerolog.Nop())
-			return
-		}
+		// Bind Echo's internal logger so c.Logger() lands in our structured stream.
+		s.echo.Logger = lecho.From(l, lecho.WithLevel(log.INFO))
 
 		skippedPaths := []string{
 			healthcheckPath,

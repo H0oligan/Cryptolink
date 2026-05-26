@@ -3,6 +3,17 @@ import {notification} from "antd";
 import {ErrorResponse} from "src/types";
 import authProvider from "src/providers/auth-provider";
 
+// Extend axios' request config with an opt-in `silent` flag. When true,
+// the global error interceptor will NOT pop a notification — the caller has
+// committed to handling the rejection (e.g. a fan-out aggregation like the
+// balance page where individual token conversions are best-effort). The
+// promise is still rejected normally; only the toast is suppressed.
+declare module "axios" {
+    export interface AxiosRequestConfig {
+        silent?: boolean;
+    }
+}
+
 const apiRequest = axios.create({
     baseURL: import.meta.env.VITE_BACKEND_HOST,
     headers: {
@@ -26,6 +37,8 @@ apiRequest.interceptors.response.use(undefined, async (error: AxiosError) => {
         return;
     }
 
+    const silent = error.config?.silent === true;
+
     if (error.response.status === 400) {
         const response: ErrorResponse = error.response.data as ErrorResponse;
 
@@ -41,18 +54,20 @@ apiRequest.interceptors.response.use(undefined, async (error: AxiosError) => {
                   .join(", ")
             : "";
 
-        if (response.status === "validation_error") {
-            notification.error({
-                message: response.message,
-                description: !errors ? "Validation error" : "Validation error: " + errors + ".",
-                placement: "bottomRight"
-            });
-        } else {
-            notification.error({
-                message: response.message,
-                description: !errors ? "Validation error" : "Got the following errors: " + errors + ".",
-                placement: "bottomRight"
-            });
+        if (!silent) {
+            if (response.status === "validation_error") {
+                notification.error({
+                    message: response.message,
+                    description: !errors ? "Validation error" : "Validation error: " + errors + ".",
+                    placement: "bottomRight"
+                });
+            } else {
+                notification.error({
+                    message: response.message,
+                    description: !errors ? "Validation error" : "Got the following errors: " + errors + ".",
+                    placement: "bottomRight"
+                });
+            }
         }
     } else if (error.response.status === 404) {
         return Promise.reject(error);
@@ -67,7 +82,7 @@ apiRequest.interceptors.response.use(undefined, async (error: AxiosError) => {
         } catch (e) {
             console.error("Ocurred a error: ", e);
         }
-    } else if (error.response.status !== 401) {
+    } else if (error.response.status !== 401 && !silent) {
         notification.error({
             message: "Something went wrong",
             description: error.message,
