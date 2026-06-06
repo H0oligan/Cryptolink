@@ -231,6 +231,15 @@ func (s *Service) autoAcceptCrossCurrency(
 		return errors.Wrap(err, "cross-currency: unable to build zero service fee")
 	}
 
+	// usd_amount drives subscription volume tracking and is always stored in USD,
+	// matching the normal lock-creation path (FiatToFiat(price, USD)). For a
+	// non-USD merchant (EUR, GBP, ...) this converts the invoice's fiat price to
+	// USD; falls back to the raw price if conversion is unavailable.
+	usdAmount := pt.Price
+	if conv, convErr := s.blockchain.FiatToFiat(ctx, pt.Price, money.USD); convErr == nil {
+		usdAmount = conv.To
+	}
+
 	// New pending lock in the received currency, amount == exactly what arrived
 	// so the inbound flow promotes immediately and credits the real amount.
 	newTx, err := s.transactions.Create(ctx, inv.MerchantID, transaction.CreateTransaction{
@@ -240,7 +249,7 @@ func (s *Service) autoAcceptCrossCurrency(
 		Currency:         currency,
 		Amount:           amount,
 		ServiceFee:       zeroFee,
-		USDAmount:        pt.Price,
+		USDAmount:        usdAmount,
 		IsTest:           p.IsTest,
 	})
 	if err != nil {

@@ -89,6 +89,13 @@ type Config struct {
 	Enabled bool `yaml:"enabled" env:"WATCHER_ENABLED" env-default:"true"`
 }
 
+// currencyLister enumerates the supported currencies for a blockchain so the
+// watcher can scan a collector contract for *every* token it might receive, not
+// just the one a given invoice was locked in. Satisfied by blockchain.Service.
+type currencyLister interface {
+	ListBlockchainCurrencies(bc money.Blockchain) []money.CryptoCurrency
+}
+
 // Service watches blockchain addresses for incoming payments.
 type Service struct {
 	config       Config
@@ -97,6 +104,7 @@ type Service struct {
 	tron         *trongrid.Provider
 	transactions *transaction.Service
 	wallets      *wallet.Service
+	currencies   currencyLister
 	logger       *zerolog.Logger
 
 	// lastScannedBlock tracks the last block number scanned per chain+network
@@ -124,6 +132,7 @@ func New(
 	tronProvider *trongrid.Provider,
 	transactions *transaction.Service,
 	wallets *wallet.Service,
+	currencies currencyLister,
 	logger *zerolog.Logger,
 ) *Service {
 	log := logger.With().Str("channel", "address_watcher").Logger()
@@ -145,6 +154,7 @@ func New(
 		tron:         tronProvider,
 		transactions: transactions,
 		wallets:      wallets,
+		currencies:   currencies,
 		logger:       &log,
 	}
 }
@@ -577,6 +587,12 @@ func (s *Service) pollEVMTransactions(
 	nativeAddressesEOA := make(map[common.Address][]pendingInfo)
 	tokenAddresses := make(map[common.Address]map[common.Address][]pendingInfo) // contract -> recipient -> []info
 
+	// Collector contract addresses (walletID == nil) that have at least one open
+	// invoice. Used below to broaden scanning: a collector receives the native
+	// coin AND any ERC-20 at the same address, so the customer may pay a currency
+	// other than the one the invoice was locked in.
+	collectorContracts := make(map[common.Address]bool)
+
 	for _, tx := range txs {
 		addr := s.getRecipientAddress(ctx, tx)
 		if addr == "" {
@@ -592,6 +608,10 @@ func (s *Service) pollEVMTransactions(
 		ethAddr := common.HexToAddress(addr)
 		info := pendingInfo{tx: tx, walletID: tx.RecipientWalletID, remaining: s.computeRemaining(tx)}
 
+		if info.walletID == nil {
+			collectorContracts[ethAddr] = true
+		}
+
 		if tx.Currency.Type == money.Coin {
 			if info.walletID == nil {
 				nativeAddressesContract[ethAddr] = append(nativeAddressesContract[ethAddr], info)
@@ -604,17 +624,41 @@ func (s *Service) pollEVMTransactions(
 				tokenAddresses[contractAddr] = make(map[common.Address][]pendingInfo)
 			}
 			tokenAddresses[contractAddr][ethAddr] = append(tokenAddresses[contractAddr][ethAddr], info)
+		}
+	}
 
-			// A collector contract (walletID == nil) receives the chain's native
-			// coin at the *same* address it receives tokens. A customer may pay
-			// native coin even when the invoice was locked in a token. Ensure the
-			// collector is also watched for native Received events; register an
-			// empty native-lock slot so scanNativeTransfersByLog queries it and
-			// routes any native transfer with no same-currency match to the
-			// cross-currency resolver instead of silently dropping it.
-			if info.walletID == nil {
-				if _, ok := nativeAddressesContract[ethAddr]; !ok {
-					nativeAddressesContract[ethAddr] = []pendingInfo{}
+	// Cross-currency broadening: a collector contract receives the native coin
+	// and every supported token at the same address. Watch each collector with
+	// an open invoice for the native Received event AND for every supported
+	// ERC-20 on this chain, registering an empty lock slot where none exists.
+	// scanNativeTransfersByLog / scanTokenTransfers route any transfer with no
+	// same-currency match to processing.ResolveUnmatchedCollectorPayment, which
+	// values the received currency at its real fiat rate and either auto-credits
+	// the single open invoice or alerts for manual review. Without this, a
+	// customer paying a different currency than invoiced is silently dropped.
+	if len(collectorContracts) > 0 {
+		var chainTokens []money.CryptoCurrency
+		if s.currencies != nil {
+			chainTokens = s.currencies.ListBlockchainCurrencies(bc)
+		}
+		for col := range collectorContracts {
+			if _, ok := nativeAddressesContract[col]; !ok {
+				nativeAddressesContract[col] = []pendingInfo{}
+			}
+			for _, cur := range chainTokens {
+				if cur.Type != money.Token {
+					continue
+				}
+				contract := cur.ChooseContractAddress(isTest)
+				if contract == "" {
+					continue
+				}
+				contractAddr := common.HexToAddress(contract)
+				if tokenAddresses[contractAddr] == nil {
+					tokenAddresses[contractAddr] = make(map[common.Address][]pendingInfo)
+				}
+				if _, ok := tokenAddresses[contractAddr][col]; !ok {
+					tokenAddresses[contractAddr][col] = []pendingInfo{}
 				}
 			}
 		}
@@ -643,7 +687,7 @@ func (s *Service) pollEVMTransactions(
 	// 2. Scan for ERC-20 token transfers using Transfer event logs
 	tokenRPCFailed := false
 	if len(tokenAddresses) > 0 {
-		d, f, rpcErr := s.scanTokenTransfers(ctx, client, isTest, tokenAddresses, fromBlock, toBlock, onDetected)
+		d, f, rpcErr := s.scanTokenTransfers(ctx, client, bc, isTest, tokenAddresses, fromBlock, toBlock, onDetected)
 		detected += d
 		failedIDs = append(failedIDs, f...)
 		tokenRPCFailed = rpcErr
@@ -935,6 +979,7 @@ func (s *Service) scanNativeTransfersByLog(
 func (s *Service) scanTokenTransfers(
 	ctx context.Context,
 	client *ethclient.Client,
+	bc money.Blockchain,
 	isTest bool,
 	tokenAddresses map[common.Address]map[common.Address][]pendingInfo,
 	fromBlock, toBlock int64,
@@ -992,13 +1037,46 @@ func (s *Service) scanTokenTransfers(
 				}
 
 				recipientAddr := common.HexToAddress(logEntry.Topics[2].Hex())
-				pending, ok := recipients[recipientAddr]
-				if !ok || len(pending) == 0 {
+				pending, watched := recipients[recipientAddr]
+				if !watched {
 					continue
 				}
 
 				amount := new(big.Int).SetBytes(logEntry.Data)
 				senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
+
+				// No same-token invoice is open at this collector — it's only
+				// watched for this token via cross-currency broadening. The
+				// customer paid a different token than invoiced. Hand the raw
+				// transfer to processing to resolve the currency and either
+				// auto-credit the single open invoice (valuing the received token
+				// at its real fiat rate, so a de-peg is accounted for) or alert.
+				if len(pending) == 0 {
+					if amount.Sign() == 0 {
+						continue
+					}
+					d := DetectedTransfer{
+						Unmatched:        true,
+						Blockchain:       bc,
+						IsTest:           isTest,
+						IsNative:         false,
+						TokenContract:    contractAddr.Hex(),
+						RawAmount:        amount.String(),
+						TxHash:           logEntry.TxHash.Hex(),
+						SenderAddress:    senderAddr.Hex(),
+						RecipientAddress: recipientAddr.Hex(),
+					}
+					if err := onDetected(ctx, d); err != nil {
+						s.logger.Error().Err(err).
+							Str("hash", logEntry.TxHash.Hex()).
+							Str("recipient", recipientAddr.Hex()).
+							Str("contract", contractAddr.Hex()).
+							Msg("failed to process unmatched token transfer (cross-currency)")
+					} else {
+						detected++
+					}
+					continue
+				}
 
 				// Match by closest amount to handle concurrent invoices at same address
 				bestIdx, info, ok := bestMatchByAmount(pending, amount)
