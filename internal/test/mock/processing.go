@@ -88,6 +88,14 @@ func (m *ProcessingProxyMock) ProcessInboundTransaction(
 	return m.service.ProcessInboundTransaction(ctx, tx, wt, input)
 }
 
+func (m *ProcessingProxyMock) ResolveUnmatchedCollectorPayment(ctx context.Context, p processing.UnmatchedCollectorPayment) error {
+	return m.service.ResolveUnmatchedCollectorPayment(ctx, p)
+}
+
+func (m *ProcessingProxyMock) RecheckPartialFills(ctx context.Context) error {
+	return m.service.RecheckPartialFills(ctx)
+}
+
 const empty = "[ <empty> ]"
 
 func idsKey(ids []int64) string {
