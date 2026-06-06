@@ -329,6 +329,7 @@ func (loc *Locator) WatcherService() *watcher.Service {
 			loc.TrongridProvider(),
 			loc.TransactionService(),
 			loc.WalletService(),
+			loc.BlockchainService(),
 			loc.logger,
 		)
 	})

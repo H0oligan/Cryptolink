@@ -142,11 +142,29 @@ func (p *Provider) GetExchangeRate(ctx context.Context, desired, selected string
 		return rate, nil
 	}
 
-	// Handle stablecoin self-pricing (USDT->USD, USDC->USD)
-	if isStablecoin(selected) && (desired == "USD" || desired == "USDT" || desired == "USDC") {
+	// Stablecoin identity is exactly 1.0 by definition (USDT->USDT, USDC->USDC,
+	// ETH_USDT->USDT, ...). Note we deliberately do NOT short-circuit every
+	// stablecoin->USD to 1.0: a stablecoin's real value must be fetched from the
+	// market so a de-peg (e.g. USDC trading at 0.98) is reflected in conversions
+	// and in cross-currency payment matching. A peg fallback is applied at the
+	// end only if every market source is unreachable.
+	if isStablecoin(selected) && stableBase(selected) == stableBase(desired) {
 		rate := ExchangeRate{Value: "1.0", Timestamp: float64(time.Now().UnixMilli())}
 		p.cache.set(cacheKey, rate)
 		return rate, nil
+	}
+
+	// Non-reference stablecoin (USDC, DAI, ...) -> non-USD fiat (EUR, GBP, ...):
+	// Binance lists EURUSDT but not EURUSDC, so the direct path would value
+	// every stablecoin via the USDT pair and mask a de-peg. Compose the real
+	// stablecoin/USDT rate with the USDT/fiat rate so EUR (and every other
+	// supported fiat) sees the *specific* stablecoin's true value.
+	if isStablecoin(selected) && stableBase(selected) != "USDT" && isNonUSDFiat(desired) {
+		if composed, ok := p.composeStablecoinFiatRate(ctx, selected, desired); ok {
+			p.cache.set(cacheKey, composed)
+			return composed, nil
+		}
+		// fall through to the existing best-effort path on composition failure
 	}
 
 	// Handle fiat-to-fiat (USD->EUR etc.) - use fixed rates for now
@@ -215,7 +233,58 @@ func (p *Provider) GetExchangeRate(ctx context.Context, desired, selected string
 		return geckoRate, nil
 	}
 
+	// Peg fallback: a stablecoin priced in USD is ~1.0. If every market source
+	// is unreachable, assume the peg rather than failing the whole conversion.
+	// De-peg detection above still applies whenever any source responds, so this
+	// only degrades to 1.0 during a full pricing outage.
+	if isStablecoin(selected) && (desired == "USD" || desired == "USDT" || desired == "USDC") {
+		rate := ExchangeRate{Value: "1.0", Timestamp: float64(time.Now().UnixMilli())}
+		p.cache.set(cacheKey, rate)
+		return rate, nil
+	}
+
 	return ExchangeRate{}, errors.Errorf("unable to get exchange rate for %s/%s from any source", selected, desired)
+}
+
+// stableBase strips an optional chain prefix and upper-cases a ticker so that
+// "ETH_USDT" and "USDT" compare equal. Used to detect stablecoin identity.
+func stableBase(ticker string) string {
+	t := strings.ToUpper(ticker)
+	if parts := strings.Split(t, "_"); len(parts) == 2 {
+		return parts[1]
+	}
+	return t
+}
+
+// isNonUSDFiat reports whether desired is a supported fiat other than the
+// USD-equivalent units (USD/USDT/USDC are treated as ~1 USD here).
+func isNonUSDFiat(desired string) bool {
+	d := strings.ToUpper(desired)
+	return d != "" && d != "USD" && d != "USDT" && d != "USDC" && isFiat(d)
+}
+
+// composeStablecoinFiatRate values a non-USDT stablecoin in a non-USD fiat as
+// (real stablecoin/USDT) × (USDT/fiat), so a de-peg on the specific stablecoin
+// is reflected for every fiat. Returns ok=false if either leg can't be fetched.
+func (p *Provider) composeStablecoinFiatRate(ctx context.Context, selected, desired string) (ExchangeRate, bool) {
+	// USDT per 1 <stablecoin> — real market (e.g. USDCUSDT ≈ 0.998).
+	stableToUSDT, err1 := p.GetExchangeRate(ctx, "USDT", selected)
+	// <fiat> per 1 USDT — existing inverted EURUSDT/GBPUSDT/... path.
+	usdtToFiat, err2 := p.GetExchangeRate(ctx, desired, "USDT")
+	if err1 != nil || err2 != nil {
+		return ExchangeRate{}, false
+	}
+
+	a, errA := strconv.ParseFloat(stableToUSDT.Value, 64)
+	b, errB := strconv.ParseFloat(usdtToFiat.Value, 64)
+	if errA != nil || errB != nil || a <= 0 || b <= 0 {
+		return ExchangeRate{}, false
+	}
+
+	return ExchangeRate{
+		Value:     strconv.FormatFloat(a*b, 'f', -1, 64),
+		Timestamp: float64(time.Now().UnixMilli()),
+	}, true
 }
 
 // getBinanceRate fetches price from Binance public ticker.
