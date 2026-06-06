@@ -35,6 +35,7 @@ type ProcessingService interface {
 		wt *wallet.Wallet,
 		input processing.Input,
 	) error
+	ResolveUnmatchedCollectorPayment(ctx context.Context, p processing.UnmatchedCollectorPayment) error
 }
 
 func New(
@@ -112,6 +113,23 @@ func (h *Handler) WatchPendingAddresses(ctx context.Context) error {
 	}
 
 	return h.watcher.PollPendingTransactions(ctx, func(ctx context.Context, d watcher.DetectedTransfer) error {
+		// Cross-currency / unmatched payment to a collector contract: the
+		// watcher saw funds arrive but found no same-currency invoice to bind
+		// them to. Hand off to processing, which resolves the currency and
+		// either auto-credits the single open invoice or alerts for review.
+		if d.Unmatched {
+			return h.processing.ResolveUnmatchedCollectorPayment(ctx, processing.UnmatchedCollectorPayment{
+				CollectorAddress: d.RecipientAddress,
+				Blockchain:       d.Blockchain,
+				IsTest:           d.IsTest,
+				IsNative:         d.IsNative,
+				TokenContract:    d.TokenContract,
+				RawAmount:        d.RawAmount,
+				TxHash:           d.TxHash,
+				SenderAddress:    d.SenderAddress,
+			})
+		}
+
 		input := processing.Input{
 			Currency:      d.Currency,
 			Amount:        d.Amount,

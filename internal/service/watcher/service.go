@@ -41,6 +41,18 @@ type DetectedTransfer struct {
 	Amount           money.Money
 	Currency         money.CryptoCurrency
 	NetworkID        string
+
+	// Unmatched marks a transfer that arrived at a collector contract but did
+	// not match any pending invoice of the same currency (e.g. native coin paid
+	// against a token invoice). PendingTx is nil in this case; the fields below
+	// carry the raw on-chain data so processing can resolve the currency and
+	// attribute the payment. See processing.ResolveUnmatchedCollectorPayment.
+	Unmatched     bool
+	Blockchain    money.Blockchain
+	IsTest        bool
+	IsNative      bool
+	TokenContract string
+	RawAmount     string
 }
 
 // OnTransferDetected is a callback invoked when the watcher detects an incoming payment.
@@ -234,13 +246,18 @@ func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTran
 		if recipient == "" && d.PendingTx != nil {
 			recipient = d.PendingTx.RecipientAddress
 		}
+		// pendingTxID is 0 for unmatched cross-currency detections (PendingTx nil).
+		var pendingTxID int64
+		if d.PendingTx != nil {
+			pendingTxID = d.PendingTx.ID
+		}
 		existing, err := s.transactions.GetByHashAndRecipient(ctx, d.NetworkID, d.TxHash, recipient)
 		if err == nil && existing != nil {
 			s.logger.Warn().
 				Str("tx_hash", d.TxHash).
 				Str("network_id", d.NetworkID).
 				Str("recipient", recipient).
-				Int64("pending_tx_id", d.PendingTx.ID).
+				Int64("pending_tx_id", pendingTxID).
 				Int64("existing_tx_id", existing.ID).
 				Msg("skipping duplicate: hash + recipient already bound to another transaction")
 			return nil
@@ -251,7 +268,7 @@ func (s *Service) PollPendingTransactions(ctx context.Context, onDetected OnTran
 				Str("tx_hash", d.TxHash).
 				Str("network_id", d.NetworkID).
 				Str("recipient", recipient).
-				Int64("pending_tx_id", d.PendingTx.ID).
+				Int64("pending_tx_id", pendingTxID).
 				Msg("skipping duplicate: hash + recipient already recorded as a partial fill")
 			return nil
 		}
@@ -587,6 +604,19 @@ func (s *Service) pollEVMTransactions(
 				tokenAddresses[contractAddr] = make(map[common.Address][]pendingInfo)
 			}
 			tokenAddresses[contractAddr][ethAddr] = append(tokenAddresses[contractAddr][ethAddr], info)
+
+			// A collector contract (walletID == nil) receives the chain's native
+			// coin at the *same* address it receives tokens. A customer may pay
+			// native coin even when the invoice was locked in a token. Ensure the
+			// collector is also watched for native Received events; register an
+			// empty native-lock slot so scanNativeTransfersByLog queries it and
+			// routes any native transfer with no same-currency match to the
+			// cross-currency resolver instead of silently dropping it.
+			if info.walletID == nil {
+				if _, ok := nativeAddressesContract[ethAddr]; !ok {
+					nativeAddressesContract[ethAddr] = []pendingInfo{}
+				}
+			}
 		}
 	}
 
@@ -798,8 +828,8 @@ func (s *Service) scanNativeTransfersByLog(
 			}
 
 			recipientAddr := logEntry.Address
-			pending, ok := addresses[recipientAddr]
-			if !ok || len(pending) == 0 {
+			pending, watched := addresses[recipientAddr]
+			if !watched {
 				continue
 			}
 
@@ -809,6 +839,35 @@ func (s *Service) scanNativeTransfersByLog(
 			}
 
 			senderAddr := common.HexToAddress(logEntry.Topics[1].Hex())
+
+			// No same-currency (native-coin) invoice is open at this collector —
+			// it's only watched here because it has an open *token* invoice. The
+			// customer paid the chain's native coin instead. Hand the raw
+			// transfer to processing to resolve the currency and either
+			// auto-credit the single open invoice or alert for manual review.
+			// Routing only the empty-lock case keeps the dust/spam protection
+			// below (which guards same-currency native invoices) fully intact.
+			if len(pending) == 0 {
+				d := DetectedTransfer{
+					Unmatched:        true,
+					Blockchain:       bc,
+					IsTest:           isTest,
+					IsNative:         true,
+					RawAmount:        amount.String(),
+					TxHash:           logEntry.TxHash.Hex(),
+					SenderAddress:    senderAddr.Hex(),
+					RecipientAddress: recipientAddr.Hex(),
+				}
+				if err := onDetected(ctx, d); err != nil {
+					s.logger.Error().Err(err).
+						Str("hash", logEntry.TxHash.Hex()).
+						Str("recipient", recipientAddr.Hex()).
+						Msg("failed to process unmatched native transfer (cross-currency)")
+				} else {
+					detected++
+				}
+				continue
+			}
 
 			bestIdx, info, ok := bestMatchByAmount(pending, amount)
 			if !ok {
