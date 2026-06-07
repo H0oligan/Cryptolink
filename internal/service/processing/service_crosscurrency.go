@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/cryptolink/cryptolink/internal/money"
@@ -43,41 +44,73 @@ type UnmatchedCollectorPayment struct {
 	SenderAddress string
 }
 
-// decideCrossCurrencyAccept decides whether an unmatched cross-currency payment
-// should be auto-credited to the single open invoice at the collector.
+// crossCurrencyAmbiguityMargin is the minimum fiat gap by which the best-matching
+// open invoice must beat the runner-up before a cross-currency payment is
+// attributed automatically. Two invoices whose expected amounts are closer than
+// this (notably two invoices of the *same* amount) are indistinguishable, so we
+// refuse rather than risk crediting the wrong customer's invoice. Scales with
+// the payment size (2%), with a $1.00 floor.
+func crossCurrencyAmbiguityMargin(detFiat float64) float64 {
+	if m := 0.02 * detFiat; m > 1.0 {
+		return m
+	}
+	return 1.0
+}
+
+// chooseCrossCurrencyInvoice attributes a cross-currency payment worth detFiat
+// (in the merchant's fiat) to exactly one open invoice by matching the received
+// value against each invoice's base fiat price (no volatility markup — the
+// caller enforces dust and coverage gating separately).
 //
-// It is intentionally pure (no I/O) so the money-sensitive gating is unit
-// tested in isolation. Auto-accept requires:
-//   - exactly one open invoice at the collector (no ambiguity), and
-//   - the detected fiat value covers the invoice's base price (minus tolerance).
-//
-// detFiat is the current fiat value of the received crypto. invoicePrice is the
-// invoice's base fiat price (no volatility-fee markup — the markup is a buffer,
-// not a hard requirement, so we don't force the customer to cover it).
-func decideCrossCurrencyAccept(openInvoices int, detFiat, invoicePrice float64) (accept, dust, underpaid bool) {
-	if detFiat < crossCurrencyDustFiat {
-		return false, true, false
+// Pure (no I/O) so the money-sensitive attribution is unit tested in isolation.
+// Returns (idx, true) only when one invoice is the unambiguous closest match.
+// Returns ok=false when there are no invoices, or when the two closest are too
+// near to tell apart (e.g. two invoices of equal amount) — the caller MUST NOT
+// auto-credit in that case; it routes to the safety net for human attribution.
+func chooseCrossCurrencyInvoice(detFiat float64, expected []float64) (int, bool) {
+	if len(expected) == 0 {
+		return -1, false
 	}
-	if openInvoices != 1 {
-		return false, false, false
+
+	bestIdx := 0
+	for i := 1; i < len(expected); i++ {
+		if math.Abs(detFiat-expected[i]) < math.Abs(detFiat-expected[bestIdx]) {
+			bestIdx = i
+		}
 	}
-	if detFiat+crossCurrencyFiatTolerance >= invoicePrice {
-		return true, false, false
+	if len(expected) == 1 {
+		return bestIdx, true
 	}
-	return false, false, true
+
+	secondIdx := -1
+	for i := range expected {
+		if i == bestIdx {
+			continue
+		}
+		if secondIdx == -1 || math.Abs(detFiat-expected[i]) < math.Abs(detFiat-expected[secondIdx]) {
+			secondIdx = i
+		}
+	}
+
+	gap := math.Abs(detFiat-expected[secondIdx]) - math.Abs(detFiat-expected[bestIdx])
+	if gap >= crossCurrencyAmbiguityMargin(detFiat) {
+		return bestIdx, true
+	}
+	return -1, false // two invoices too close to attribute safely
 }
 
 // ResolveUnmatchedCollectorPayment attributes an on-chain transfer that arrived
 // at a collector contract in a currency the customer was not invoiced in.
 //
-// Auto-accept path (single open invoice, fiat value covers it): a fresh pending
-// incoming transaction in the *received* currency is created against the
-// invoice's payment, the stale (wrong-currency) lock is canceled, and the
-// transfer is run through the normal ProcessInboundTransaction → confirm flow
-// so the merchant is credited the actual amount received and the standard
-// webhook fires. Anything else (no/multiple open invoices, or a fiat
-// underpayment) hits the safety net: a structured error log plus a best-effort
-// merchant email, leaving the funds reconcilable via the admin tools.
+// Auto-accept path (an unambiguous closest-matching invoice whose base fiat
+// price is covered): a fresh pending incoming transaction in the *received*
+// currency is created against the invoice's payment, the stale (wrong-currency)
+// lock is canceled, and the transfer is run through the normal
+// ProcessInboundTransaction → confirm flow so the merchant is credited the
+// actual amount received and the standard webhook fires. Anything else (no open
+// invoices, two invoices too close to tell apart, or a fiat underpayment) hits
+// the safety net: a structured error log plus a best-effort merchant email,
+// leaving the funds reconcilable via the admin tools.
 func (s *Service) ResolveUnmatchedCollectorPayment(ctx context.Context, p UnmatchedCollectorPayment) error {
 	// 1. Resolve the currency that actually moved on-chain.
 	currency, err := s.resolveUnmatchedCurrency(p)
@@ -126,21 +159,26 @@ func (s *Service) ResolveUnmatchedCollectorPayment(ctx context.Context, p Unmatc
 		return errors.Wrap(err, "cross-currency: unable to list open collector invoices")
 	}
 
-	// 4. Value the received crypto in the invoice's fiat to gate the decision.
-	var invoicePrice float64
-	var fiatCode string
-	if len(invoices) == 1 {
-		pt, ptErr := s.payments.GetByID(ctx, invoices[0].MerchantID, invoices[0].EntityID)
+	// 4. Value every open invoice in its (shared, per-merchant) fiat. A collector
+	//    is per-merchant per-chain, so all invoices share one fiat; the base
+	//    price drives attribution (the volatility markup is only a buffer).
+	expected := make([]float64, len(invoices))
+	fiatCode := ""
+	for i, inv := range invoices {
+		pt, ptErr := s.payments.GetByID(ctx, inv.MerchantID, inv.EntityID)
 		if ptErr != nil {
 			return errors.Wrap(ptErr, "cross-currency: unable to load invoice payment")
 		}
-		invoicePrice, _ = pt.Price.FiatToFloat64()
-		fiatCode = pt.Price.Ticker()
+		expected[i], _ = pt.Price.FiatToFloat64()
+		if fiatCode == "" {
+			fiatCode = pt.Price.Ticker()
+		}
 	}
 	if fiatCode == "" {
 		fiatCode = money.USD.String()
 	}
 
+	// 5. Value the received crypto in that fiat to drive attribution and gating.
 	detFiat, err := s.cryptoToFiatFloat(ctx, amount, fiatCode)
 	if err != nil {
 		// Can't value the payment — fall back to the safety net so it isn't lost.
@@ -149,38 +187,54 @@ func (s *Service) ResolveUnmatchedCollectorPayment(ctx context.Context, p Unmatc
 			Str("ticker", currency.Ticker).
 			Str("tx_hash", p.TxHash).
 			Msg("cross-currency: unable to value received crypto in fiat; routing to safety net")
-		s.alertUnmatchedCollectorPayment(ctx, invoices, p, currency, amount, 0, invoicePrice)
+		s.alertUnmatchedCollectorPayment(ctx, invoices, p, currency, amount, 0, 0)
 		return nil
 	}
 
-	accept, dust, underpaid := decideCrossCurrencyAccept(len(invoices), detFiat, invoicePrice)
-
-	switch {
-	case dust:
+	// 6. Dust: ignore sub-threshold transfers so a collector can't be spammed.
+	if detFiat < crossCurrencyDustFiat {
 		s.logger.Debug().
 			Str("collector", p.CollectorAddress).
 			Str("tx_hash", p.TxHash).
 			Float64("fiat_value", detFiat).
 			Msg("cross-currency: ignoring sub-threshold unmatched collector transfer (dust)")
 		return nil
-	case !accept:
+	}
+
+	// 7. Attribute to the unambiguous closest-matching invoice. No match (zero
+	//    invoices) or two invoices too close to tell apart → safety net.
+	idx, ok := chooseCrossCurrencyInvoice(detFiat, expected)
+	if !ok {
 		s.logger.Error().
 			Str("collector", p.CollectorAddress).
 			Str("tx_hash", p.TxHash).
 			Str("ticker", currency.Ticker).
 			Str("amount", amount.String()).
 			Float64("fiat_value", detFiat).
-			Float64("invoice_price", invoicePrice).
 			Int("open_invoices", len(invoices)).
-			Bool("underpaid", underpaid).
-			Msg("SAFETY NET: unmatched collector payment could not be auto-credited — manual review required")
-		s.alertUnmatchedCollectorPayment(ctx, invoices, p, currency, amount, detFiat, invoicePrice)
+			Msg("SAFETY NET: unmatched collector payment could not be attributed (no/ambiguous invoice) — manual review required")
+		s.alertUnmatchedCollectorPayment(ctx, invoices, p, currency, amount, detFiat, 0)
 		return nil
 	}
 
-	// 5. Auto-accept: re-lock the single open invoice in the received currency
-	//    and drive it through the normal confirm flow.
-	return s.autoAcceptCrossCurrency(ctx, invoices[0], currency, amount, networkID, p)
+	// 8. Coverage gate: never auto-credit a fiat underpayment, even to a match.
+	if detFiat+crossCurrencyFiatTolerance < expected[idx] {
+		s.logger.Error().
+			Str("collector", p.CollectorAddress).
+			Str("tx_hash", p.TxHash).
+			Str("ticker", currency.Ticker).
+			Str("amount", amount.String()).
+			Float64("fiat_value", detFiat).
+			Float64("invoice_price", expected[idx]).
+			Int("open_invoices", len(invoices)).
+			Msg("SAFETY NET: cross-currency payment is below the matched invoice price (underpaid) — manual review required")
+		s.alertUnmatchedCollectorPayment(ctx, invoices, p, currency, amount, detFiat, expected[idx])
+		return nil
+	}
+
+	// 9. Auto-accept: re-lock the chosen invoice in the received currency and
+	//    drive it through the normal confirm flow.
+	return s.autoAcceptCrossCurrency(ctx, invoices[idx], currency, amount, networkID, p)
 }
 
 // resolveUnmatchedCurrency maps the watcher's raw signal to a CryptoCurrency.

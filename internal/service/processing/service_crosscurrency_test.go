@@ -2,69 +2,105 @@ package processing
 
 import "testing"
 
-func TestDecideCrossCurrencyAccept(t *testing.T) {
+func TestChooseCrossCurrencyInvoice(t *testing.T) {
 	tests := []struct {
-		name          string
-		openInvoices  int
-		detFiat       float64
-		invoicePrice  float64
-		wantAccept    bool
-		wantDust      bool
-		wantUnderpaid bool
+		name     string
+		detFiat  float64
+		expected []float64
+		wantIdx  int
+		wantOK   bool
 	}{
 		{
-			name:         "single invoice fully covered auto-accepts",
-			openInvoices: 1, detFiat: 161.56, invoicePrice: 150.00,
-			wantAccept: true,
+			name:     "no open invoices cannot attribute",
+			detFiat:  161.56,
+			expected: nil,
+			wantIdx:  -1, wantOK: false,
 		},
 		{
-			name:         "single invoice exactly at price auto-accepts",
-			openInvoices: 1, detFiat: 150.00, invoicePrice: 150.00,
-			wantAccept: true,
+			name:     "single invoice is always the match (coverage gated by caller)",
+			detFiat:  161.56,
+			expected: []float64{150.00},
+			wantIdx:  0, wantOK: true,
 		},
 		{
-			name:         "single invoice within tolerance auto-accepts",
-			openInvoices: 1, detFiat: 149.95, invoicePrice: 150.00,
-			wantAccept: true,
+			name:     "single invoice matches even when received is far below it",
+			detFiat:  10.00,
+			expected: []float64{150.00},
+			wantIdx:  0, wantOK: true,
 		},
 		{
-			name:          "single invoice fiat underpayment is rejected",
-			openInvoices:  1, detFiat: 100.00, invoicePrice: 150.00,
-			wantUnderpaid: true,
+			name:     "clear closest among two attributes to it",
+			detFiat:  160.00,
+			expected: []float64{150.00, 300.00},
+			wantIdx:  0, wantOK: true,
 		},
 		{
-			name:         "zero open invoices never auto-accepts",
-			openInvoices: 0, detFiat: 161.56, invoicePrice: 0,
-			wantAccept: false,
+			name:     "closest is the second invoice",
+			detFiat:  290.00,
+			expected: []float64{150.00, 300.00},
+			wantIdx:  1, wantOK: true,
 		},
 		{
-			name:         "multiple open invoices never auto-accepts (ambiguous)",
-			openInvoices: 2, detFiat: 161.56, invoicePrice: 150.00,
-			wantAccept: false,
+			name:     "two invoices of equal amount are indistinguishable",
+			detFiat:  160.00,
+			expected: []float64{150.00, 150.00},
+			wantIdx:  -1, wantOK: false,
 		},
 		{
-			name:         "sub-threshold dust is ignored, not alerted",
-			openInvoices: 1, detFiat: 0.10, invoicePrice: 150.00,
-			wantDust: true,
+			name:     "two invoices closer than the margin refuse to attribute",
+			detFiat:  100.00,
+			expected: []float64{100.00, 101.00}, // gap 1.0 < margin 2.0 (2% of 100)
+			wantIdx:  -1, wantOK: false,
 		},
 		{
-			name:         "dust floor takes precedence even with multiple invoices",
-			openInvoices: 3, detFiat: 0.01, invoicePrice: 0,
-			wantDust: true,
+			name:     "two invoices just past the margin attribute to the nearer",
+			detFiat:  100.00,
+			expected: []float64{100.00, 105.00}, // gap 5.0 >= margin 2.0
+			wantIdx:  0, wantOK: true,
+		},
+		{
+			name:     "small payment is protected by the $1 margin floor",
+			detFiat:  10.00,
+			expected: []float64{10.00, 10.50}, // gap 0.5 < floor 1.0
+			wantIdx:  -1, wantOK: false,
+		},
+		{
+			name:     "three invoices attribute to the middle closest",
+			detFiat:  200.00,
+			expected: []float64{150.00, 205.00, 400.00},
+			wantIdx:  1, wantOK: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			accept, dust, underpaid := decideCrossCurrencyAccept(tt.openInvoices, tt.detFiat, tt.invoicePrice)
-			if accept != tt.wantAccept {
-				t.Errorf("accept = %v, want %v", accept, tt.wantAccept)
+			idx, ok := chooseCrossCurrencyInvoice(tt.detFiat, tt.expected)
+			if ok != tt.wantOK {
+				t.Errorf("ok = %v, want %v", ok, tt.wantOK)
 			}
-			if dust != tt.wantDust {
-				t.Errorf("dust = %v, want %v", dust, tt.wantDust)
+			if idx != tt.wantIdx {
+				t.Errorf("idx = %d, want %d", idx, tt.wantIdx)
 			}
-			if underpaid != tt.wantUnderpaid {
-				t.Errorf("underpaid = %v, want %v", underpaid, tt.wantUnderpaid)
+		})
+	}
+}
+
+func TestCrossCurrencyAmbiguityMargin(t *testing.T) {
+	tests := []struct {
+		name    string
+		detFiat float64
+		want    float64
+	}{
+		{name: "floor applies to small payments", detFiat: 10.00, want: 1.0},
+		{name: "floor applies at zero", detFiat: 0.00, want: 1.0},
+		{name: "2% scaling kicks in above the floor", detFiat: 100.00, want: 2.0},
+		{name: "2% scaling for large payments", detFiat: 1000.00, want: 20.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := crossCurrencyAmbiguityMargin(tt.detFiat); got != tt.want {
+				t.Errorf("crossCurrencyAmbiguityMargin(%.2f) = %.4f, want %.4f", tt.detFiat, got, tt.want)
 			}
 		})
 	}
