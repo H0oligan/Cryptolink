@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -126,45 +127,15 @@ func (s *Service) getTransactionReceipt(
 
 	switch kms.Blockchain(blockchain) {
 	case kms.ETH:
-		rpc, _, err := s.providers.RPC.EthereumRPC(ctx, isTest)
-		if err != nil {
-			return nil, err
-		}
-		defer rpc.Close()
-
-		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, ethConfirmations, isTest)
+		return s.getEVMReceipt(ctx, s.providers.RPC.EthereumRPC, nativeCoin, transactionID, ethConfirmations, isTest)
 	case kms.MATIC:
-		rpc, _, err := s.providers.RPC.MaticRPC(ctx, isTest)
-		if err != nil {
-			return nil, err
-		}
-		defer rpc.Close()
-
-		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, maticConfirmations, isTest)
+		return s.getEVMReceipt(ctx, s.providers.RPC.MaticRPC, nativeCoin, transactionID, maticConfirmations, isTest)
 	case kms.BSC:
-		rpc, _, err := s.providers.RPC.BinanceSmartChainRPC(ctx, isTest)
-		if err != nil {
-			return nil, err
-		}
-		defer rpc.Close()
-
-		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, bscConfirmations, isTest)
+		return s.getEVMReceipt(ctx, s.providers.RPC.BinanceSmartChainRPC, nativeCoin, transactionID, bscConfirmations, isTest)
 	case kms.ARBITRUM:
-		rpc, _, err := s.providers.RPC.ArbitrumRPC(ctx, isTest)
-		if err != nil {
-			return nil, err
-		}
-		defer rpc.Close()
-
-		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, arbitrumConfirmations, isTest)
+		return s.getEVMReceipt(ctx, s.providers.RPC.ArbitrumRPC, nativeCoin, transactionID, arbitrumConfirmations, isTest)
 	case kms.AVAX:
-		rpc, _, err := s.providers.RPC.AvalancheRPC(ctx, isTest)
-		if err != nil {
-			return nil, err
-		}
-		defer rpc.Close()
-
-		return s.getEthReceipt(ctx, rpc, nativeCoin, transactionID, avaxConfirmations, isTest)
+		return s.getEVMReceipt(ctx, s.providers.RPC.AvalancheRPC, nativeCoin, transactionID, avaxConfirmations, isTest)
 	case kms.TRON:
 		receipt, err := s.providers.Trongrid.GetTransactionReceipt(ctx, transactionID, isTest)
 		if err != nil {
@@ -192,6 +163,77 @@ func (s *Service) getTransactionReceipt(
 	}
 
 	return nil, kms.ErrUnknownBlockchain
+}
+
+// evmReceiptAttempts caps how many endpoints a single receipt lookup rotates
+// through before giving up for this tick. The scheduler retries every 30s, so
+// this only needs to be deep enough to step past a couple of bad endpoints.
+const evmReceiptAttempts = 3
+
+// dialFunc matches the rpc.Provider per-chain dial methods. The second return
+// value is the endpoint URL that was picked, needed to demote it on failure.
+type dialFunc func(ctx context.Context, isTest bool) (*ethclient.Client, string, error)
+
+// getEVMReceipt fetches a receipt, rotating to the next RPC endpoint whenever
+// the current one *refuses* the request instead of answering it.
+//
+// rpc.Provider.dialWithFailover only validates an endpoint with eth_blockNumber.
+// Some free providers answer that happily while gating eth_getTransactionReceipt
+// behind a paid "archive" tier — publicnode/allnodes did exactly this to BSC on
+// 2026-07-31, and because the endpoint kept passing the health check it was
+// re-picked every 30s tick, stranding every BSC payment in inProgress until the
+// 24h timeout cancelled it. So a refusal has to demote the endpoint here, at the
+// call site that saw it, mirroring what the watcher already does for eth_getLogs
+// (watcher/service.go).
+//
+// Unlike the watcher — which can demote and pick the work up on its next loop —
+// this retries in-call: a receipt gates a payment confirmation, so losing the
+// tick costs the customer 30s of waiting and, repeated, the payment itself.
+//
+// ethereum.NotFound is deliberately NOT treated as an endpoint failure: it is
+// the endpoint correctly answering "not mined yet". It must propagate on the
+// first attempt, otherwise every unmined transaction would hammer all endpoints
+// on every tick and demote healthy ones.
+func (s *Service) getEVMReceipt(
+	ctx context.Context,
+	dial dialFunc,
+	nativeCoin money.CryptoCurrency,
+	txID string,
+	requiredConfirmations int64,
+	isTest bool,
+) (*TransactionReceipt, error) {
+	var lastErr error
+
+	for attempt := 1; attempt <= evmReceiptAttempts; attempt++ {
+		rpc, url, err := dial(ctx, isTest)
+		if err != nil {
+			// No endpoint is dialable at all; nothing to rotate to.
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, err
+		}
+
+		receipt, err := s.getEthReceipt(ctx, rpc, nativeCoin, txID, requiredConfirmations, isTest)
+		rpc.Close()
+
+		if err == nil {
+			return receipt, nil
+		}
+		if errors.Is(err, ethereum.NotFound) {
+			return nil, err
+		}
+
+		lastErr = err
+		s.providers.RPC.MarkUnhealthy(url)
+		s.logger.Warn().Err(err).
+			Str("url", url).
+			Str("hash", txID).
+			Int("attempt", attempt).
+			Msg("receipt fetch refused by RPC endpoint — demoting it and retrying on failover")
+	}
+
+	return nil, lastErr
 }
 
 func (s *Service) getEthReceipt(
