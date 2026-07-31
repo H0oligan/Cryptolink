@@ -77,16 +77,23 @@ func DefaultConfig() Config {
 				"https://polygon.gateway.tenderly.co",
 			},
 		},
+		// BSC endpoint order is deliberate: bsc-rpc.publicnode.com answers
+		// eth_blockNumber (so it passes the dial health check) but rejects
+		// eth_getTransactionReceipt and eth_getTransactionByHash with
+		// "Archive requests require a personal token" — verified 2026-07-31,
+		// for latest-block transactions too, not just old ones. As primary it
+		// stranded every BSC payment in inProgress. It stays in the list
+		// because it still serves the log queries the watcher needs, but last.
 		BSC: ChainRPC{
-			Mainnet:  "https://bsc-rpc.publicnode.com",
+			Mainnet:  "https://bsc-dataseed.binance.org",
 			Testnet:  "https://data-seed-prebsc-1-s1.binance.org:8545",
-			Fallback: "https://1rpc.io/bnb",
+			Fallback: "https://bsc-dataseed1.defibit.io",
 			Extra: []string{
-				"https://bsc-dataseed.binance.org",
-				"https://bsc-dataseed1.defibit.io",
 				"https://bsc-dataseed1.ninicoin.io",
+				"https://1rpc.io/bnb",
 				"https://bsc.drpc.org",
 				"https://bsc-pokt.nodies.app",
+				"https://bsc-rpc.publicnode.com",
 			},
 		},
 		ARBITRUM: ChainRPC{
