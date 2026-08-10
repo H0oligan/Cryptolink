@@ -364,6 +364,23 @@ const PaymentPage: React.FC = () => {
                             ? "Send the remaining amount to the address below."
                             : "Waiting for payment. Please send required crypto amount to specified address below."}
                     </h2>
+                    {/* Network warning. Six distinct currencies share the display
+                        name "USDT" (ETH/BSC/TRON/MATIC/ARBITRUM/AVAX), and every EVM
+                        chain accepts the same 20-byte address, so a customer copying
+                        the address can broadcast on the wrong chain with no on-chain
+                        error. Those funds land at an address that holds no collector
+                        contract and are invisible to the watcher, which only polls
+                        this currency's own blockchain. */}
+                    <div className="mx-auto mb-5 max-w-sm rounded-md border border-rose-500/50 bg-rose-500/10 p-3 text-center">
+                        <p className="text-sm font-semibold text-rose-300">
+                            Send {ticker} on {payment.paymentMethod.blockchainName} only
+                        </p>
+                        <p className="mt-1 text-xs text-rose-100/90">
+                            This address accepts <strong>{ticker}</strong> on the{" "}
+                            <strong>{payment.paymentMethod.blockchainName}</strong> network.
+                            Sending {ticker} over any other network will permanently lose your funds.
+                        </p>
+                    </div>
                     <div className="flex relative justify-center mb-7 sm:hidden">
                         <QRCodeSVG size={180} level={"H"} value={qrValue} />
                         <Icon
