@@ -60,6 +60,7 @@ type Querier interface {
 	GetDerivedAddressByUUID(ctx context.Context, argUuid uuid.UUID) (DerivedAddress, error)
 	GetLastDerivedIndex(ctx context.Context, xpubWalletID int64) (interface{}, error)
 	GetLatestTransactionByPaymentID(ctx context.Context, entityID sql.NullInt64) (Transaction, error)
+	GetMaxDerivedIndexForXpub(ctx context.Context, arg GetMaxDerivedIndexForXpubParams) (int32, error)
 	GetMerchantByID(ctx context.Context, arg GetMerchantByIDParams) (Merchant, error)
 	GetMerchantByUUID(ctx context.Context, arg GetMerchantByUUIDParams) (Merchant, error)
 	GetMerchantByUUIDAndCreatorID(ctx context.Context, arg GetMerchantByUUIDAndCreatorIDParams) (Merchant, error)

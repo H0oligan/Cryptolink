@@ -177,6 +177,25 @@ func (q *Queries) GetLastDerivedIndex(ctx context.Context, xpubWalletID int64) (
 	return last_index, err
 }
 
+const getMaxDerivedIndexForXpub = `-- name: GetMaxDerivedIndexForXpub :one
+SELECT COALESCE(MAX(d.derivation_index), -1)::int AS last_index
+FROM derived_addresses d
+JOIN xpub_wallets w ON w.id = d.xpub_wallet_id
+WHERE w.xpub = $1 AND w.blockchain = $2
+`
+
+type GetMaxDerivedIndexForXpubParams struct {
+	Xpub       string
+	Blockchain string
+}
+
+func (q *Queries) GetMaxDerivedIndexForXpub(ctx context.Context, arg GetMaxDerivedIndexForXpubParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getMaxDerivedIndexForXpub, arg.Xpub, arg.Blockchain)
+	var last_index int32
+	err := row.Scan(&last_index)
+	return last_index, err
+}
+
 const getNextUnusedAddress = `-- name: GetNextUnusedAddress :one
 SELECT id, uuid, xpub_wallet_id, merchant_id, blockchain, address, derivation_path, derivation_index, public_key, is_used, payment_id, created_at, updated_at FROM derived_addresses
 WHERE xpub_wallet_id = $1 AND is_used = false
