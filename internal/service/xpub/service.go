@@ -16,6 +16,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/kms/wallet"
@@ -64,6 +65,9 @@ var (
 	ErrDerivationFailed = errors.New("failed to derive address")
 	ErrAddressNotFound  = errors.New("derived address not found")
 )
+
+// pgUniqueViolation is the SQLSTATE Postgres returns for a unique constraint breach.
+const pgUniqueViolation = "23505"
 
 // Extended key version bytes (SLIP-0132)
 // Maps 4-byte version prefix → {target xpub version, address format, derivation path}
@@ -257,6 +261,11 @@ func (s *Service) ListByMerchantID(ctx context.Context, merchantID int64) ([]*Xp
 	return wallets, nil
 }
 
+// maxDeriveAttempts bounds how far DeriveAddress will walk forward looking for a
+// free index. The shared-xpub seed below normally lands on a free index straight
+// away, so the extra attempts only cover races between concurrent payments.
+const maxDeriveAttempts = 20
+
 // DeriveAddress derives a new address at the next available index
 func (s *Service) DeriveAddress(ctx context.Context, walletID int64) (*DerivedAddress, error) {
 	// Get wallet
@@ -273,44 +282,99 @@ func (s *Service) DeriveAddress(ctx context.Context, walletID int64) (*DerivedAd
 	if w.LastDerivedIndex.Valid {
 		lastIndex = w.LastDerivedIndex.Int32
 	}
-	nextIndex := int(lastIndex) + 1
 
-	// Derive address from xpub
-	address, pubKey, err := s.deriveAddressFromXpub(w.Xpub, w.Blockchain, w.DerivationPath, nextIndex)
+	// derived_addresses.address is unique per blockchain, so wallets holding the same
+	// xpub share a single address space. Seed from the highest index any of them has
+	// reached: without this a second wallet on the same key restarts at 0 and every
+	// insert collides with the first wallet's rows, permanently breaking its payments.
+	sharedIndex, err := s.store.GetMaxDerivedIndexForXpub(ctx, repository.GetMaxDerivedIndexForXpubParams{
+		Xpub:       w.Xpub,
+		Blockchain: w.Blockchain,
+	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to derive address")
+		return nil, errors.Wrap(err, "failed to read shared xpub derivation index")
+	}
+	if sharedIndex > lastIndex {
+		lastIndex = sharedIndex
 	}
 
-	// Create derived address record
 	now := time.Now()
-	entry, err := s.store.CreateDerivedAddress(ctx, repository.CreateDerivedAddressParams{
-		Uuid:            uuid.New(),
-		XpubWalletID:    walletID,
-		MerchantID:      w.MerchantID,
-		Blockchain:      w.Blockchain,
-		Address:         address,
-		DerivationPath:  fmt.Sprintf("%s/%d", w.DerivationPath, nextIndex),
-		DerivationIndex: int32(nextIndex),
-		PublicKey:       repository.StringToNullable(pubKey),
-		IsUsed:          sql.NullBool{Bool: false, Valid: true},
-		CreatedAt:       now,
-		UpdatedAt:       now,
-	})
-	if err != nil {
-		return nil, err
+
+	for attempt := 0; attempt < maxDeriveAttempts; attempt++ {
+		nextIndex := int(lastIndex) + 1 + attempt
+
+		// Derive address from xpub
+		address, pubKey, deriveErr := s.deriveAddressFromXpub(w.Xpub, w.Blockchain, w.DerivationPath, nextIndex)
+		if deriveErr != nil {
+			return nil, errors.Wrap(deriveErr, "failed to derive address")
+		}
+
+		// Create derived address record
+		entry, createErr := s.store.CreateDerivedAddress(ctx, repository.CreateDerivedAddressParams{
+			Uuid:            uuid.New(),
+			XpubWalletID:    walletID,
+			MerchantID:      w.MerchantID,
+			Blockchain:      w.Blockchain,
+			Address:         address,
+			DerivationPath:  fmt.Sprintf("%s/%d", w.DerivationPath, nextIndex),
+			DerivationIndex: int32(nextIndex),
+			PublicKey:       repository.StringToNullable(pubKey),
+			IsUsed:          sql.NullBool{Bool: false, Valid: true},
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		})
+		if createErr != nil {
+			// Another wallet (or a concurrent payment) already claimed this index.
+			// Step forward rather than failing the payment.
+			if isIndexTakenError(createErr) {
+				s.logger.Warn().
+					Str("address", address).
+					Int("derivation_index", nextIndex).
+					Int64("xpub_wallet_id", walletID).
+					Msg("derived address already taken, advancing to next index")
+
+				continue
+			}
+
+			return nil, createErr
+		}
+
+		// Update wallet's last derived index
+		_, err = s.store.UpdateXpubWalletLastIndex(ctx, repository.UpdateXpubWalletLastIndexParams{
+			ID:               walletID,
+			LastDerivedIndex: sql.NullInt32{Int32: int32(nextIndex), Valid: true},
+			UpdatedAt:        now,
+		})
+		if err != nil {
+			s.logger.Error().Err(err).Msg("failed to update wallet last derived index")
+		}
+
+		return entryToDerivedAddress(entry), nil
 	}
 
-	// Update wallet's last derived index
-	_, err = s.store.UpdateXpubWalletLastIndex(ctx, repository.UpdateXpubWalletLastIndexParams{
-		ID:               walletID,
-		LastDerivedIndex: sql.NullInt32{Int32: int32(nextIndex), Valid: true},
-		UpdatedAt:        now,
-	})
-	if err != nil {
-		s.logger.Error().Err(err).Msg("failed to update wallet last derived index")
+	return nil, errors.Errorf(
+		"unable to find a free derivation index for xpub wallet %d after %d attempts",
+		walletID, maxDeriveAttempts,
+	)
+}
+
+// isIndexTakenError reports whether err is a unique-violation on one of the
+// derived_addresses uniqueness guarantees — the address itself, or the
+// (wallet, index) pair. Both mean "this index is spoken for"; the caller
+// answers by moving to the next index, never by retrying the same one.
+// Any other error is a real failure and must surface.
+func isIndexTakenError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
 	}
 
-	return entryToDerivedAddress(entry), nil
+	if pgErr.Code != pgUniqueViolation {
+		return false
+	}
+
+	return pgErr.ConstraintName == "derived_addresses_address_unique" ||
+		pgErr.ConstraintName == "derived_addresses_unique"
 }
 
 // DeriveAddressBatch derives multiple addresses

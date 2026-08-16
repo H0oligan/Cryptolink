@@ -48,3 +48,12 @@ WHERE xpub_wallet_id = $1 AND is_used = false;
 SELECT COALESCE(MAX(derivation_index), -1) as last_index
 FROM derived_addresses
 WHERE xpub_wallet_id = $1;
+
+-- name: GetMaxDerivedIndexForXpub :one
+-- Highest index ever derived from a given xpub, across every wallet that holds it.
+-- derived_addresses.address is globally unique per blockchain, so two wallets sharing
+-- an xpub must not restart indexing at 0 — they share one address space.
+SELECT COALESCE(MAX(d.derivation_index), -1)::int AS last_index
+FROM derived_addresses d
+JOIN xpub_wallets w ON w.id = d.xpub_wallet_id
+WHERE w.xpub = $1 AND w.blockchain = $2;
