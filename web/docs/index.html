@@ -477,14 +477,14 @@
     <div class="table-wrap">
         <table>
             <thead>
-                <tr><th>Plan</th><th>Price</th><th>Monthly Volume</th><th>Merchants</th></tr>
+                <tr><th>Plan</th><th>Price</th><th>Monthly Volume</th><th>Payments / mo</th><th>Merchants</th></tr>
             </thead>
             <tbody>
-                <tr><td><strong>Free</strong></td><td>$0/mo</td><td>Up to $1,000</td><td>1</td></tr>
-                <tr><td><strong>Starter</strong></td><td>$9.99/mo</td><td>Up to $10,000</td><td>1</td></tr>
-                <tr><td><strong>Growth</strong></td><td>$29.99/mo</td><td>Up to $50,000</td><td>3</td></tr>
-                <tr><td><strong>Business</strong></td><td>$79.99/mo</td><td>Up to $250,000</td><td>10</td></tr>
-                <tr><td><strong>Enterprise</strong></td><td>$199.99/mo</td><td>Unlimited</td><td>Unlimited</td></tr>
+                <tr><td><strong>Free</strong></td><td>$0/mo</td><td>Up to $5,000</td><td>50</td><td>1</td></tr>
+                <tr><td><strong>Starter</strong></td><td>$9.99/mo</td><td>Up to $10,000</td><td>500</td><td>1</td></tr>
+                <tr><td><strong>Growth</strong></td><td>$29.99/mo</td><td>Up to $50,000</td><td>2,000</td><td>5</td></tr>
+                <tr><td><strong>Business</strong></td><td>$79.99/mo</td><td>Up to $250,000</td><td>Unlimited</td><td>15</td></tr>
+                <tr><td><strong>Enterprise</strong></td><td>$199.99/mo</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
             </tbody>
         </table>
     </div>
@@ -573,7 +573,7 @@
             <div class="flow-num">6</div>
             <div class="flow-body">
                 <strong>Payment status updates in real-time</strong>
-                <span>The payment moves through states: <code>pending</code> → <code>inProgress</code> (mempool/broadcast) → <code>success</code> (confirmed) or <code>failed</code>/<code>expired</code>. The customer's payment page polls for updates and shows confirmation in real-time.</span>
+                <span>The payment moves through states: <code>pending</code> → <code>locked</code> (currency chosen) → <code>inProgress</code> (full amount seen on-chain) → <code>success</code> (confirmed), or <code>failed</code> if the 24h window elapses. A short payment goes <code>partial</code> first, and ends <code>underpaid</code> if never topped up. The customer's payment page polls for updates and shows confirmation in real-time.</span>
             </div>
         </div>
         <div class="flow-step">
@@ -628,11 +628,12 @@
             <thead><tr><th>Status</th><th>Description</th><th>Trigger</th></tr></thead>
             <tbody>
                 <tr><td><span class="badge badge-gray">pending</span></td><td>Payment created, awaiting transaction</td><td>Created via API</td></tr>
-                <tr><td><span class="badge badge-yellow">locked</span></td><td>Customer picked a currency; awaiting on-chain transfer</td><td>Customer action on payment page</td></tr>
-                <tr><td><span class="badge badge-yellow">inProgress</span></td><td>Transaction detected on-chain, awaiting confirmations</td><td>Address watcher (event-based for EVM, balance-based for BTC, log-based for tokens)</td></tr>
+                <tr><td><span class="badge badge-yellow">locked</span></td><td>Customer picked a currency; awaiting on-chain transfer. Not delivered by webhook.</td><td>Customer action on payment page</td></tr>
+                <tr><td><span class="badge badge-yellow">partial</span></td><td>Funds arrived but fall short of the invoice; customer may top up within the window</td><td>Address watcher (partial fill)</td></tr>
+                <tr><td><span class="badge badge-yellow">inProgress</span></td><td>Full amount detected on-chain, awaiting confirmations</td><td>Address watcher (event-based for EVM, balance-based for BTC, log-based for tokens)</td></tr>
+                <tr><td><span class="badge badge-red">underpaid</span></td><td>Top-up window closed while still short; watcher stops crediting and the payment page shows top-up details</td><td>Scheduled job</td></tr>
                 <tr><td><span class="badge badge-green">success</span></td><td>Transaction confirmed; merchant webhook delivered</td><td>Address watcher (confirmed)</td></tr>
-                <tr><td><span class="badge badge-red">failed</span></td><td>Transaction failed or wrong amount</td><td>Address watcher / system check</td></tr>
-                <tr><td><span class="badge badge-red">expired</span></td><td>Payment window elapsed (default: 24h)</td><td>Scheduled job</td></tr>
+                <tr><td><span class="badge badge-red">failed</span></td><td>Transaction failed, or the payment window elapsed (default: 24h)</td><td>Address watcher / scheduled job</td></tr>
             </tbody>
         </table>
     </div>
@@ -793,6 +794,14 @@ address := bitcoin.PublicKeyToBech32Address(childKey)
 // This address belongs to the merchant's HD wallet
 // ONLY the merchant's private key (in their hardware wallet) can sign from it</code></pre>
     </div>
+
+    <p>
+        Every derived address is unique across the whole deployment — an address is never issued to two
+        payments. If the same extended public key is imported by more than one merchant account, those
+        accounts <strong>share a single index sequence</strong> rather than each restarting at index 0, so
+        they never collide on an address. Attribution of which payment belongs to which merchant is tracked
+        in the database; on-chain the funds simply arrive at one wallet.
+    </p>
 
     <h2>Smart Contract Collectors (EVM &amp; TRON)</h2>
     <p>
@@ -1348,7 +1357,7 @@ echo 'OK';</code></pre>
         <pre><code class="language-json">{
   "name": "Donation Link",
   "description": "Support our open-source project",
-  "currency": "USDT_TRON",
+  "currency": "TRON_USDT",
   "redirect_url": "https://example.com/thank-you",
   "successMessage": "Thank you for your payment!"
 }</code></pre>
@@ -1361,7 +1370,7 @@ echo 'OK';</code></pre>
   "url": "https://yourdomain.com/p/7f3a9b2c-1234-5678-abcd-ef0123456789",
   "name": "Donation Link",
   "description": "Support our open-source project",
-  "currency": "USDT_TRON",
+  "currency": "TRON_USDT",
   "status": "active",
   "total_payments": 0,
   "total_amount_usd": "0.00",
@@ -1404,15 +1413,21 @@ echo 'OK';</code></pre>
     </p>
 
     <h2>Webhook Events</h2>
+    <p>
+        The payload carries the payment's current state in a <code>status</code> field — there is no separate
+        <code>event</code> name. Switch on <code>status</code> in your handler. The internal <code>locked</code>
+        state (customer picked a currency but has not sent funds yet) is deliberately <strong>not</strong> delivered.
+    </p>
     <div class="table-wrap">
         <table>
-            <thead><tr><th>Event</th><th>Trigger</th><th>Action Recommended</th></tr></thead>
+            <thead><tr><th><code>status</code> value</th><th>Trigger</th><th>Action Recommended</th></tr></thead>
             <tbody>
-                <tr><td><code>payment.pending</code></td><td>Payment created (initial state)</td><td>Display "awaiting payment" UI</td></tr>
-                <tr><td><code>payment.inProgress</code></td><td>Transaction broadcast to mempool</td><td>Show "payment processing" status</td></tr>
-                <tr><td><code>payment.success</code></td><td>Transaction confirmed on-chain</td><td><strong>Fulfill the order</strong></td></tr>
-                <tr><td><code>payment.failed</code></td><td>Transaction failed or underpaid</td><td>Notify customer, offer retry</td></tr>
-                <tr><td><code>payment.expired</code></td><td>Payment window elapsed (24h default)</td><td>Cancel order, notify customer</td></tr>
+                <tr><td><code>pending</code></td><td>Payment created, no currency chosen yet</td><td>Display "awaiting payment" UI</td></tr>
+                <tr><td><code>partial</code></td><td>Some funds received, invoice not yet covered</td><td>Show amount still owed — see <code>remainingAmount</code></td></tr>
+                <tr><td><code>inProgress</code></td><td>Full amount detected on-chain, awaiting confirmation</td><td>Show "payment processing" status</td></tr>
+                <tr><td><code>underpaid</code></td><td>Top-up window closed while still short</td><td>Notify customer; resolve or refund manually</td></tr>
+                <tr><td><code>success</code></td><td>Transaction confirmed on-chain</td><td><strong>Fulfill the order</strong></td></tr>
+                <tr><td><code>failed</code></td><td>Payment window elapsed or transaction failed</td><td>Cancel order, notify customer</td></tr>
             </tbody>
         </table>
     </div>
@@ -1445,7 +1460,7 @@ echo 'OK';</code></pre>
                 <tr><td><code>amount</code></td><td>Invoice amount in fiat (e.g. "100.00")</td></tr>
                 <tr><td><code>currency</code></td><td>Fiat currency: "USD" or "EUR"</td></tr>
                 <tr><td><code>cryptoAmount</code></td><td>Crypto amount the customer paid/is expected to pay</td></tr>
-                <tr><td><code>cryptoCurrency</code></td><td>Crypto ticker used (e.g. "ETH_USDT", "BTC", "USDT_TRON")</td></tr>
+                <tr><td><code>cryptoCurrency</code></td><td>Crypto ticker used (e.g. "ETH_USDT", "BTC", "TRON_USDT")</td></tr>
                 <tr><td><code>selectedBlockchain</code></td><td>Blockchain network (e.g. "ETH", "BTC", "TRON")</td></tr>
                 <tr><td><code>customerEmail</code></td><td>Customer email if provided</td></tr>
                 <tr><td><code>isTest</code></td><td>True if this is a testnet payment</td></tr>
@@ -1684,46 +1699,56 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
         extended public keys, derive addresses, and manage wallet lifecycle. For EVM and TRON wallets,
         use the dashboard's smart contract deployment flow instead.
     </p>
+    <div class="callout warning">
+        <div class="callout-title">These are dashboard endpoints, not merchant-token endpoints</div>
+        <p>
+        They live under <code>/api/dashboard/v1/</code> and are authenticated with a logged-in
+        <strong>dashboard session cookie</strong> — an <code>X-CRYPTOLINK-TOKEN</code> API token will
+        <strong>not</strong> work here and the request returns <code>404</code>. Wallet configuration is
+        deliberately a human, session-authenticated operation: importing an xpub decides where your money
+        lands, so it is kept off the machine-to-machine API surface.
+        </p>
+    </div>
 
     <h2>Endpoints</h2>
     <div class="endpoint">
         <span class="method method-post">POST</span>
-        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet</span>
+        <span class="endpoint-path">/api/dashboard/v1/merchant/{merchantId}/xpub-wallet</span>
         <span class="endpoint-desc">Import an extended public key</span>
     </div>
     <div class="endpoint">
         <span class="method method-get">GET</span>
-        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet</span>
+        <span class="endpoint-path">/api/dashboard/v1/merchant/{merchantId}/xpub-wallet</span>
         <span class="endpoint-desc">List all xpub wallets</span>
     </div>
     <div class="endpoint">
         <span class="method method-get">GET</span>
-        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}</span>
+        <span class="endpoint-path">/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}</span>
         <span class="endpoint-desc">Get wallet details</span>
     </div>
     <div class="endpoint">
         <span class="method method-delete">DELETE</span>
-        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}</span>
+        <span class="endpoint-path">/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}</span>
         <span class="endpoint-desc">Delete a wallet configuration</span>
     </div>
     <div class="endpoint">
         <span class="method method-post">POST</span>
-        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/derive</span>
+        <span class="endpoint-path">/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}/derive</span>
         <span class="endpoint-desc">Derive the next address</span>
     </div>
     <div class="endpoint">
         <span class="method method-get">GET</span>
-        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/next-address</span>
+        <span class="endpoint-path">/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}/next-address</span>
         <span class="endpoint-desc">Get next unused address</span>
     </div>
     <div class="endpoint">
         <span class="method method-get">GET</span>
-        <span class="endpoint-path">/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/addresses</span>
+        <span class="endpoint-path">/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}/addresses</span>
         <span class="endpoint-desc">List all derived addresses</span>
     </div>
 
     <h2>Import Extended Public Key</h2>
-    <p><strong>POST</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet</code></p>
+    <p><strong>POST</strong> <code>/api/dashboard/v1/merchant/{merchantId}/xpub-wallet</code></p>
     <p>
         Import a Bitcoin extended public key. Accepts <code>xpub</code>, <code>ypub</code>, or <code>zpub</code>
         formats. The derivation path is auto-detected from the key's version bytes (SLIP-0132) — you do not
@@ -1744,9 +1769,9 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
     <div class="code-wrap">
         <div class="code-header"><span class="code-lang">bash — Import a zpub key</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
-        <pre><code class="language-bash">curl -X POST https://yourdomain.com/api/merchant/v1/merchant/{merchantId}/xpub-wallet \
+        <pre><code class="language-bash">curl -X POST https://yourdomain.com/api/dashboard/v1/merchant/{merchantId}/xpub-wallet \
   -H "Content-Type: application/json" \
-  -H "X-CRYPTOLINK-TOKEN: your_api_token" \
+  -b "session=your_dashboard_session_cookie" \
   -d '{
     "blockchain": "BTC",
     "xpub": "zpub6rFR7y4Q2AijBEqTUqiGMcA8k3KNBNzihkghGjRjkTLmBgR..."
@@ -1772,7 +1797,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
     </div>
 
     <h2>List Wallets</h2>
-    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet</code></p>
+    <p><strong>GET</strong> <code>/api/dashboard/v1/merchant/{merchantId}/xpub-wallet</code></p>
     <p>Returns all active xpub wallets for the merchant.</p>
 
     <div class="code-wrap">
@@ -1789,12 +1814,12 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
     </div>
 
     <h2>Delete Wallet</h2>
-    <p><strong>DELETE</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}</code></p>
+    <p><strong>DELETE</strong> <code>/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}</code></p>
     <p>Permanently removes the wallet configuration and all derived addresses from CryptoLink.
     Your funds remain safe — this only removes the public key from the server. Returns <code>204 No Content</code> on success.</p>
 
     <h2>Derive Address</h2>
-    <p><strong>POST</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/derive</code></p>
+    <p><strong>POST</strong> <code>/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}/derive</code></p>
     <p>Derives the next sequential address from the wallet's extended public key. No request body needed.
     Each call increments the internal counter and returns a new unique address.</p>
 
@@ -1811,12 +1836,12 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
     </div>
 
     <h2>Get Next Unused Address</h2>
-    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/next-address</code></p>
+    <p><strong>GET</strong> <code>/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}/next-address</code></p>
     <p>Returns the next unused (unreserved) derived address. If all existing addresses are in use,
     derives a new one automatically.</p>
 
     <h2>List Derived Addresses</h2>
-    <p><strong>GET</strong> <code>/api/merchant/v1/merchant/{merchantId}/xpub-wallet/{walletId}/addresses</code></p>
+    <p><strong>GET</strong> <code>/api/dashboard/v1/merchant/{merchantId}/xpub-wallet/{walletId}/addresses</code></p>
     <p>Returns all addresses that have been derived from this wallet, including their usage status.</p>
 
     <div class="code-wrap">
@@ -1901,19 +1926,19 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
             </thead>
             <tbody>
                 <tr><td><strong>Ethereum</strong></td><td><code>ETH</code></td><td>Ethereum</td><td>Native</td><td>go-ethereum RPC</td><td>Smart contract collector</td></tr>
-                <tr><td><strong>Tether USD (ERC-20)</strong></td><td><code>USDT_ETH</code></td><td>Ethereum</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ETH</td></tr>
-                <tr><td><strong>USD Coin (ERC-20)</strong></td><td><code>USDC_ETH</code></td><td>Ethereum</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ETH</td></tr>
+                <tr><td><strong>Tether USD (ERC-20)</strong></td><td><code>ETH_USDT</code></td><td>Ethereum</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ETH</td></tr>
+                <tr><td><strong>USD Coin (ERC-20)</strong></td><td><code>ETH_USDC</code></td><td>Ethereum</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ETH</td></tr>
                 <tr><td><strong>Polygon</strong></td><td><code>MATIC</code></td><td>Polygon PoS</td><td>Native</td><td>go-ethereum RPC</td><td>Low-fee EVM chain</td></tr>
-                <tr><td><strong>USDT (Polygon)</strong></td><td><code>USDT_MATIC</code></td><td>Polygon PoS</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as MATIC</td></tr>
-                <tr><td><strong>USDC (Polygon)</strong></td><td><code>USDC_MATIC</code></td><td>Polygon PoS</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as MATIC</td></tr>
+                <tr><td><strong>USDT (Polygon)</strong></td><td><code>MATIC_USDT</code></td><td>Polygon PoS</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as MATIC</td></tr>
+                <tr><td><strong>USDC (Polygon)</strong></td><td><code>MATIC_USDC</code></td><td>Polygon PoS</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as MATIC</td></tr>
                 <tr><td><strong>BNB</strong></td><td><code>BNB</code></td><td>BNB Smart Chain</td><td>Native</td><td>go-ethereum RPC</td><td>Binance ecosystem</td></tr>
-                <tr><td><strong>USDT (BSC)</strong></td><td><code>USDT_BSC</code></td><td>BNB Smart Chain</td><td>BEP-20</td><td>go-ethereum RPC</td><td>Same collector as BNB</td></tr>
+                <tr><td><strong>USDT (BSC)</strong></td><td><code>BSC_USDT</code></td><td>BNB Smart Chain</td><td>BEP-20</td><td>go-ethereum RPC</td><td>Same collector as BNB</td></tr>
                 <tr><td><strong>Arbitrum ETH</strong></td><td><code>ARB</code></td><td>Arbitrum One</td><td>Native</td><td>go-ethereum RPC</td><td>L2 rollup, low fees</td></tr>
-                <tr><td><strong>USDT (Arbitrum)</strong></td><td><code>USDT_ARB</code></td><td>Arbitrum One</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ARB</td></tr>
-                <tr><td><strong>USDC (Arbitrum)</strong></td><td><code>USDC_ARB</code></td><td>Arbitrum One</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ARB</td></tr>
+                <tr><td><strong>USDT (Arbitrum)</strong></td><td><code>ARBITRUM_USDT</code></td><td>Arbitrum One</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ARB</td></tr>
+                <tr><td><strong>USDC (Arbitrum)</strong></td><td><code>ARBITRUM_USDC</code></td><td>Arbitrum One</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as ARB</td></tr>
                 <tr><td><strong>Avalanche</strong></td><td><code>AVAX</code></td><td>Avalanche C-Chain</td><td>Native</td><td>go-ethereum RPC</td><td>Fast finality</td></tr>
-                <tr><td><strong>USDT (Avalanche)</strong></td><td><code>USDT_AVAX</code></td><td>Avalanche C-Chain</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as AVAX</td></tr>
-                <tr><td><strong>USDC (Avalanche)</strong></td><td><code>USDC_AVAX</code></td><td>Avalanche C-Chain</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as AVAX</td></tr>
+                <tr><td><strong>USDT (Avalanche)</strong></td><td><code>AVAX_USDT</code></td><td>Avalanche C-Chain</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as AVAX</td></tr>
+                <tr><td><strong>USDC (Avalanche)</strong></td><td><code>AVAX_USDC</code></td><td>Avalanche C-Chain</td><td>ERC-20</td><td>go-ethereum RPC</td><td>Same collector as AVAX</td></tr>
             </tbody>
         </table>
     </div>
@@ -1925,22 +1950,26 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
                 <tr><th>Currency</th><th>Ticker</th><th>Network</th><th>Standard</th><th>Detection</th><th>Notes</th></tr>
             </thead>
             <tbody>
-                <tr><td><strong>TRON</strong></td><td><code>TRX</code></td><td>TRON Network</td><td>Native</td><td>TronGrid API</td><td>Clone factory collector via TronLink</td></tr>
-                <tr><td><strong>Tether USD (TRC-20)</strong></td><td><code>USDT_TRON</code></td><td>TRON Network</td><td>TRC-20</td><td>TronGrid API</td><td>Most popular stablecoin; very low fees</td></tr>
+                <tr><td><strong>TRON</strong></td><td><code>TRON</code></td><td>TRON Network</td><td>Native</td><td>TronGrid API</td><td>Clone factory collector via TronLink</td></tr>
+                <tr><td><strong>Tether USD (TRC-20)</strong></td><td><code>TRON_USDT</code></td><td>TRON Network</td><td>TRC-20</td><td>TronGrid API</td><td>Most popular stablecoin; very low fees</td></tr>
             </tbody>
         </table>
     </div>
 
     <h2>Choosing a Currency</h2>
     <p>
-        <strong>For stablecoin payments</strong> (avoiding volatility), <code>USDT_TRON</code> is the
+        <strong>For stablecoin payments</strong> (avoiding volatility), <code>TRON_USDT</code> is the
         most popular choice due to extremely low network fees (~$0.01) and fast confirmation times (~3 seconds).
-        For EVM ecosystems, <code>USDT_MATIC</code> and <code>USDT_ARB</code> offer similar low fees.
-        <code>USDC_ETH</code> is preferred for merchants who want an Ethereum-based stablecoin despite higher gas.
+        For EVM ecosystems, <code>MATIC_USDT</code> and <code>ARBITRUM_USDT</code> offer similar low fees.
+        <code>ETH_USDC</code> is preferred for merchants who want an Ethereum-based stablecoin despite higher gas.
     </p>
     <p>
         <strong>For Bitcoin</strong>, expect higher network fees and slower confirmations (10-30 min per block).
-        CryptoLink uses Blockstream and mempool.space APIs to detect both mempool and confirmed transactions.
+        CryptoLink uses Blockstream and mempool.space APIs, but credits Bitcoin payments only once the
+        transaction is <strong>confirmed in a block</strong> — unconfirmed mempool transactions are deliberately
+        ignored, because a mempool txid can be replaced or dropped before it ever confirms. In practice the
+        customer waits for the first confirmation (typically ~10 minutes) before the payment flips to
+        <code>success</code>.
     </p>
     <p>
         <strong>For low-fee chains</strong>, Polygon (MATIC), BSC, Arbitrum, Avalanche, and TRON all offer
@@ -3303,8 +3332,45 @@ sudo ufw enable</code></pre>
 
     <div style="margin-top: 1.5rem; padding: 1.5rem; background: var(--dark2); border: 1px solid var(--border); border-radius: 8px;">
         <h2 style="font-size: 1.4rem; margin-bottom: 0.4rem;">
-            v1.0
+            Unreleased
             <span style="display:inline-block;background:var(--secondary);color:#fff;font-size:0.55em;padding:3px 9px;border-radius:5px;vertical-align:middle;margin-left:0.5em;letter-spacing:0.05em;">CURRENT</span>
+        </h2>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Changes on <code>main</code> since v1.0 (2026-05-04) — deployed, not yet tagged as a release.</p>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Payments</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li><strong>Bitcoin is credited only on confirmation.</strong> Unconfirmed mempool transactions are no longer treated as detected payments — a mempool txid can be replaced or dropped before it confirms. Trade-off: the customer waits for the first block (~10 min).</li>
+            <li><strong>Cross-currency payments to collector contracts are accepted automatically.</strong> Paying native ETH against a USDT invoice (or any other token/fiat pair) is priced at the real de-pegged rate instead of being dropped.</li>
+            <li>A cross-currency transfer is attributed across multiple open invoices when several are outstanding on the same collector.</li>
+            <li>Underpaid invoice pages are actionable — they show the exact top-up amount and address rather than a dead end.</li>
+            <li>Paid and failed invoices stay viewable after completion instead of erroring out.</li>
+            <li>The payment page now states <strong>which network</strong> the displayed address accepts, to reduce wrong-chain deposits.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Reliability</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>RPC clients are URL-aware and demote an endpoint that fails a real workload — not just one that fails a health ping. Fixes stalls behind archive-gated public nodes.</li>
+            <li>The EVM watcher fast-forwards its cursor past an RPC provider's prune horizon instead of deadlocking on pruned history.</li>
+            <li>New <code>recover-payment</code> CLI command for reconciling a payment by hand.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Wallets</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>Address derivation is seeded from the whole shared index space of an extended public key, so importing the same key into more than one merchant account no longer collides on index 0 and fails Bitcoin payments.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Money &amp; dashboard</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>Invoice amounts are rounded up and dashboard balances truncated at display precision, so a customer is never shown an amount they cannot actually send.</li>
+            <li>Correct conversion for stablecoins and non-USD fiat pairs.</li>
+            <li>Payment notification emails use the same display precision as the payment page.</li>
+            <li>Balance page shows per-token fiat equivalents and a portfolio total; payments CSV export gained id, email, fees and an explorer link.</li>
+        </ul>
+    </div>
+
+    <div style="margin-top: 1.5rem; padding: 1.5rem; background: var(--dark2); border: 1px solid var(--border); border-radius: 8px;">
+        <h2 style="font-size: 1.4rem; margin-bottom: 0.4rem;">
+            v1.0
         </h2>
         <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Released 2026-05-04 — first tagged release after the OxygenPay fork &amp; rebrand.</p>
 
