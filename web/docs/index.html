@@ -1518,8 +1518,12 @@ switch ($event['status']) {
     case 'success':
         fulfillOrder($event['merchantOrderID'], $event['amount'], $event['currency']);
         break;
+    case 'partial':
+        // Customer paid part of the invoice and may still top up.
+        recordPartial($event['merchantOrderID'], $event['receivedAmount'], $event['remainingAmount']);
+        break;
     case 'failed':
-    case 'expired':
+    case 'underpaid':
         cancelOrder($event['merchantOrderID']);
         notifyCustomer($event['customerEmail'], $event['status']);
         break;
@@ -1564,7 +1568,9 @@ app.post('/webhooks/cryptolink', (req, res) => {
 
     if (event.status === 'success') {
         fulfillOrder(event.merchantOrderID, event.amount, event.currency);
-    } else if (event.status === 'failed' || event.status === 'expired') {
+    } else if (event.status === 'partial') {
+        recordPartial(event.merchantOrderID, event.receivedAmount, event.remainingAmount);
+    } else if (event.status === 'failed' || event.status === 'underpaid') {
         cancelOrder(event.merchantOrderID);
     }
 
@@ -1601,7 +1607,9 @@ def handle_webhook():
 
     if event['status'] == 'success':
         fulfill_order(event['merchantOrderID'], event['amount'], event['currency'])
-    elif event['status'] in ('failed', 'expired'):
+    elif event['status'] == 'partial':
+        record_partial(event['merchantOrderID'], event['receivedAmount'], event['remainingAmount'])
+    elif event['status'] in ('failed', 'underpaid'):
         cancel_order(event['merchantOrderID'])
 
     return jsonify({'received': True}), 200</code></pre>
@@ -1632,6 +1640,11 @@ type WebhookEvent struct {
     CryptoCurrency  string `json:"cryptoCurrency"`
     CustomerEmail   string `json:"customerEmail"`
     IsTest          bool   `json:"isTest"`
+
+    // Populated only when Status == "partial"
+    ReceivedAmount  string `json:"receivedAmount,omitempty"`
+    RemainingAmount string `json:"remainingAmount,omitempty"`
+    IdempotencyKey  string `json:"idempotencyKey,omitempty"`
 }
 
 func verifySignature(body []byte, signature, secret string) bool {
@@ -1657,7 +1670,9 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
     switch event.Status {
     case "success":
         fulfillOrder(event.MerchantOrderID, event.Amount, event.Currency)
-    case "failed", "expired":
+    case "partial":
+        recordPartial(event.MerchantOrderID, event.ReceivedAmount, event.RemainingAmount)
+    case "failed", "underpaid":
         cancelOrder(event.MerchantOrderID)
     }
 
@@ -2752,8 +2767,8 @@ class WC_CryptoLink_Webhook {
             case 'failed':
                 $order->update_status('failed', 'CryptoLink: payment failed.');
                 break;
-            case 'expired':
-                $order->update_status('cancelled', 'CryptoLink: expired.');
+            case 'underpaid':
+                $order->update_status('on-hold', 'CryptoLink: underpaid — awaiting manual review.');
                 break;
         }
 
@@ -3501,8 +3516,20 @@ sudo ufw enable</code></pre>
         <details class="faq-item">
             <summary class="faq-question">How do I handle failed or underpaid payments?</summary>
             <div class="faq-answer">
-                <p>If a customer sends the wrong amount, CryptoLink marks the payment as "failed" (by default). Your webhook handler receives the <code>payment.failed</code> event with the actual received amount included in the payload, so you can decide how to handle it (e.g., offer to top up or issue a manual refund).</p>
-                <p>You can configure an underpayment tolerance (e.g., accept payments within 1% of the required amount) in your merchant settings to reduce false failures due to exchange rate fluctuations.</p>
+                <p>An underpayment is <strong>not</strong> failed immediately. The invoice moves to
+                <code>partial</code> and stays open so the customer can top up to the same address from any
+                wallet. Your webhook receives <code>status: "partial"</code> together with
+                <code>receivedAmount</code>, <code>remainingAmount</code> and an <code>idempotencyKey</code>
+                for deduplicating retried deliveries. Each fill extends the window by 30 minutes, capped at
+                the original expiry + 24h.</p>
+                <p>If the window closes while the invoice is still short, the payment becomes
+                <code>underpaid</code>: the watcher stops crediting it and the payment page shows the customer
+                the top-up details. Settling an <code>underpaid</code> invoice — crediting it anyway or
+                refunding — is a manual decision, since the funds are already in your own wallet.</p>
+                <p>There is no configurable percentage tolerance. CryptoLink applies a fixed <strong>$0.10
+                fiat slack</strong> so ordinary rounding and rate drift don't strand an otherwise complete
+                payment. If you want a wider volatility buffer, raise the per-merchant
+                <code>fee.global</code> markup instead, which is applied when the amount is locked.</p>
             </div>
         </details>
 
