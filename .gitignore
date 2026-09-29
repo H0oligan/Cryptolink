@@ -70,3 +70,11 @@ exports/
 *-recipients*.csv
 *-merchants*.csv
 *-emails*.csv
+# AI assistant / editor session state — may contain commands, paths, secrets.
+# Never commit (incident 2026-09-29: a prod password leaked via a committed file).
+.claude/
+.mcp.json
+*.jsonl
+RESUME_SESSION.md
+incident/
+private/

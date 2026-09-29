@@ -12,6 +12,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
 	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/internal/webhook"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 	"github.com/pkg/errors"
 )
@@ -171,6 +172,13 @@ func (h *Handler) UpdateMerchantWebhook(c echo.Context) error {
 	}
 
 	ctx := c.Request().Context()
+
+	// Refuse internal/private destinations up front (SSRF). webhook.Send
+	// re-checks the resolved IP on every delivery.
+	if err := webhook.ValidateDestination(ctx, req.URL); err != nil {
+		return common.ValidationErrorResponse(c, "url must be a public http(s) address")
+	}
+
 	mt := middleware.ResolveMerchant(c)
 
 	upsert := merchant.Settings{

@@ -18,6 +18,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/cryptolink/cryptolink/internal/test"
 	"github.com/cryptolink/cryptolink/internal/util"
+	"github.com/cryptolink/cryptolink/internal/webhook"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,6 +48,9 @@ func setup(t *testing.T) (*test.IntegrationTest, *paymentevents.Handler, *[]stri
 }
 
 func TestHandler_ProcessPaymentStatusUpdate(t *testing.T) {
+	// httptest servers listen on 127.0.0.1, which the SSRF guard blocks.
+	defer webhook.AllowPrivateDestinationsForTesting()()
+
 	tc, handler, responses := setup(t)
 
 	const merchantID = 1

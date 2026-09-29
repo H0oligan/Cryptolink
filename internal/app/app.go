@@ -23,7 +23,6 @@ import (
 	"github.com/cryptolink/cryptolink/internal/server/http/emailapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/marketingapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/subscriptionapi"
-	"github.com/cryptolink/cryptolink/internal/server/http/webhook"
 	"github.com/cryptolink/cryptolink/internal/service/user"
 	"github.com/cryptolink/cryptolink/pkg/graceful"
 	uidashboard "github.com/cryptolink/cryptolink/ui-dashboard"
@@ -101,12 +100,6 @@ func (app *App) RunServer() {
 		app.Logger(),
 	)
 
-	// handler for incoming payment webhooks
-	incomingWebhooksHandler := webhook.New(
-		app.services.ProcessingService(),
-		app.Logger(),
-	)
-
 	// Subscription handler
 	subscriptionHandler := subscriptionapi.New(
 		app.services.SubscriptionService(),
@@ -159,7 +152,10 @@ func (app *App) RunServer() {
 			app.config.Oxygen.Auth.Google.Enabled,
 		),
 		httpServer.WithPaymentAPI(paymentAPIHandler, app.config.Oxygen.Server),
-		httpServer.WithWebhookAPI(incomingWebhooksHandler),
+		// The legacy /api/webhook/v1/tatum/* route is intentionally NOT registered:
+		// its signature check was a no-op, so anyone could forge "incoming
+		// payment" events (abused 2026-09-29). Payments are detected by the
+		// internal watcher, which never used this HTTP endpoint.
 		httpServer.When(
 			app.config.EmbedFrontend,
 			httpServer.WithEmbeddedFrontend(uidashboard.Files(), uipayment.Files()),

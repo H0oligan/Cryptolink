@@ -7,6 +7,7 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -19,15 +20,32 @@ const (
 	HeaderSignature = "X-Signature"
 )
 
-// client is configured with appropriate timeouts to prevent resource exhaustion
+const maxRedirects = 3
+
+// client is configured with appropriate timeouts to prevent resource exhaustion.
+// Every connection goes through dialControl (see ssrf.go), which refuses
+// internal/private/loopback/metadata IPs, including after redirects.
 var client = &http.Client{
 	Timeout: 30 * time.Second,
 	Transport: &http.Transport{
+		Proxy: nil, // never route merchant webhooks through an env-configured proxy
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+			Control:   dialControl,
+		}).DialContext,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
 		DisableKeepAlives:   false,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return errors.New("too many redirects")
+		}
+
+		return validateScheme(req.URL)
 	},
 }
 
@@ -79,11 +97,7 @@ func validateURL(u string) error {
 		return err
 	}
 
-	if parsed.Hostname() == "" {
-		return errors.New("invalid hostname")
-	}
-
-	return nil
+	return validateScheme(parsed)
 }
 
 func SignRequest(req *http.Request, body []byte, secret string) error {

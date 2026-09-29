@@ -4,9 +4,11 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	mw "github.com/labstack/echo/v4/middleware"
+	"golang.org/x/time/rate"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	v1 "github.com/cryptolink/cryptolink/internal/server/http/internalapi"
 	"github.com/cryptolink/cryptolink/internal/server/http/emailapi"
@@ -60,8 +62,17 @@ func WithDashboardAPI(
 
 		// email auth routes
 		if enableEmailAuth {
-			authGroup.POST("/login", authHandler.PostLogin)
-			authGroup.POST("/register", authHandler.PostRegister)
+			// Per-IP limits on top of the group-wide 10 rps. Login is also
+			// throttled per email inside the handler (IP rotation via Tor).
+			loginRL := mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
+				Rate: rate.Every(6 * time.Second), Burst: 10, ExpiresIn: 30 * time.Minute, // ~10/min
+			})
+			registerRL := mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
+				Rate: rate.Every(12 * time.Minute), Burst: 3, ExpiresIn: 2 * time.Hour, // ~5/hour
+			})
+
+			authGroup.POST("/login", authHandler.PostLogin, mw.RateLimiter(loginRL))
+			authGroup.POST("/register", authHandler.PostRegister, mw.RateLimiter(registerRL))
 		}
 
 		// email verification routes (always available)

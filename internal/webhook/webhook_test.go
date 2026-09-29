@@ -22,6 +22,9 @@ var sampleBodyValue = sampleBody{Message: "Hello, world!"}
 func TestSend(t *testing.T) {
 	ctx := context.Background()
 
+	// httptest servers listen on 127.0.0.1, which the SSRF guard blocks.
+	defer AllowPrivateDestinationsForTesting()()
+
 	t.Run("Sends webhook", func(t *testing.T) {
 		const secret = "my-secret"
 
