@@ -86,7 +86,10 @@ func (h *Handler) PostRegister(c echo.Context) error {
 	})
 	switch {
 	case errors.Is(err, user.ErrAlreadyExists):
-		return common.ValidationErrorItemResponse(c, "email", "User with this email already exists")
+		// Do not reveal that the account exists (email enumeration): answer
+		// exactly like a successful registration. The owner can sign in or
+		// reset their password as usual.
+		return c.JSON(http.StatusCreated, registrationAcceptedResponse)
 	case err != nil:
 		return errors.Wrap(err, "unable to register user")
 	}
@@ -101,11 +104,11 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		}
 	}
 
-	// Auto-login after registration
-	setSession := map[string]any{middleware.UserIDContextKey: person.ID}
-	if err := h.persistSession(c, "email", setSession); err != nil {
-		return common.ErrorResponse(c, "internal error")
-	}
+	// No auto-login: logging in only new accounts would reveal which emails
+	// already exist. The user verifies the email, then signs in.
+	return c.JSON(http.StatusCreated, registrationAcceptedResponse)
+}
 
-	return c.NoContent(http.StatusCreated)
+var registrationAcceptedResponse = map[string]string{
+	"message": "Check your email to verify your address, then sign in.",
 }

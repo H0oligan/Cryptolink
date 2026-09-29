@@ -3,6 +3,7 @@ package http
 import (
 	"io/fs"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,7 +78,20 @@ func WithDashboardAPI(
 
 		// email verification routes (always available)
 		authGroup.GET("/verify-email", authHandler.VerifyEmail)
-		authGroup.POST("/resend-verification", authHandler.ResendVerification, guardsUsersMW)
+		// Each call sends an email through our SMTP provider: cap per account.
+		resendRL := mw.RateLimiterWithConfig(mw.RateLimiterConfig{
+			Store: mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
+				Rate: rate.Every(5 * time.Minute), Burst: 3, ExpiresIn: time.Hour,
+			}),
+			IdentifierExtractor: func(c echo.Context) (string, error) {
+				if u := middleware.ResolveUser(c); u != nil {
+					return "user:" + strconv.FormatInt(u.ID, 10), nil
+				}
+
+				return c.RealIP(), nil
+			},
+		})
+		authGroup.POST("/resend-verification", authHandler.ResendVerification, guardsUsersMW, resendRL)
 
 		// google auth routes
 		if enableGoogleAuth {

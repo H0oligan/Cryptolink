@@ -186,7 +186,9 @@ func (h *Handler) VerifyEmail(c echo.Context) error {
 		return c.Redirect(http.StatusTemporaryRedirect, "/merchants/login?error=invalid_token")
 	}
 
-	return c.Redirect(http.StatusTemporaryRedirect, "/merchants/?verified=true")
+	// Go to the login page: after registration the user is not signed in yet
+	// (no auto-login, see PostRegister). A signed-in user is sent on from there.
+	return c.Redirect(http.StatusTemporaryRedirect, "/merchants/login?verified=true")
 }
 
 // ResendVerification handles POST /auth/resend-verification
