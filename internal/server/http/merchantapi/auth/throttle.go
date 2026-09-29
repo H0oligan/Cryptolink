@@ -1,6 +1,7 @@
 package auth
 
 import (
+	_ "embed"
 	"strings"
 	"sync"
 	"time"
@@ -92,22 +93,33 @@ func (t *loginThrottle) gc(now time.Time) {
 	}
 }
 
-// Disposable inbox providers used for throwaway signups (the 2026-09-29
-// attacker used mailinator.com). Not exhaustive; blocks the common ones.
-var disposableEmailDomains = map[string]struct{}{
-	"mailinator.com": {}, "mailinator.net": {}, "mailinator.org": {},
-	"guerrillamail.com": {}, "guerrillamail.net": {}, "guerrillamail.org": {}, "guerrillamailblock.com": {},
-	"sharklasers.com": {}, "grr.la": {}, "pokemail.net": {}, "spam4.me": {},
-	"10minutemail.com": {}, "10minutemail.net": {}, "temp-mail.org": {}, "tempmail.com": {},
-	"tempmail.net": {}, "tempmailo.com": {}, "tempr.email": {}, "temp-mail.io": {},
-	"yopmail.com": {}, "yopmail.net": {}, "yopmail.fr": {},
-	"trashmail.com": {}, "trashmail.de": {}, "trashmail.net": {},
-	"getnada.com": {}, "nada.email": {}, "maildrop.cc": {}, "dispostable.com": {},
-	"fakeinbox.com": {}, "throwawaymail.com": {}, "mailnesia.com": {}, "mintemail.com": {},
-	"mohmal.com": {}, "emailondeck.com": {}, "moakt.com": {}, "mailcatch.com": {},
-	"burnermail.io": {}, "spamgourmet.com": {}, "mytemp.email": {}, "tmpmail.org": {},
-	"tmpmail.net": {}, "discard.email": {}, "33mail.com": {}, "inboxkitten.com": {},
-}
+// disposableDomainsList is the community-maintained blocklist of throwaway
+// inbox providers (CC0). The 2026-09-29 attacker cycled through mailinator.com
+// and uberip.com, which is why a short hand-written list was not enough.
+//
+//go:embed disposable_domains.txt
+var disposableDomainsList string
+
+// extraDisposableEmailDomains are seen in attacks but missing upstream.
+var extraDisposableEmailDomains = []string{}
+
+var disposableEmailDomains = func() map[string]struct{} {
+	m := make(map[string]struct{}, 10000)
+	for _, line := range strings.Split(disposableDomainsList, "\n") {
+		line = strings.ToLower(strings.TrimSpace(line))
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		m[line] = struct{}{}
+	}
+
+	for _, d := range extraDisposableEmailDomains {
+		m[d] = struct{}{}
+	}
+
+	return m
+}()
 
 // reservedEmailDomains are our own domains: nobody may self-register with them.
 var reservedEmailDomains = map[string]struct{}{

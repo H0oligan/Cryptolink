@@ -683,29 +683,23 @@ func (s *Service) CheckMerchantLimit(ctx context.Context, userID int64, currentC
 //
 // DELETED (operational data, keys, contracts):
 //   - api_tokens: auth credentials
-//   - merchant_addresses: configured withdrawal addresses
 //   - payment_links: reusable payment templates
 //   - registries: merchant config key-value pairs
-//   - wallet_locks: wallet reservations
 //   - derived_addresses: xpub-derived addresses (keys)
 //   - xpub_wallets: HD wallet extended public keys
 //   - evm_collector_wallets: smart contract addresses
 //   - usage_tracking: cascades automatically via FK
 func (s *Service) adminCleanMerchantData(ctx context.Context, merchantID int64) error {
-	// Order matters: child tables before parent tables to respect FK constraints
+	// Order matters: child tables before parent tables to respect FK constraints.
+	// Only touch tables that still exist: wallet_locks and merchant_addresses
+	// were dropped with the custodial hot-wallet system, and referencing them
+	// made every admin user/merchant delete fail with HTTP 500.
 
 	// 1. Delete API tokens for this merchant
 	_, err := s.db.Exec(ctx,
 		`DELETE FROM api_tokens WHERE entity_type = 'merchant' AND entity_id = $1`, merchantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete api tokens")
-	}
-
-	// 2. Delete wallet locks (frees up wallets for other merchants)
-	_, err = s.db.Exec(ctx,
-		`DELETE FROM wallet_locks WHERE merchant_id = $1`, merchantID)
-	if err != nil {
-		return errors.Wrap(err, "failed to delete wallet locks")
 	}
 
 	// 3. Delete derived addresses (xpub child keys) — before xpub_wallets
@@ -727,13 +721,6 @@ func (s *Service) adminCleanMerchantData(ctx context.Context, merchantID int64) 
 		`DELETE FROM evm_collector_wallets WHERE merchant_id = $1`, merchantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete evm collector wallets")
-	}
-
-	// 6. Delete merchant addresses (configured withdrawal addresses)
-	_, err = s.db.Exec(ctx,
-		`DELETE FROM merchant_addresses WHERE merchant_id = $1`, merchantID)
-	if err != nil {
-		return errors.Wrap(err, "failed to delete merchant addresses")
 	}
 
 	// 7. Delete payment links
