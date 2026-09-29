@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -67,4 +68,36 @@ func TestSendBlocksInternalDestinations(t *testing.T) {
 	assert.Error(t, Send(ctx, redir.URL, "", map[string]string{}))
 
 	assert.False(t, hit, "internal server must never be reached")
+}
+
+// Merchants may be hosted on this same server (smsmobile.io is pinned to the
+// origin IP). Their webhooks on 80/443 must work; other ports on our own IP
+// (HestiaCP 8083, Apache 8080/8443, app 3000) must not.
+func TestOwnPublicIPPortPolicy(t *testing.T) {
+	var own netip.Addr
+	addrs, _ := net.InterfaceAddrs()
+	for _, a := range addrs {
+		if ipNet, ok := a.(*net.IPNet); ok {
+			ip, _ := netip.AddrFromSlice(ipNet.IP)
+			ip = ip.Unmap()
+			if ip.IsValid() && !isForbiddenRange(ip) {
+				own = ip
+				break
+			}
+		}
+	}
+
+	if !own.IsValid() {
+		t.Skip("host has no public interface address")
+	}
+
+	assert.False(t, isForbiddenAddr(own, 443), "own IP :443 must be allowed")
+	assert.False(t, isForbiddenAddr(own, 80), "own IP :80 must be allowed")
+
+	for _, p := range []uint16{8083, 8080, 8443, 3000, 22, 5432} {
+		assert.True(t, isForbiddenAddr(own, p), "own IP :%d must be refused", p)
+	}
+
+	// Loopback stays refused even on 443.
+	assert.True(t, isForbiddenAddr(netip.MustParseAddr("127.0.0.1"), 443))
 }

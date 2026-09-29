@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -70,14 +71,48 @@ func mustPrefixes(cidrs ...string) []netip.Prefix {
 	return out
 }
 
-// isForbiddenIP reports whether connecting to ip must be refused.
+// Ports on which our own public IP may be reached. Merchants can be hosted on
+// this same server (smsmobile.io is pinned to the origin IP in /etc/hosts), and
+// 80/443 only reach nginx, i.e. websites that are public anyway. Every other
+// port on our own IP (HestiaCP :8083, Apache :8080/:8443, the app :3000) stays
+// refused.
+var ownIPAllowedPorts = map[uint16]struct{}{80: {}, 443: {}}
+
+// isForbiddenAddr reports whether connecting to ip:port must be refused.
+func isForbiddenAddr(ip netip.Addr, port uint16) bool {
+	if allowPrivate.Load() {
+		return false
+	}
+
+	ip = ip.Unmap()
+
+	if isForbiddenRange(ip) {
+		return true
+	}
+
+	if isLocalInterfaceIP(ip) {
+		_, ok := ownIPAllowedPorts[port]
+		return !ok
+	}
+
+	return false
+}
+
+// isForbiddenIP is isForbiddenAddr without port context: our own public IPs
+// count as forbidden.
 func isForbiddenIP(ip netip.Addr) bool {
 	if allowPrivate.Load() {
 		return false
 	}
 
-	ip = ip.Unmap() // ::ffff:127.0.0.1 -> 127.0.0.1
+	ip = ip.Unmap()
 
+	return isForbiddenRange(ip) || isLocalInterfaceIP(ip)
+}
+
+// isForbiddenRange covers loopback, private, link-local and reserved ranges,
+// which are never allowed on any port.
+func isForbiddenRange(ip netip.Addr) bool {
 	if !ip.IsValid() || ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
 		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() {
 		return true
@@ -89,9 +124,7 @@ func isForbiddenIP(ip netip.Addr) bool {
 		}
 	}
 
-	// Our own public IPs: reaching e.g. https://<server-ip>:8083 is as bad as
-	// reaching 127.0.0.1:8083.
-	return isLocalInterfaceIP(ip)
+	return false
 }
 
 func isLocalInterfaceIP(ip netip.Addr) bool {
@@ -123,7 +156,7 @@ func dialControl(_ string, address string, _ syscall.RawConn) error {
 		return errors.Wrap(ErrForbiddenDestination, "unparseable address")
 	}
 
-	if isForbiddenIP(addrPort.Addr()) {
+	if isForbiddenAddr(addrPort.Addr(), addrPort.Port()) {
 		return errors.Wrapf(ErrForbiddenDestination, "address %s is internal", addrPort.Addr())
 	}
 
@@ -160,9 +193,23 @@ func ValidateDestination(ctx context.Context, raw string) error {
 		return err
 	}
 
+	port := uint16(443)
+	if strings.EqualFold(u.Scheme, "http") {
+		port = 80
+	}
+
+	if p := u.Port(); p != "" {
+		n, err := strconv.ParseUint(p, 10, 16)
+		if err != nil {
+			return errors.Wrap(ErrForbiddenDestination, "invalid port")
+		}
+
+		port = uint16(n)
+	}
+
 	host := u.Hostname()
 	if ip, err := netip.ParseAddr(host); err == nil {
-		if isForbiddenIP(ip) {
+		if isForbiddenAddr(ip, port) {
 			return errors.Wrap(ErrForbiddenDestination, "internal address")
 		}
 
@@ -179,7 +226,7 @@ func ValidateDestination(ctx context.Context, raw string) error {
 	}
 
 	for _, ip := range ips {
-		if isForbiddenIP(ip) {
+		if isForbiddenAddr(ip, port) {
 			return errors.Wrap(ErrForbiddenDestination, "hostname resolves to an internal address")
 		}
 	}
