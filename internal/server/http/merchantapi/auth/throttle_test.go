@@ -30,7 +30,7 @@ func TestLoginThrottle(t *testing.T) {
 func TestRegistrationEmailBlocked(t *testing.T) {
 	for _, e := range []string{
 		"admin+ctf@cryptolink.cc", "root@CryptoLink.cc", "clctf1@mailinator.com",
-		"a@sub.mailinator.com", "x@yopmail.com",
+		"a@sub.mailinator.com", "x@yopmail.com", "clctf1790689901@uberip.com",
 	} {
 		assert.NotEmpty(t, registrationEmailBlocked(e), e)
 	}
@@ -38,4 +38,10 @@ func TestRegistrationEmailBlocked(t *testing.T) {
 	for _, e := range []string{"john@gmail.com", "ops@smsmobile.io", "me@notcryptolink.cc"} {
 		assert.Empty(t, registrationEmailBlocked(e), e)
 	}
+}
+
+func TestDisposableListLoaded(t *testing.T) {
+	assert.Greater(t, len(disposableEmailDomains), 5000)
+	_, hasGmail := disposableEmailDomains["gmail.com"]
+	assert.False(t, hasGmail)
 }
