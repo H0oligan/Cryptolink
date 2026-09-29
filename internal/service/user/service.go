@@ -122,6 +122,9 @@ func (s *Service) GetByEmailWithPasswordCheck(ctx context.Context, email, passwo
 	entry, err := s.store.GetUserByEmail(ctx, email)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
+		// Burn the same bcrypt time as a real check so response timing does
+		// not reveal whether the email is registered.
+		checkPass(timingEqualizerHash, password)
 		return nil, ErrNotFound
 	case err != nil:
 		return nil, err
@@ -148,6 +151,9 @@ func (s *Service) Register(ctx context.Context, params RegisterParams) (*User, e
 	u, err := s.GetByEmail(ctx, params.Email)
 	switch {
 	case err == nil:
+		// Same bcrypt cost as a real registration, so timing does not reveal
+		// that the email is already registered.
+		_, _ = hashPass(params.Password)
 		return u, ErrAlreadyExists
 	case errors.Is(err, ErrNotFound):
 		// do nothing
@@ -405,6 +411,17 @@ func hashPass(pass string) (string, error) {
 
 	return string(hashed), nil
 }
+
+// timingEqualizerHash is a throwaway bcrypt hash (same cost as real ones)
+// used to spend equal time on logins for unknown emails.
+var timingEqualizerHash = func() string {
+	h, err := bcrypt.GenerateFromPassword([]byte("timing-equalizer-not-a-password"), bcryptCost)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(h)
+}()
 
 func checkPass(hashed, pass string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(pass)) == nil

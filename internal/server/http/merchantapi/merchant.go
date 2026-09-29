@@ -53,6 +53,15 @@ func (h *Handler) CreateMerchant(c echo.Context) error {
 	ctx := c.Request().Context()
 	user := middleware.ResolveUser(c)
 
+	// Throwaway accounts must not get a merchant (and with it webhooks, API
+	// tokens and payment creation) before proving they own the email address.
+	if !user.EmailVerified && user.GoogleID == nil && !user.IsSuperAdmin {
+		// 400 validation error, not 403: the dashboard treats 403 as a CSRF
+		// refresh-and-retry, which would hide this message.
+		return common.ValidationErrorItemResponse(c, "email",
+			"Please verify your email address before creating a merchant. Check your inbox or resend the verification email.")
+	}
+
 	// Enforce merchant count limit from subscription plan
 	if h.subscriptions != nil {
 		existing, _ := h.merchants.ListByCreatorID(ctx, user.ID)

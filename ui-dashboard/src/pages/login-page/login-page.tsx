@@ -48,12 +48,21 @@ const LoginPage: React.FC = () => {
             setIsFormSubmitting(true);
 
             if (isRegisterMode) {
+                // Registration never signs in (the response is identical for new and
+                // existing emails, to prevent account enumeration). The user verifies
+                // the email via the link, then signs in.
                 await authProvider.register(values);
-                openNotification("Welcome!", "Your account has been created. Please check your email to verify your address.");
-            } else {
-                await authProvider.login(values);
-                openNotification("Welcome back!", "");
+                openNotification(
+                    "Check your inbox",
+                    "If this email can be used, we have sent a verification link. Verify your address, then sign in."
+                );
+                setIsRegisterMode(false);
+                form.resetFields();
+                return;
             }
+
+            await authProvider.login(values);
+            openNotification("Welcome back!", "");
 
             navigate("/", {
                 state: {realoadUserInfo: true}
@@ -84,6 +93,16 @@ const LoginPage: React.FC = () => {
 
     useMount(async () => {
         window.addEventListener("popstate", () => navigate("/login", {replace: true}));
+
+        if (searchParams.get("verified") === "true") {
+            openNotification("Email verified", "Your email address is verified. You can now sign in.");
+        } else if (searchParams.get("error") === "invalid_token" || searchParams.get("error") === "missing_token") {
+            api.error({
+                message: "Verification link is invalid or expired",
+                description: "Sign in and use \"Resend verification email\" to get a new link.",
+                placement: "bottomRight"
+            });
+        }
 
         if (state?.isNeedLogout) {
             localStorage.remove("merchantId");
