@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
@@ -25,13 +26,23 @@ func (h *Handler) PostLogin(c echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	}
 
-	person, err := h.users.GetByEmailWithPasswordCheck(ctx, req.Email.String(), req.Password)
+	emailAddr := req.Email.String()
+	if h.loginThrottle.Blocked(emailAddr, time.Now()) {
+		return c.JSON(http.StatusTooManyRequests, echo.Map{
+			"message": "Too many failed login attempts. Please try again in 15 minutes.",
+		})
+	}
+
+	person, err := h.users.GetByEmailWithPasswordCheck(ctx, emailAddr, req.Password)
 	switch {
 	case errors.Is(err, user.ErrNotFound), errors.Is(err, user.ErrWrongPassword):
+		h.loginThrottle.Fail(emailAddr, time.Now())
 		return common.ValidationErrorItemResponse(c, "email", "User with provided email or password not found")
 	case err != nil:
 		return errors.Wrap(err, "unable to resolve user")
 	}
+
+	h.loginThrottle.Reset(emailAddr)
 
 	setSession := map[string]any{middleware.UserIDContextKey: person.ID}
 	if err := h.persistSession(c, "email", setSession); err != nil {
@@ -57,6 +68,10 @@ func (h *Handler) PostRegister(c echo.Context) error {
 	// GDPR: terms must be accepted
 	if !req.TermsAccepted {
 		return common.ValidationErrorItemResponse(c, "termsAccepted", "You must accept the Terms of Service")
+	}
+
+	if reason := registrationEmailBlocked(req.Email.String()); reason != "" {
+		return common.ValidationErrorItemResponse(c, "email", "%s", reason)
 	}
 
 	person, err := h.users.Register(ctx, user.RegisterParams{

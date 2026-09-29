@@ -38,6 +38,7 @@ require (
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.19.0
+	golang.org/x/time v0.14.0
 )
 
 require (
@@ -108,7 +109,6 @@ require (
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	olympos.io/encoding/edn v0.0.0-20201019073823-d3554ca0b0a3 // indirect
