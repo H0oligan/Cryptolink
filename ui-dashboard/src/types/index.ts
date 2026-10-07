@@ -130,7 +130,7 @@ const CURRENCY_SYMBOL: Record<string, string> = {
 
 type PaymentType = "payment" | "withdrawal";
 
-type PaymentStatus = "pending" | "inProgress" | "success" | "failed" | "underpaid";
+type PaymentStatus = "pending" | "inProgress" | "success" | "failed" | "underpaid" | "partial";
 
 interface ServiceFee {
     blockchain: string;
