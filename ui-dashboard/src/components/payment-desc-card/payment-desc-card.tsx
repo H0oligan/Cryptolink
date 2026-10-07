@@ -232,6 +232,15 @@ const PaymentDescCard: React.FC<Props> = ({data, openNotificationFunc, onResolve
                         )}
                     </Descriptions>
 
+                    {/* Partial: customer underpaid, still inside the top-up window */}
+                    {data.status === "partial" && data.type === "payment" && (
+                        <div style={{marginTop: 16, textAlign: "center", fontSize: 12, opacity: 0.7}}>
+                            Customer sent less than the required amount. We are still watching the address for a
+                            top-up; if none arrives before expiry (+30 min grace) the payment becomes Underpaid and
+                            you can accept or decline it.
+                        </div>
+                    )}
+
                     {/* Underpaid: Accept or Decline */}
                     {data.status === "underpaid" && data.type === "payment" && (
                         <div style={{marginTop: 16, textAlign: "center"}}>
