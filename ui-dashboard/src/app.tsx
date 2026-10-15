@@ -38,6 +38,8 @@ import CurrenciesPage from "src/pages/currencies-page/currencies-page";
 import useSharedPosthogStatus from "src/hooks/use-posthog-status";
 import {toggled} from "./providers/toggles";
 import ThemeToggle from "src/theme/theme-toggle";
+import ConnectWalletButton from "src/wallet/connect-wallet-button";
+import ConnectWalletModal from "src/wallet/connect-wallet-modal";
 import {useTheme} from "src/theme/theme-context";
 
 interface MenuItem {
@@ -338,6 +340,9 @@ const App: React.FC = () => {
                             navTheme={isDark ? "realDark" : "light"}
                             actionsRender={() => {
                                 return [
+                                    <RouteContext.Consumer key="wallet">
+                                        {(routeCtx: RouteContextType) => <ConnectWalletButton compact={routeCtx.isMobile} />}
+                                    </RouteContext.Consumer>,
                                     <ThemeToggle key="theme-toggle" />,
                                     !isManageMerchantsActive ? (
                                         <Select
@@ -442,6 +447,7 @@ const App: React.FC = () => {
                             headerTitleRender={() => null}
                         >
                             {notificationElement}
+                            <ConnectWalletModal />
                             {user && user.emailVerified === false && (
                                 <Alert
                                     type="warning"

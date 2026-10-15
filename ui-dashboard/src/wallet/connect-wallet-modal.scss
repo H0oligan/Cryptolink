@@ -1,0 +1,121 @@
+.connect-wallet-modal {
+    &__section {
+        margin-bottom: 16px;
+    }
+
+    &__section-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--cl-text-secondary);
+        margin-bottom: 8px;
+    }
+
+    &__row,
+    &__connected {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        border: 1px solid var(--cl-border);
+        border-radius: 8px;
+        background: var(--cl-bg-container);
+        color: var(--cl-text-primary);
+        font: inherit;
+        text-align: left;
+    }
+
+    &__row {
+        cursor: pointer;
+
+        &:hover:not(:disabled) {
+            background: var(--cl-bg-hover);
+            border-color: var(--cl-accent-primary);
+        }
+
+        &:disabled {
+            cursor: default;
+            opacity: 0.7;
+        }
+    }
+
+    &__row_muted {
+        color: var(--cl-text-secondary);
+    }
+
+    &__connected {
+        border-color: var(--cl-accent-success);
+    }
+
+    &__icon {
+        width: 28px;
+        height: 28px;
+        flex: none;
+        border-radius: 6px;
+    }
+
+    &__icon_letter {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--cl-bg-elevated);
+        color: var(--cl-text-secondary);
+        font-weight: 600;
+    }
+
+    &__grow {
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__addr {
+        font-family: var(--cl-monospace);
+        font-size: 12px;
+    }
+
+    &__install {
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    &__empty {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+    }
+
+    &__loading {
+        display: flex;
+        justify-content: center;
+        padding: 32px 0;
+    }
+
+    &__error {
+        margin-bottom: 12px;
+    }
+
+    &__note {
+        display: block;
+        font-size: 12px;
+        margin-top: 4px;
+    }
+}
+
+// Phones: bottom sheet with a 16px gutter.
+.connect-wallet-modal--sheet {
+    top: auto !important;
+    bottom: 0;
+    margin: 0 auto !important;
+    padding: 0 16px 16px !important;
+    max-width: 100vw !important;
+    position: fixed !important;
+    left: 0;
+    right: 0;
+
+    .ant-modal-content {
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+}

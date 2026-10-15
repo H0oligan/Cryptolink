@@ -12,6 +12,7 @@ import {posthogConfig} from "./providers/posthog";
 import {App as AntdApp} from "antd";
 import App from "./app";
 import {ThemeProvider} from "./theme/theme-context";
+import {WalletProvider} from "./wallet/wallet-context";
 
 const queryClient = new QueryClient();
 
@@ -44,7 +45,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
             <AntdApp>
                 <BrowserRouter basename={determineBasename()}>
                     <QueryClientProvider client={queryClient}>
-                        <App />
+                        <WalletProvider handoffEnabled>
+                            <App />
+                        </WalletProvider>
                     </QueryClientProvider>
                 </BrowserRouter>
             </AntdApp>

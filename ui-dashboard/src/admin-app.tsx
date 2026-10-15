@@ -26,6 +26,8 @@ import AdminContractsPage from "src/pages/admin/contracts-page/contracts-page";
 import AdminContactsPage from "src/pages/admin/contacts-page/contacts-page";
 import AdminMarketingPage from "src/pages/admin/marketing-page/marketing-page";
 import ThemeToggle from "src/theme/theme-toggle";
+import ConnectWalletButton from "src/wallet/connect-wallet-button";
+import ConnectWalletModal from "src/wallet/connect-wallet-modal";
 import {useTheme} from "src/theme/theme-context";
 
 interface MenuItem {
@@ -176,6 +178,9 @@ const AdminApp: React.FC = () => {
                         loading={isLoading}
                         navTheme={isDark ? "realDark" : "light"}
                         actionsRender={() => [
+                            <RouteContext.Consumer key="wallet">
+                                {(routeCtx: RouteContextType) => <ConnectWalletButton compact={routeCtx.isMobile} />}
+                            </RouteContext.Consumer>,
                             <ThemeToggle key="theme-toggle" />,
                             <Dropdown key="user-dropdown" menu={{items: userMenu}} trigger={["click"]}
                                 className={b("user-wrap")} getPopupContainer={() => document.body}>
@@ -210,6 +215,7 @@ const AdminApp: React.FC = () => {
                         splitMenus={false}
                         headerTitleRender={() => null}
                     >
+                        <ConnectWalletModal />
                         {/* Don't render inner routes while loading — prevents premature redirects */}
                         {!isLoading && (
                             <Routes>
