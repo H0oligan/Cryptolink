@@ -93,8 +93,21 @@ const buildChain = (config: EvmChainConfig): Chain => ({
 // Synchronous availability check for UI
 // ---------------------------------------------------------------
 
+// EIP-6963 announcements, collected from module load. Wallets answer
+// requestProvider synchronously, so this is populated before first render.
+// Fixes "MetaMask not detected" when another extension owns window.ethereum.
+const announcedRdns = new Set<string>();
+if (typeof window !== "undefined") {
+    window.addEventListener("eip6963:announceProvider", (event: Event) => {
+        const rdns = (event as CustomEvent).detail?.info?.rdns;
+        if (rdns) announcedRdns.add(rdns);
+    });
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+}
+
 export const isMetaMaskAvailable = (): boolean => {
     if (typeof window === "undefined") return false;
+    if (announcedRdns.has(METAMASK_RDNS)) return true;
     if (window.ethereum?.providers?.some((p: any) => p.isMetaMask)) return true;
     if (window.ethereum?.isMetaMask) return true;
     return false;
