@@ -834,7 +834,7 @@ CryptoLink server CANNOT call withdraw — only the merchant's wallet can.</div>
 
     <div class="callout info">
         <div class="callout-title">TRON Smart Contracts</div>
-        <p>TRON uses the same clone factory pattern, deployed via <strong>TronLink</strong> browser extension.
+        <p>TRON uses the same clone factory pattern, deployed from any TRON wallet (TronLink, OKX, Trust, TokenPocket…).
         Contracts are compiled with <code>--evm-version paris</code> (no PUSH0) for TVM compatibility.
         Known TRC-20 tokens: USDT (<code>TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code>),
         USDC (<code>TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8</code>).</p>
@@ -1036,8 +1036,8 @@ CryptoLink server CANNOT call withdraw — only the merchant's wallet can.</div>
     <h3>EVM Chains &amp; TRON (Smart Contract Collector)</h3>
     <p>For ETH, MATIC, BSC, Arbitrum, Avalanche, and TRON, each merchant deploys a <strong>smart contract collector</strong> via the dashboard. This is a one-time setup per chain:</p>
     <ul>
-        <li><strong>EVM Chains</strong>: Connect MetaMask, click "Deploy Collector" — costs ~$0.50 in gas</li>
-        <li><strong>TRON</strong>: Connect TronLink browser extension, click "Deploy Collector" — costs ~150 TRX (~$0.50)</li>
+        <li><strong>EVM Chains</strong>: Click <em>Connect Wallet</em> (MetaMask, Trust, OKX, Rabby, Coinbase…), then "Deploy with wallet" — costs ~$0.50 in gas</li>
+        <li><strong>TRON</strong>: Connect any TRON wallet, then "Deploy with wallet" — costs ~150 TRX (~$0.50)</li>
     </ul>
     <p>The collector contract is owned by your wallet — only you can withdraw funds from it.</p>
 
@@ -1965,7 +1965,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
                 <tr><th>Currency</th><th>Ticker</th><th>Network</th><th>Standard</th><th>Detection</th><th>Notes</th></tr>
             </thead>
             <tbody>
-                <tr><td><strong>TRON</strong></td><td><code>TRON</code></td><td>TRON Network</td><td>Native</td><td>TronGrid API</td><td>Clone factory collector via TronLink</td></tr>
+                <tr><td><strong>TRON</strong></td><td><code>TRON</code></td><td>TRON Network</td><td>Native</td><td>TronGrid API</td><td>Clone factory collector (any TRON wallet)</td></tr>
                 <tr><td><strong>Tether USD (TRC-20)</strong></td><td><code>TRON_USDT</code></td><td>TRON Network</td><td>TRC-20</td><td>TronGrid API</td><td>Most popular stablecoin; very low fees</td></tr>
             </tbody>
         </table>
@@ -3477,7 +3477,7 @@ sudo ufw enable</code></pre>
             <summary class="faq-question">How do the smart contract collectors work?</summary>
             <div class="faq-answer">
                 <p>For EVM chains and TRON, each merchant deploys a lightweight smart contract "collector" via the dashboard. The admin deploys a factory contract once (~$16), and each merchant creates a cheap clone (~$0.50) using the EIP-1167 minimal proxy pattern. The clone is owned by the merchant's wallet — only they can withdraw funds. CryptoLink monitors the collector address for incoming payments but cannot move funds from it.</p>
-                <p>For EVM chains, connect MetaMask in the dashboard. For TRON, connect TronLink. The deployment is a one-time setup per chain.</p>
+                <p>Click <em>Connect Wallet</em> in the dashboard header and pick any EVM or TRON wallet — a browser extension, or your phone's wallet app via "Use my phone" (QR) or "Open in app". The wallet that signs the deployment becomes the permanent owner. The deployment is a one-time setup per chain.</p>
             </div>
         </details>
 
