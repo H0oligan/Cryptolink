@@ -10,6 +10,7 @@ import {splitWalletList} from "src/wallet/wallet-list";
 import {describeWalletError} from "src/wallet/errors";
 import {shortAddr} from "src/wallet/owner";
 import {isMobileDevice} from "src/wallet/env";
+import HandoffPanel from "src/wallet/handoff-panel";
 import type {DetectedWallet, WalletFamily} from "src/wallet/types";
 
 const {Text} = Typography;
@@ -26,12 +27,7 @@ const WalletIcon: React.FC<{src?: string; name: string}> = ({src, name}) =>
         <span className="connect-wallet-modal__icon connect-wallet-modal__icon_letter">{name.charAt(0)}</span>
     );
 
-interface Props {
-    // Extra content for the "not installed" area (phone handoff); Task 10.
-    renderHandoff?: (family: WalletFamily | null) => React.ReactNode;
-}
-
-const ConnectWalletModal: React.FC<Props> = ({renderHandoff}) => {
+const ConnectWalletModal: React.FC = () => {
     const wallet = useWallet();
     const [found, setFound] = React.useState<DetectedWallet[] | null>(null);
     const [connectingId, setConnectingId] = React.useState<string | null>(null);
@@ -163,7 +159,7 @@ const ConnectWalletModal: React.FC<Props> = ({renderHandoff}) => {
             ) : (
                 <>
                     {families.map(renderFamily)}
-                    {renderHandoff?.(wallet.modal.family)}
+                    {wallet.handoffEnabled && <HandoffPanel family={wallet.modal.family} />}
                 </>
             )}
             <Text type="secondary" className="connect-wallet-modal__note">

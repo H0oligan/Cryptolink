@@ -700,6 +700,9 @@ const WalletSetupPage: React.FC = () => {
         loadData();
     }, [merchantId]);
 
+    // A deploy finished on the phone (wallet handoff) shows up here.
+    useHandoffRefresh(loadData);
+
     const getWalletForChain = (chain: string) => existingWallets.find((w) => w.blockchain === chain);
     const isChainConfigured = (chain: string) => existingWallets.some((w) => w.blockchain === chain);
 

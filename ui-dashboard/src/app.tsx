@@ -24,6 +24,7 @@ import useSharedMerchant from "src/hooks/use-merchant";
 import ManageMerchantsPage from "src/pages/manage-merchants-page/manage-merchants-page";
 import BalancePage from "src/pages/balance-page/balance-page";
 import LoginPage from "src/pages/login-page/login-page";
+import HandoffPage from "src/pages/handoff-page/handoff-page";
 import PaymentsPage from "src/pages/payments-page/payments-page";
 import DrawerForm from "src/components/drawer-form/drawer-form";
 import SupportForm from "src/components/support-form/support-form";
@@ -188,6 +189,9 @@ const App: React.FC = () => {
     };
 
     useMount(async () => {
+        // HandoffPage signs the user in first, then triggers a reload via realoadUserInfo;
+        // loading here would 401-redirect to /login mid-claim.
+        if (location.pathname === "/handoff") return;
         await loadUserInfo();
     });
 
@@ -301,6 +305,7 @@ const App: React.FC = () => {
     return (
         <Routes>
             <Route path="login" element={<LoginPage />} />
+            <Route path="handoff" element={<HandoffPage />} />
             <Route
                 path="*"
                 element={
