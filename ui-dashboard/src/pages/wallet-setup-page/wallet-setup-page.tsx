@@ -43,7 +43,11 @@ import xpubProvider, {XpubWallet} from "src/providers/xpub-provider";
 import evmCollectorProvider, {EvmCollector} from "src/providers/evm-collector-provider";
 import useSharedMerchantId from "src/hooks/use-merchant-id";
 import {EVM_CHAINS, TRON_CHAIN, type EvmChainConfig} from "src/constants/merchant-collector";
-import {isMetaMaskAvailable, connectWallet, switchChain, deployCollector} from "src/utils/evm-wallet";
+import {useWallet} from "src/wallet/wallet-context";
+import {deployEvmFlow, deployTronFlow} from "src/wallet/deploy";
+import {confirmPermanentOwner} from "src/wallet/confirm-owner";
+import {describeWalletError} from "src/wallet/errors";
+import {useHandoffRefresh} from "src/wallet/use-handoff-refresh";
 import {isTronLinkAvailable, connectTronWallet, deployTronCloneViaFactory} from "src/utils/tron-wallet";
 
 const b = bevis("wallet-setup-page");
@@ -68,7 +72,7 @@ function detectKeyFormat(key: string): {format: string; label: string; path: str
 }
 
 // ============================================================
-// EVM Collector Panel — automated MetaMask deploy
+// EVM Collector Panel — automated deploy with any wallet
 // ============================================================
 
 type DeployStep = "idle" | "connecting" | "switching" | "deploying" | "registering" | "done" | "error";
@@ -99,6 +103,7 @@ const EvmCollectorPanel: React.FC<{
     const [deployingChain, setDeployingChain] = React.useState<string | null>(null);
     const [deployState, setDeployState] = React.useState<DeployState>({step: "idle"});
     const [isDeleting, setIsDeleting] = React.useState<string | null>(null);
+    const wallet = useWallet();
 
     const getCollector = (chain: string): EvmCollector | undefined =>
         collectors.find((c) => c.blockchain === chain);
@@ -108,16 +113,19 @@ const EvmCollectorPanel: React.FC<{
         setDeployState({step: "connecting"});
 
         try {
-            // Step 1: Connect wallet
-            const owner = await connectWallet();
-            setDeployState({step: "switching", ownerAddress: owner});
+            // Step 1: Connect any wallet; the signer becomes the permanent owner
+            const conn = await wallet.ensureEvm();
+            const owner = conn.address;
 
-            // Step 2: Switch to correct chain
-            await switchChain(chain);
-            setDeployState((s) => ({...s, step: "deploying"}));
-
-            // Step 3: Deploy MerchantCollector
-            const contractAddr = await deployCollector(owner, chain);
+            // Steps 2-3: confirm owner, switch chain, deploy MerchantCollector
+            const contractAddr = await deployEvmFlow(conn, chain, confirmPermanentOwner, (step) =>
+                setDeployState((s) => ({...s, step, ownerAddress: owner}))
+            );
+            if (!contractAddr) {
+                setDeployingChain(null);
+                setDeployState({step: "idle"});
+                return;
+            }
             setDeployState((s) => ({...s, step: "registering", contractAddress: contractAddr}));
 
             // Step 4: Register with CryptoLink API
@@ -142,9 +150,14 @@ const EvmCollectorPanel: React.FC<{
                 setDeployingChain(null);
                 setDeployState({step: "idle"});
             }, 2000);
-        } catch (err: any) {
-            const msg = err?.message || "Deployment failed. Please try again.";
-            setDeployState({step: "error", error: msg});
+        } catch (err) {
+            const d = describeWalletError(err);
+            if (d.rejected) {
+                setDeployingChain(null);
+                setDeployState({step: "idle"});
+                return;
+            }
+            setDeployState({step: "error", error: d.description});
         }
     };
 
@@ -160,7 +173,7 @@ const EvmCollectorPanel: React.FC<{
                     </p>
                     <p style={{color: "#ff4d4f", marginTop: 8}}>
                         This only removes the registration from CryptoLink. The contract on-chain is not
-                        affected — your funds remain accessible via MetaMask at any time.
+                        affected — your funds remain accessible from the owner wallet at any time.
                     </p>
                 </div>
             ),
@@ -206,10 +219,10 @@ const EvmCollectorPanel: React.FC<{
                 message="Non-custodial Smart Contract Wallets"
                 description={
                     <ul style={{margin: "8px 0 0 0", paddingLeft: 20}}>
-                        <li>Each EVM chain gets its own <strong>MerchantCollector</strong> contract deployed directly from your MetaMask — no factory required.</li>
+                        <li>Each EVM chain gets its own <strong>MerchantCollector</strong> contract deployed directly from your wallet — no factory required.</li>
                         <li>Customers pay to the contract address. You call <strong>withdrawAll()</strong> to sweep all funds to your wallet.</li>
                         <li>CryptoLink has <strong>zero admin access</strong> — only your wallet (the owner) can withdraw.</li>
-                        <li>Click <strong>"Deploy with MetaMask"</strong> and follow the prompts — the entire process is automated.</li>
+                        <li>Click <strong>"Deploy with wallet"</strong>, pick any wallet (MetaMask, Trust, OKX, Rabby…) and follow the prompts — the entire process is automated.</li>
                     </ul>
                 }
                 type="info"
@@ -217,21 +230,6 @@ const EvmCollectorPanel: React.FC<{
                 icon={<ThunderboltOutlined />}
                 style={{marginBottom: 24}}
             />
-
-            {!isMetaMaskAvailable() && (
-                <Alert
-                    message="MetaMask not detected"
-                    description="Install MetaMask or another EIP-1193 compatible browser wallet to deploy smart contract wallets."
-                    type="warning"
-                    showIcon
-                    style={{marginBottom: 16}}
-                    action={
-                        <Button size="small" href="https://metamask.io/download/" target="_blank" icon={<LinkOutlined />}>
-                            Install MetaMask
-                        </Button>
-                    }
-                />
-            )}
 
             <Row gutter={[16, 16]}>
                 {EVM_CHAINS.map((chain) => {
@@ -306,11 +304,10 @@ const EvmCollectorPanel: React.FC<{
                                             type="primary"
                                             size="small"
                                             icon={<ThunderboltOutlined />}
-                                            disabled={!isMetaMaskAvailable()}
                                             onClick={() => handleDeploy(chain)}
                                             style={{marginTop: 4}}
                                         >
-                                            Deploy with MetaMask
+                                            Deploy with wallet
                                         </Button>
                                     )}
                                 </Space>
@@ -370,7 +367,7 @@ const EvmCollectorPanel: React.FC<{
                             <Text type="secondary">{STEP_LABELS[deployState.step]}</Text>
                             {deployState.step === "deploying" && (
                                 <Text type="secondary" style={{fontSize: 12}}>
-                                    Please confirm the transaction in MetaMask and wait for it to be mined...
+                                    Please confirm the transaction in your wallet and wait for it to be mined...
                                 </Text>
                             )}
                         </Space>
@@ -1434,7 +1431,7 @@ const WalletSetupPage: React.FC = () => {
                     </Title>
                     <Paragraph type="secondary">
                         Configure your non-custodial wallets to receive crypto payments directly.
-                        HD wallets (xpub) for Bitcoin — Smart Contracts for EVM chains & TRON (deployed via MetaMask/TronLink).
+                        HD wallets (xpub) for Bitcoin — Smart Contracts for EVM chains & TRON (deployed from any EVM or TRON wallet).
                     </Paragraph>
                 </div>
 
