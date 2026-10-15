@@ -16,9 +16,8 @@ import (
 // SSRF protection for merchant-controlled webhook URLs.
 //
 // Merchants choose where our server sends HTTP requests, so without these
-// checks a merchant can make the server call internal services (control panel on
-// :8083, Postgres, Redis, cloud metadata on 169.254.169.254, ...). This was
-// actively exploited on 2026-09-29.
+// checks a merchant can make the server call internal services (control
+// panels, databases, caches, cloud metadata on 169.254.169.254, ...).
 //
 // The authoritative check runs in the dialer's Control hook, i.e. on the IP
 // actually being connected to. That covers DNS names resolving to internal
@@ -71,11 +70,10 @@ func mustPrefixes(cidrs ...string) []netip.Prefix {
 	return out
 }
 
-// Ports on which our own public IP may be reached. Merchants can be hosted on
-// this same server (example.com is pinned to the origin IP in /etc/hosts), and
-// 80/443 only reach nginx, i.e. websites that are public anyway. Every other
-// port on our own IP (control panel :8083, Apache :8080/:8443, the app :3000) stays
-// refused.
+// Ports on which our own public IP may be reached. A merchant's website can be
+// hosted on this same server, and 80/443 only reach the public web server,
+// i.e. websites that are public anyway. Every other port on our own IP
+// (control panels, internal web servers, the app port) stays refused.
 var ownIPAllowedPorts = map[uint16]struct{}{80: {}, 443: {}}
 
 // isForbiddenAddr reports whether connecting to ip:port must be refused.

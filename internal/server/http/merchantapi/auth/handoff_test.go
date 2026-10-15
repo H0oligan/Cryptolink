@@ -17,13 +17,13 @@ func TestHandoffStore(t *testing.T) {
 
 	t.Run("direct: claim never creates a session; complete does, once", func(t *testing.T) {
 		s := newHandoffStore()
-		_, token, _, err := s.Create(7, "admin@example.com", testMerchant, "/balance", handoffDirect, now)
+		_, token, _, err := s.Create(7, "owner@example.com", testMerchant, "/balance", handoffDirect, now)
 		require.NoError(t, err)
 
 		res, err := s.Claim(token, "MetaMask · iPhone", now)
 		require.NoError(t, err)
 		require.NotEmpty(t, res.claimSecret)
-		assert.Equal(t, "admin@example.com", res.email)
+		assert.Equal(t, "owner@example.com", res.email)
 		assert.Empty(t, res.matchCode, "direct mode has no PC approval")
 
 		_, err = s.Claim(token, "x", now)
@@ -166,7 +166,7 @@ func TestHandoffStore(t *testing.T) {
 }
 
 func TestMaskEmail(t *testing.T) {
-	assert.Equal(t, "ad***@example.com", maskEmail("admin@example.com"))
+	assert.Equal(t, "ow***@example.com", maskEmail("owner@example.com"))
 	assert.Equal(t, "a***@x.io", maskEmail("a@x.io"))
 	assert.Equal(t, "***", maskEmail("broken"))
 }

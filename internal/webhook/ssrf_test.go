@@ -70,9 +70,9 @@ func TestSendBlocksInternalDestinations(t *testing.T) {
 	assert.False(t, hit, "internal server must never be reached")
 }
 
-// Merchants may be hosted on this same server (example.com is pinned to the
-// origin IP). Their webhooks on 80/443 must work; other ports on our own IP
-// (control panel 8083, Apache 8080/8443, app 3000) must not.
+// A merchant's website may be hosted on this same server. Its webhooks on
+// 80/443 must work; other ports on our own IP (control panels, internal web
+// servers, the app port) must not.
 func TestOwnPublicIPPortPolicy(t *testing.T) {
 	var own netip.Addr
 	addrs, _ := net.InterfaceAddrs()

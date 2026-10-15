@@ -35,7 +35,7 @@ func TestRegistrationEmailBlocked(t *testing.T) {
 		assert.NotEmpty(t, registrationEmailBlocked(e), e)
 	}
 
-	for _, e := range []string{"john@gmail.com", "ops@example.com", "me@notcryptolink.cc"} {
+	for _, e := range []string{"john@gmail.com", "ops@example.org", "me@notcryptolink.cc"} {
 		assert.Empty(t, registrationEmailBlocked(e), e)
 	}
 }
