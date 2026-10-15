@@ -5,15 +5,13 @@ import {
 } from "antd";
 import {
     ThunderboltOutlined, CheckCircleOutlined, LoadingOutlined,
-    ExclamationCircleOutlined, LinkOutlined, RocketOutlined,
+    ExclamationCircleOutlined, RocketOutlined,
 } from "@ant-design/icons";
 import adminProvider, {CollectorFactoryConfig} from "src/providers/admin-provider";
 import {TRON_CHAIN} from "src/constants/merchant-collector";
-import {
-    isTronLinkAvailable, connectTronWallet,
-    deployTronImplementation, deployTronFactory,
-} from "src/utils/tron-wallet";
-import {WarningOutlined} from "@ant-design/icons";
+import {getReadyTronWeb, deployTronImplementation, deployTronFactory} from "src/wallet/tron-actions";
+import {useWallet} from "src/wallet/wallet-context";
+import {describeWalletError} from "src/wallet/errors";
 
 const {Title, Text, Paragraph} = Typography;
 
@@ -21,7 +19,7 @@ type DeployPhase = "idle" | "connecting" | "deploying-impl" | "deploying-factory
 
 const PHASE_LABELS: Record<DeployPhase, string> = {
     idle: "",
-    connecting: "Connecting to TronLink...",
+    connecting: "Connecting wallet...",
     "deploying-impl": "Deploying Implementation contract...",
     "deploying-factory": "Deploying Clone Factory contract...",
     saving: "Saving to CryptoLink...",
@@ -39,6 +37,7 @@ const AdminContractsPage: React.FC = () => {
     const [implAddress, setImplAddress] = React.useState("");
     const [factoryAddress, setFactoryAddress] = React.useState("");
     const [resumeImplAddress, setResumeImplAddress] = React.useState("");
+    const wallet = useWallet();
 
     const loadFactories = () => {
         setLoading(true);
@@ -60,21 +59,22 @@ const AdminContractsPage: React.FC = () => {
         setFactoryAddress("");
 
         try {
-            // 1. Connect TronLink
-            await connectTronWallet();
+            // 1. Connect any TRON wallet
+            const conn = await wallet.ensureTron();
+            const tronWeb = await getReadyTronWeb(conn.wallet);
 
             let impl = existingImplAddress || "";
 
             if (!impl) {
                 // 2. Deploy Implementation
                 setPhase("deploying-impl");
-                impl = await deployTronImplementation();
+                impl = await deployTronImplementation(tronWeb);
                 setImplAddress(impl);
             }
 
             // 3. Deploy Factory
             setPhase("deploying-factory");
-            const factory = await deployTronFactory(impl);
+            const factory = await deployTronFactory(tronWeb, impl);
             setFactoryAddress(factory);
 
             // 4. Save to backend
@@ -93,14 +93,20 @@ const AdminContractsPage: React.FC = () => {
                 setDeploying(false);
                 setPhase("idle");
             }, 3000);
-        } catch (err: any) {
+        } catch (err) {
+            const d = describeWalletError(err);
+            if (d.rejected) {
+                setDeploying(false);
+                setPhase("idle");
+                return;
+            }
             setPhase("error");
-            setError(err?.message || "Deployment failed");
+            setError(d.description);
         }
     };
 
     const stepItems = [
-        {title: "Connect TronLink"},
+        {title: "Connect Wallet"},
         {title: "Deploy Implementation"},
         {title: "Deploy Factory"},
         {title: "Save Config"},
@@ -168,22 +174,25 @@ const AdminContractsPage: React.FC = () => {
                                 </div>
                                 <Alert
                                     message="Factory is active"
-                                    description="Merchants can now deploy cheap proxy clones via TronLink from the Wallet Setup page."
+                                    description="Merchants can now deploy cheap proxy clones with any TRON wallet from the Wallet Setup page."
                                     type="success"
                                     showIcon
                                 />
-                                <Alert
-                                    message="Disable other TRON wallets"
-                                    description="Disable Atomic Wallet and other TRON browser extensions before deploying. Only TronLink should be active."
-                                    type="warning"
-                                    showIcon
-                                    icon={<WarningOutlined />}
-                                    style={{marginTop: 4}}
-                                />
                                 <Button
                                     icon={<RocketOutlined />}
-                                    disabled={!isTronLinkAvailable()}
-                                    onClick={() => handleDeployTron()}
+                                    onClick={() =>
+                                        Modal.confirm({
+                                            title: "Replace the TRON factory?",
+                                            icon: <ExclamationCircleOutlined />,
+                                            content:
+                                                "This deploys NEW Implementation + Factory contracts (~$16-20 in TRX) and points new merchant deploys at them. Existing merchant collectors and their funds are not affected.",
+                                            okText: "Deploy new factory",
+                                            okType: "danger",
+                                            onOk: () => {
+                                                handleDeployTron();
+                                            },
+                                        })
+                                    }
                                 >
                                     Redeploy (replace existing)
                                 </Button>
@@ -203,40 +212,12 @@ const AdminContractsPage: React.FC = () => {
                                     showIcon
                                 />
 
-                                {!isTronLinkAvailable() && (
-                                    <Alert
-                                        message="TronLink not detected"
-                                        description="Install the TronLink browser extension to deploy contracts."
-                                        type="warning"
-                                        showIcon
-                                        action={
-                                            <Button size="small" href="https://www.tronlink.org/" target="_blank" icon={<LinkOutlined />}>
-                                                Install TronLink
-                                            </Button>
-                                        }
-                                    />
-                                )}
 
-                                <Alert
-                                    message="Disable other TRON wallets before deploying"
-                                    description={
-                                        <span>
-                                            If you have <strong>Atomic Wallet</strong> or any other TRON-compatible browser extension installed,
-                                            you must <strong>disable it</strong> in Chrome (chrome://extensions) before deploying.
-                                            Multiple TRON wallets conflict with each other and the wrong wallet will be used.
-                                            Only TronLink should be active.
-                                        </span>
-                                    }
-                                    type="warning"
-                                    showIcon
-                                    icon={<WarningOutlined />}
-                                />
 
                                 <Button
                                     type="primary"
                                     size="large"
                                     icon={<RocketOutlined />}
-                                    disabled={!isTronLinkAvailable()}
                                     onClick={() => handleDeployTron()}
                                 >
                                     Deploy TRON Factory
@@ -254,7 +235,7 @@ const AdminContractsPage: React.FC = () => {
                                     />
                                     <Button
                                         icon={<RocketOutlined />}
-                                        disabled={!isTronLinkAvailable() || !resumeImplAddress}
+                                        disabled={!resumeImplAddress}
                                         onClick={() => handleDeployTron(resumeImplAddress)}
                                     >
                                         Deploy Factory Only
@@ -347,7 +328,7 @@ const AdminContractsPage: React.FC = () => {
                             <Text type="secondary">{PHASE_LABELS[phase]}</Text>
                             {(phase === "deploying-impl" || phase === "deploying-factory") && (
                                 <Text type="secondary" style={{fontSize: 12}}>
-                                    Confirm the transaction in TronLink and wait for on-chain confirmation (up to 90s)...
+                                    Confirm the transaction in your wallet and wait for on-chain confirmation (up to 90s)...
                                 </Text>
                             )}
                         </Space>
