@@ -32,8 +32,6 @@ import {
     ExclamationCircleOutlined,
     ThunderboltOutlined,
     LoadingOutlined,
-    LinkOutlined,
-    WarningOutlined,
     QuestionCircleOutlined,
     CopyOutlined,
     CloseCircleOutlined
@@ -48,7 +46,6 @@ import {deployEvmFlow, deployTronFlow} from "src/wallet/deploy";
 import {confirmPermanentOwner} from "src/wallet/confirm-owner";
 import {describeWalletError} from "src/wallet/errors";
 import {useHandoffRefresh} from "src/wallet/use-handoff-refresh";
-import {isTronLinkAvailable, connectTronWallet, deployTronCloneViaFactory} from "src/utils/tron-wallet";
 
 const b = bevis("wallet-setup-page");
 
@@ -379,14 +376,14 @@ const EvmCollectorPanel: React.FC<{
 };
 
 // ============================================================
-// TRON Collector Panel — deploy MerchantCollector via TronLink
+// TRON Collector Panel — deploy MerchantCollector with any TRON wallet
 // ============================================================
 
 type TronDeployStep = "idle" | "connecting" | "deploying" | "registering" | "done" | "error";
 
 const TRON_STEP_LABELS: Record<TronDeployStep, string> = {
     idle: "",
-    connecting: "Connecting to TronLink...",
+    connecting: "Connecting wallet...",
     deploying: "Deploying contract on TRON...",
     registering: "Registering with CryptoLink...",
     done: "Done!",
@@ -402,6 +399,7 @@ const TronCollectorPanel: React.FC<{
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [deploying, setDeploying] = React.useState(false);
     const [deployState, setDeployState] = React.useState<{step: TronDeployStep; error?: string; contractAddress?: string}>({step: "idle"});
+    const wallet = useWallet();
 
     const tronCollector = collectors.find((c) => c.blockchain === "TRON");
 
@@ -409,15 +407,26 @@ const TronCollectorPanel: React.FC<{
         setDeploying(true);
         setDeployState({step: "connecting"});
         try {
-            // 1. Connect TronLink
-            const ownerAddress = await connectTronWallet();
+            // 1. Connect any TRON wallet; the signer becomes the permanent owner
+            const conn = await wallet.ensureTron();
+            const ownerAddress = conn.address;
 
-            // 2. Fetch factory address from backend
-            const factoryConfig = await evmCollectorProvider.getCollectorFactory(merchantId, "TRON");
-
-            // 3. Deploy clone via factory (cheap!)
-            setDeployState({step: "deploying"});
-            const contractAddress = await deployTronCloneViaFactory(factoryConfig.factoryAddress, ownerAddress);
+            // 2-3. Confirm owner, fetch factory, deploy clone via factory (cheap!)
+            let factoryAddress = "";
+            const contractAddress = await deployTronFlow(
+                conn,
+                async () => {
+                    factoryAddress = (await evmCollectorProvider.getCollectorFactory(merchantId, "TRON")).factoryAddress;
+                    setDeployState({step: "deploying"});
+                    return factoryAddress;
+                },
+                confirmPermanentOwner
+            );
+            if (!contractAddress) {
+                setDeploying(false);
+                setDeployState({step: "idle"});
+                return;
+            }
 
             // 4. Register with backend
             setDeployState({step: "registering"});
@@ -426,7 +435,7 @@ const TronCollectorPanel: React.FC<{
                 ownerAddress: ownerAddress,
                 contractAddress: contractAddress,
                 chainId: 728126428,
-                factoryAddress: factoryConfig.factoryAddress,
+                factoryAddress,
             });
 
             setDeployState({step: "done", contractAddress});
@@ -437,7 +446,13 @@ const TronCollectorPanel: React.FC<{
                 setDeployState({step: "idle"});
             }, 2000);
         } catch (err: any) {
-            const msg = err?.message || "Deployment failed. Please try again.";
+            const d = describeWalletError(err);
+            if (d.rejected) {
+                setDeploying(false);
+                setDeployState({step: "idle"});
+                return;
+            }
+            const msg = d.description;
             if (msg.includes("not found") || msg.includes("404")) {
                 setDeployState({step: "error", error: "TRON factory not deployed yet. Please contact the administrator."});
             } else {
@@ -455,7 +470,7 @@ const TronCollectorPanel: React.FC<{
                     <p>Remove the TRON MerchantCollector registration?</p>
                     <p style={{color: "#ff4d4f", marginTop: 8}}>
                         This only removes the registration from CryptoLink. The contract on-chain is not
-                        affected — your funds remain accessible via TronLink at any time.
+                        affected — your funds remain accessible from the owner wallet at any time.
                     </p>
                 </div>
             ),
@@ -478,7 +493,7 @@ const TronCollectorPanel: React.FC<{
     };
 
     const deployStepItems = [
-        {title: "Connect TronLink"},
+        {title: "Connect Wallet"},
         {title: "Deploy Contract"},
         {title: "Register"},
     ];
@@ -506,39 +521,15 @@ const TronCollectorPanel: React.FC<{
                 message="Non-custodial TRON Smart Contract"
                 description={
                     <ul style={{margin: "8px 0 0 0", paddingLeft: 20}}>
-                        <li>Deploys the same <strong>MerchantCollector</strong> contract on TRON via TronLink — customers pay to the contract address.</li>
+                        <li>Deploys the same <strong>MerchantCollector</strong> contract on TRON from any TRON wallet (TronLink, OKX, Trust, TokenPocket…) — customers pay to the contract address.</li>
                         <li>You call <strong>withdrawAll()</strong> from the Balances page to sweep all TRX & TRC-20 tokens to your wallet.</li>
-                        <li>CryptoLink has <strong>zero admin access</strong> — only your TronLink wallet (the owner) can withdraw.</li>
-                        <li>Click <strong>"Deploy with TronLink"</strong> and confirm the transaction in the TronLink popup.</li>
+                        <li>CryptoLink has <strong>zero admin access</strong> — only your wallet (the owner) can withdraw.</li>
+                        <li>Click <strong>"Deploy with wallet"</strong>, pick your TRON wallet and confirm the transaction.</li>
                     </ul>
                 }
                 type="info"
                 showIcon
                 icon={<SafetyCertificateOutlined />}
-                style={{marginBottom: 16}}
-            />
-
-            {!isTronLinkAvailable() && (
-                <Alert
-                    message="TronLink not detected"
-                    description="Install the TronLink browser extension to deploy a TRON smart contract wallet."
-                    type="warning"
-                    showIcon
-                    style={{marginBottom: 16}}
-                    action={
-                        <Button size="small" href="https://www.tronlink.org/" target="_blank" icon={<LinkOutlined />}>
-                            Install TronLink
-                        </Button>
-                    }
-                />
-            )}
-
-            <Alert
-                message="Disable other TRON wallets"
-                description="If you have Atomic Wallet or other TRON browser extensions, disable them in chrome://extensions before deploying. Only TronLink should be active."
-                type="warning"
-                showIcon
-                icon={<WarningOutlined />}
                 style={{marginBottom: 16}}
             />
 
@@ -592,11 +583,10 @@ const TronCollectorPanel: React.FC<{
                 <Button
                     type="primary"
                     icon={<ThunderboltOutlined />}
-                    disabled={!isTronLinkAvailable()}
                     onClick={handleDeploy}
                     size="large"
                 >
-                    Deploy with TronLink
+                    Deploy with wallet
                 </Button>
             )}
 
@@ -650,7 +640,7 @@ const TronCollectorPanel: React.FC<{
                             <Text type="secondary">{TRON_STEP_LABELS[deployState.step]}</Text>
                             {deployState.step === "deploying" && (
                                 <Text type="secondary" style={{fontSize: 12}}>
-                                    Please confirm the transaction in TronLink and wait for it to be confirmed on-chain...
+                                    Please confirm the transaction in your wallet and wait for it to be confirmed on-chain...
                                     This may take up to 90 seconds.
                                 </Text>
                             )}
