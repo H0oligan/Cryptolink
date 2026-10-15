@@ -8,7 +8,6 @@ import {
     Button,
     notification,
     Spin,
-    Alert,
     Card,
     Tooltip,
     Empty,
@@ -17,8 +16,11 @@ import {WalletOutlined, LinkOutlined, CopyOutlined, ReloadOutlined, DollarOutlin
 import evmCollectorProvider, {EvmCollector, CollectorBalance} from "src/providers/evm-collector-provider";
 import balancesProvider from "src/providers/balance-provider";
 import {EVM_CHAINS, KNOWN_TOKENS, TRON_CHAIN, TRON_KNOWN_TOKENS} from "src/constants/merchant-collector";
-import {isMetaMaskAvailable, connectWallet, switchChain, withdrawAll} from "src/utils/evm-wallet";
-import {isTronLinkAvailable, connectTronWallet, withdrawAllTron} from "src/utils/tron-wallet";
+import {useWallet} from "src/wallet/wallet-context";
+import {useHandoffRefresh} from "src/wallet/use-handoff-refresh";
+import {withdrawEvmFlow, withdrawTronFlow} from "src/wallet/withdraw";
+import {describeWalletError} from "src/wallet/errors";
+import {shortAddr} from "src/wallet/owner";
 import useSharedMerchantId from "src/hooks/use-merchant-id";
 import useSharedMerchant from "src/hooks/use-merchant";
 import useMerchantCurrency from "src/hooks/use-merchant-currency";
@@ -159,8 +161,6 @@ const NetworkCard: React.FC<NetworkCardProps> = ({
     if (!meta) return null;
 
     const isTron = blockchain === "TRON";
-    const walletAvailable = isTron ? isTronLinkAvailable() : isMetaMaskAvailable();
-    const walletName = isTron ? "TronLink" : "MetaMask";
 
     // Build token list from enabled methods
     const tokenRows: {ticker: string; displayName: string; amount: string | null}[] = [];
@@ -256,23 +256,6 @@ const NetworkCard: React.FC<NetworkCardProps> = ({
                         No smart contract deployed.{" "}
                         <a href={`${window.location.origin}/merchants/wallet-setup`}>Deploy now</a>
                     </Text>
-                ) : !walletAvailable ? (
-                    <Alert
-                        message={`${walletName} not detected`}
-                        type="warning"
-                        showIcon
-                        style={{flex: 1}}
-                        action={
-                            <Button
-                                size="small"
-                                href={isTron ? "https://www.tronlink.org/" : "https://metamask.io/download/"}
-                                target="_blank"
-                                icon={<LinkOutlined />}
-                            >
-                                Install
-                            </Button>
-                        }
-                    />
                 ) : (
                     <Space style={{width: "100%", justifyContent: "space-between", alignItems: "center"}}>
                         {collector && (
@@ -285,15 +268,24 @@ const NetworkCard: React.FC<NetworkCardProps> = ({
                                 <LinkOutlined /> View on Explorer
                             </a>
                         )}
-                        <Button
-                            type="primary"
-                            icon={<WalletOutlined />}
-                            loading={withdrawing}
-                            onClick={onWithdraw}
-                            style={{background: meta.color, borderColor: meta.color}}
-                        >
-                            Withdraw All
-                        </Button>
+                        <Space direction="vertical" size={2} style={{alignItems: "flex-end"}}>
+                            <Button
+                                type="primary"
+                                icon={<WalletOutlined />}
+                                loading={withdrawing}
+                                onClick={onWithdraw}
+                                style={{background: meta.color, borderColor: meta.color}}
+                            >
+                                Withdraw All
+                            </Button>
+                            {collector && (
+                                <Tooltip title={collector.ownerAddress}>
+                                    <Text type="secondary" style={{fontSize: 11}}>
+                                        Owner wallet: {shortAddr(collector.ownerAddress)}
+                                    </Text>
+                                </Tooltip>
+                            )}
+                        </Space>
                     </Space>
                 )}
             </div>
@@ -310,6 +302,7 @@ const BalancePage: React.FC = () => {
     const {merchant} = useSharedMerchant();
     const {currencyCode, currencyName, formatFiat} = useMerchantCurrency();
     const [api, contextHolder] = notification.useNotification();
+    const wallet = useWallet();
 
     const [collectors, setCollectors] = React.useState<EvmCollector[]>([]);
     const [balances, setBalances] = React.useState<Record<string, CollectorBalance>>({});
@@ -430,18 +423,16 @@ const BalancePage: React.FC = () => {
             .finally(() => setLoadingFiat(false));
     }, [balances, currencyCode, merchantId, merchant?.supportedPaymentMethods]);
 
-    // Withdraw handler
+    // Withdraw handler: any connected wallet; the on-chain owner is checked before signing.
     const handleWithdraw = async (blockchain: string) => {
         const collector = collectors.find((c) => c.blockchain === blockchain);
         if (!collector) return;
 
         setWithdrawing((prev) => ({...prev, [blockchain]: true}));
         try {
-            const isTron = blockchain === "TRON";
-
-            if (isTron) {
-                await connectTronWallet();
-                const txid = await withdrawAllTron(collector.contractAddress, TRON_KNOWN_TOKENS);
+            if (blockchain === "TRON") {
+                const conn = await wallet.ensureTron();
+                const txid = await withdrawTronFlow(conn, collector.contractAddress, TRON_KNOWN_TOKENS);
                 api.success({
                     message: "TRON withdrawal submitted",
                     description: (
@@ -462,13 +453,12 @@ const BalancePage: React.FC = () => {
             } else {
                 const chain = EVM_CHAINS.find((c) => c.value === blockchain);
                 if (!chain) return;
-                await connectWallet();
-                await switchChain(chain);
-                const tokens = KNOWN_TOKENS[blockchain] || [];
-                const txHash = await withdrawAll(
+                const conn = await wallet.ensureEvm();
+                const txHash = await withdrawEvmFlow(
+                    conn,
+                    chain,
                     collector.contractAddress as `0x${string}`,
-                    tokens,
-                    chain
+                    KNOWN_TOKENS[blockchain] || []
                 );
                 api.success({
                     message: `${chain.label} withdrawal submitted`,
@@ -491,19 +481,15 @@ const BalancePage: React.FC = () => {
 
             // Refresh balance after withdrawal
             setTimeout(() => fetchBalance(blockchain), 5000);
-        } catch (err: any) {
-            const msg = err?.message || "Withdrawal failed";
-            const isUserRejected =
-                msg.includes("rejected") || msg.includes("denied") || msg.includes("Confirmation") || err?.code === 4001;
-            api.error({
-                message: isUserRejected ? "Transaction rejected" : "Withdrawal failed",
-                description: isUserRejected ? "You rejected the transaction in your wallet." : msg,
-                placement: "bottomRight",
-            });
+        } catch (err) {
+            const d = describeWalletError(err);
+            (d.rejected ? api.info : api.error)({message: d.title, description: d.description, placement: "bottomRight"});
         } finally {
             setWithdrawing((prev) => ({...prev, [blockchain]: false}));
         }
     };
+
+    useHandoffRefresh(() => collectors.forEach((c) => fetchBalance(c.blockchain)));
 
     // Group enabled payment methods by blockchain
     const enabledGroups = merchant?.supportedPaymentMethods
