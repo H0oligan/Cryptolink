@@ -3,6 +3,7 @@ import * as Yup from "yup";
 import {useFormik} from "formik";
 import {useNavigate} from "react-router-dom";
 import {QRCodeSVG} from "qrcode.react";
+import PayWithWallet from "src/wallet/PayWithWallet";
 import Icon from "src/components/Icon";
 import {usePayment} from "src/hooks/paymentContext";
 import Input from "src/components/Input";
@@ -381,6 +382,7 @@ const PaymentPage: React.FC = () => {
                             Sending {ticker} over any other network will permanently lose your funds.
                         </p>
                     </div>
+                    {!isInProgress && <PayWithWallet payment={payment} />}
                     <div className="flex relative justify-center mb-7 sm:hidden">
                         <QRCodeSVG size={180} level={"H"} value={qrValue} />
                         <Icon
