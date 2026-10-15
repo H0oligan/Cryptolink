@@ -463,13 +463,15 @@
         <li><strong>Zero per-transaction fees</strong> — flat subscription plans starting at $0/month</li>
         <li><strong>7 blockchains, 17 currencies</strong> — BTC, ETH, MATIC, BSC, TRON, Arbitrum, Avalanche plus USDT/USDC on supported chains</li>
         <li><strong>No third-party middleware</strong> — direct blockchain APIs (Blockstream, go-ethereum RPC, TronGrid) with no intermediary dependencies</li>
-        <li><strong>Smart contract collectors</strong> — EIP-1167 clone factory pattern for cheap, non-custodial EVM and TRON payment addresses</li>
+        <li><strong>Smart contract collectors</strong> — a merchant-owned contract per chain (EIP-1167 clone factory on TRON, direct deployment on EVM chains); only the owner wallet can withdraw</li>
+        <li><strong>Any wallet, desktop or phone</strong> — merchants connect any EVM or TRON wallet (browser extension or phone app) from the dashboard header; customers can pay with their own wallet in one click. Open standards only (EIP-6963, EIP-681) — no WalletConnect or other relay service</li>
         <li><strong>Multi-merchant</strong> — one installation can host multiple independent merchants</li>
         <li><strong>Real-time webhooks</strong> — HMAC-signed event delivery for every payment state change</li>
         <li><strong>Payment links</strong> — reusable, shareable links for donations or flexible-amount payments</li>
         <li><strong>Modern dashboard</strong> — React SPA with analytics, payment management, and API token management</li>
         <li><strong>Multi-fiat invoicing</strong> — price in any of 26 fiat currencies (USD, EUR, GBP, JPY, …) with optional volatility-fee markup</li>
-        <li><strong>Underpayment handling</strong> — automatic detection, configurable grace period for top-up</li>
+        <li><strong>Partial payments</strong> — an underpaid invoice stays open for a top-up (expiry extended per fill, capped at +24h) with a pre-filled QR / wallet button for the missing amount</li>
+        <li><strong>Cross-currency payments</strong> — a payment to a collector in another supported coin than the invoice's is credited at the live rate instead of being ignored</li>
         <li><strong>Subscription enforcement</strong> — plan limits checked server-side; HTTP 402 on overage with upgrade URL</li>
     </ul>
 
@@ -545,14 +547,14 @@
             <div class="flow-num">2</div>
             <div class="flow-body">
                 <strong>Customer is redirected to the payment page</strong>
-                <span>The customer lands on <code>https://yourdomain.com/p/{uuid}</code> — a page hosted entirely on your own server. No third-party iframes, no external scripts that can steal card data.</span>
+                <span>The customer lands on <code>https://yourdomain.com/p/pay/{uuid}</code> — a page hosted entirely on your own server. No third-party iframes, no external scripts that can steal card data.</span>
             </div>
         </div>
         <div class="flow-step">
             <div class="flow-num">3</div>
             <div class="flow-body">
                 <strong>A unique blockchain address is generated</strong>
-                <span>For Bitcoin, CryptoLink uses your xpub key and BIP32/BIP44/BIP84 HD derivation to generate a fresh, unique deposit address. For EVM chains and TRON, the customer pays to your merchant-owned smart contract collector address. The customer sees this address with a QR code. Your private key is never involved.</span>
+                <span>For Bitcoin, CryptoLink uses your xpub key and BIP32/BIP44/BIP84 HD derivation to generate a fresh, unique deposit address. For EVM chains and TRON, the customer pays to your merchant-owned smart contract collector address. The customer sees this address with a QR code, or clicks <strong>Pay with wallet</strong>: the checkout builds the exact transaction (network, token, amount) from the server's EIP-681 payment URI, switches the customer's wallet to the right network and verifies it before sending. Your private key is never involved.</span>
             </div>
         </div>
         <div class="flow-step">
@@ -807,8 +809,9 @@ address := bitcoin.PublicKeyToBech32Address(childKey)
     <p>
         For EVM-compatible chains (ETH, MATIC, BSC, Arbitrum, Avalanche) and TRON, CryptoLink uses
         a <strong>smart contract collector pattern</strong> instead of xpub derivation. Each merchant deploys
-        their own collector contract via a clone factory (EIP-1167 minimal proxy) — a cheap (~$0.50) deployment
-        that creates a unique contract owned exclusively by the merchant's wallet address.
+        their own collector contract, owned exclusively by the wallet that signs the deployment:
+        on EVM chains the merchant deploys <code>MerchantCollector</code> directly from their wallet; on TRON
+        a clone factory (EIP-1167 minimal proxy) makes the deployment cheap (~$0.50).
     </p>
     <p>
         The collector contract has only one authorized withdrawer: the merchant. The contract accepts
@@ -816,10 +819,20 @@ address := bitcoin.PublicKeyToBech32Address(childKey)
         <code>withdrawAll()</code> or <code>withdrawToken()</code> to move funds out.
     </p>
 
-    <div class="arch-diagram">Admin deploys factory once (~$16 total):
+    <div class="callout info">
+        <div class="callout-title">Connecting a wallet</div>
+        <p>Click <strong>Connect Wallet</strong> in the dashboard header. Every installed wallet is listed (MetaMask, Rabby,
+        OKX, Coinbase, Trust, TronLink…). On a phone, <em>Open in &lt;wallet app&gt;</em> reopens the dashboard inside the
+        wallet's own browser (you confirm <em>Continue as …</em>); from a computer, <em>Use my phone</em> shows a QR code and
+        the phone displays a 6-digit code you type on the computer to approve. Before a deployment you confirm that the
+        connected address becomes the contract's <strong>permanent owner</strong>; before a withdrawal the contract's on-chain
+        <code>owner()</code> is checked, so a different wallet gets a clear error instead of a reverted transaction.</p>
+    </div>
+
+    <div class="arch-diagram">TRON — admin deploys the factory once (~$16 total):
     MerchantCollectorV2 (implementation) + CryptoLinkCloneFactory
 
-Merchant deploys clone (~$0.50):
+Merchant deploys a TRON clone (~$0.50):
     factory.deploy(merchantWalletAddress)
         │
         ▼
@@ -829,6 +842,8 @@ Merchant deploys clone (~$0.50):
         ├── receive()                          → accepts payments
         ├── withdrawAll(tokenAddresses[])      → owner only
         └── withdrawToken(tokenAddress)        → owner only
+
+EVM chains — merchant deploys MerchantCollector(owner = connected wallet) directly.
 
 CryptoLink server CANNOT call withdraw — only the merchant's wallet can.</div>
 
@@ -1036,10 +1051,10 @@ CryptoLink server CANNOT call withdraw — only the merchant's wallet can.</div>
     <h3>EVM Chains &amp; TRON (Smart Contract Collector)</h3>
     <p>For ETH, MATIC, BSC, Arbitrum, Avalanche, and TRON, each merchant deploys a <strong>smart contract collector</strong> via the dashboard. This is a one-time setup per chain:</p>
     <ul>
-        <li><strong>EVM Chains</strong>: Click <em>Connect Wallet</em> (MetaMask, Trust, OKX, Rabby, Coinbase…), then "Deploy with wallet" — costs ~$0.50 in gas</li>
+        <li><strong>EVM Chains</strong>: Click <em>Connect Wallet</em> in the header (MetaMask, Trust, OKX, Rabby, Coinbase…), then "Deploy with wallet" — a one-time gas fee (cents on BNB Chain, Polygon and Arbitrum; more on Ethereum mainnet)</li>
         <li><strong>TRON</strong>: Connect any TRON wallet, then "Deploy with wallet" — costs ~150 TRX (~$0.50)</li>
     </ul>
-    <p>The collector contract is owned by your wallet — only you can withdraw funds from it.</p>
+    <p>The collector contract is owned by the wallet that signs the deployment — only that wallet can ever withdraw, so use one whose recovery phrase you control. On a phone, use <em>Open in &lt;wallet app&gt;</em>; from a computer you can also hand off to your phone with <em>Use my phone</em>.</p>
 
     <div class="callout warning">
         <div class="callout-title">Never Share Your Seed Phrase</div>
@@ -2804,9 +2819,9 @@ class WC_CryptoLink_Webhook {
                 <tr><td>CPU</td><td>1 vCPU</td><td>2+ vCPU</td></tr>
                 <tr><td>RAM</td><td>1 GB</td><td>2 GB</td></tr>
                 <tr><td>Disk</td><td>10 GB SSD</td><td>20+ GB SSD</td></tr>
-                <tr><td>Go</td><td>1.21+</td><td>Latest stable</td></tr>
+                <tr><td>Go</td><td>1.25+</td><td>Latest stable</td></tr>
                 <tr><td>PostgreSQL</td><td>14+</td><td>15+</td></tr>
-                <tr><td>Node.js</td><td>18+ (build only)</td><td>20 LTS</td></tr>
+                <tr><td>Node.js</td><td>20.19+ or 22.12+ (build only)</td><td>22 LTS</td></tr>
                 <tr><td>Nginx</td><td>1.18+</td><td>Latest stable</td></tr>
             </tbody>
         </table>
@@ -2934,7 +2949,7 @@ sleep 5 && kill %1
         <pre><code class="language-bash">cd /opt/cryptolink/src
 
 # Build merchant SPA (note VITE_ROOTPATH — it's required for the /merchants/ route)
-cd ui-dashboard && npm install
+cd ui-dashboard && npm install --legacy-peer-deps   # some Ant Design Pro packages still declare an antd 5 peer
 VITE_ROOTPATH=/merchants/ npx vite build               # outputs ./dist  (merchant panel)
 
 # Build admin SPA (separate Vite config, super-admin only)
@@ -2942,7 +2957,7 @@ npx vite build --config vite.admin.config.ts            # outputs ./dist-admin
 cd ..
 
 # Build payment SPA (customer-facing checkout)
-cd ui-payment && npm install && npx vite build && cd ..
+cd ui-payment && npm install --legacy-peer-deps && npx vite build && cd ..
 
 # Now build the Go binary (embeds the freshly built dist/ for the merchant SPA)
 go build \
@@ -3352,6 +3367,15 @@ sudo ufw enable</code></pre>
         </h2>
         <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Changes on <code>main</code> since v1.0 (2026-05-04) — deployed, not yet tagged as a release.</p>
 
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Wallets &amp; checkout</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li><strong>Connect any wallet.</strong> The dashboard header has a <em>Connect Wallet</em> button that lists every installed EVM or TRON wallet (EIP-6963 discovery), replacing the MetaMask-only and TronLink-only flows. Deploying and withdrawing work with any of them.</li>
+            <li><strong>Phones.</strong> <em>Open in &lt;wallet app&gt;</em> reopens the dashboard inside a wallet app's browser; <em>Use my phone</em> signs a phone in from a QR code after the merchant types the 6-digit code shown on the phone. No WalletConnect or other relay service.</li>
+            <li><strong>Owner checks.</strong> Withdrawals compare the collector's on-chain <code>owner()</code> with the connected account first; deployments require confirming that the connected address becomes the permanent owner.</li>
+            <li><strong>Pay with wallet</strong> on the checkout page for EVM and TRON payments, including partial top-ups. The transaction comes only from the server's EIP-681 URI and the wallet's network is verified before sending; phones without a wallet get open-in-app links and the standard payment URI.</li>
+            <li>Redesigned dashboard header: merchant switcher, theme, account menu, and the wallet button in the corner; the desktop logo is back.</li>
+        </ul>
+
         <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Payments</h3>
         <ul style="margin-left:1.2rem;color:var(--text-muted);">
             <li><strong>Bitcoin is credited only on confirmation.</strong> Unconfirmed mempool transactions are no longer treated as detected payments — a mempool txid can be replaced or dropped before it confirms. Trade-off: the customer waits for the first block (~10 min).</li>
@@ -3380,6 +3404,14 @@ sudo ufw enable</code></pre>
             <li>Correct conversion for stablecoins and non-USD fiat pairs.</li>
             <li>Payment notification emails use the same display precision as the payment page.</li>
             <li>Balance page shows per-token fiat equivalents and a portfolio total; payments CSV export gained id, email, fees and an explorer link.</li>
+        </ul>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Security</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>Merchant webhook URLs are checked against private, loopback and link-local destinations on the IP actually dialed (covers DNS rebinding and redirects).</li>
+            <li>Login is throttled per account as well as per IP; login and registration no longer reveal whether an email exists; merchants must verify their email.</li>
+            <li>An unauthenticated legacy webhook route was removed.</li>
+            <li>Wallet sign-in links are single-use, expire after 2 minutes, travel in the URL fragment (never in server logs), and never replace a session that belongs to another account.</li>
         </ul>
     </div>
 

@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <strong>Current release: <code>v1.0</code></strong> — see the <a href="https://cryptolink.cc/docs/#changelog">changelog</a> for what's in this release.<br>
+  <strong>Current release: <code>v1.0</code></strong> — see the <a href="https://cryptolink.cc/docs/#changelog">changelog</a> for what changed since.<br>
   Single-decimal version scheme: <code>1.0</code> → <code>2.0</code> → <code>3.0</code>, bundled releases only.
 </p>
 
@@ -35,19 +35,17 @@
 
 ## Why CryptoLink?
 
-Every centralized payment processor takes a cut of every transaction, collects your data, and can freeze your account without warning. CryptoLink is different by design:
+Centralized payment processors take a cut of every transaction, collect your data, and can freeze your account without warning. CryptoLink is different by design:
 
-| | Stripe / Coinbase / BitPay | **CryptoLink** |
+| | Stripe / Coinbase Commerce / BitPay | **CryptoLink** |
 |---|---|---|
-| Per-transaction fees | 2.9% + $0.30 forever | **Zero** |
+| Per-transaction fees | Yes, on every sale | **Zero** |
 | KYC required | Yes | **No** |
 | Can freeze your account | Yes | **No — self-hosted** |
-| Custodial | Yes — they hold your funds | **No — direct to your wallet** |
+| Custodial | Yes — they hold your funds | **No — straight to a contract only you control** |
 | Data collection | Extensive | **None beyond the email you sign up with** |
 | Open source | No | **100% MIT** |
 | Monthly cost | Variable + per-tx | **From $0/month flat** |
-
-> *"Every $10,000 in sales costs you $320 with Stripe. With CryptoLink: $0."*
 
 ---
 
@@ -58,22 +56,22 @@ CryptoLink supports two non-custodial collection mechanisms. Both deliver funds 
 ### 1. Smart-contract collectors (EVM chains + TRON) — *primary path*
 
 ```
-Merchant deploys a personal "MerchantCollector" clone (one-time, ~$0.50)
+Merchant connects ANY wallet and deploys a personal "MerchantCollector" (one-time)
+        │      (the signing address becomes the contract's permanent owner)
+        ▼
+Customer pays the collector address — by QR / copy-paste, or one click with their own wallet
         │
         ▼
-Customer pays the clone address  →  funds sit in YOUR clone
-        │
-        ▼
-Merchant clicks "Withdraw"  →  contract sweeps to your MetaMask/TronLink
-                              (only `owner` can withdraw — set at deploy)
+Merchant clicks "Withdraw All"  →  the contract sends everything to the owner wallet
+                                  (only `owner` can withdraw — enforced on-chain)
 ```
 
-The clone factory uses [EIP-1167 minimal proxies](https://eips.ethereum.org/EIPS/eip-1167) — each merchant gets their own isolated 45-byte clone of a single shared `MerchantCollectorV2` implementation. The clone's `owner` is set to the merchant's wallet at deploy time and **cannot be changed**. CryptoLink (the platform) has no admin function, no upgrade key, no escape hatch.
+On TRON the factory uses [EIP-1167 minimal proxies](https://eips.ethereum.org/EIPS/eip-1167): each merchant gets an isolated 45-byte clone of a shared `MerchantCollectorV2` implementation. On EVM chains each merchant deploys their own `MerchantCollector`. In both cases the `owner` is fixed at deployment and **cannot be changed**. The platform has no admin function, no upgrade key, no escape hatch.
 
 ### 2. xpub HD-derivation (Bitcoin) — *for chains without smart contracts*
 
 ```
-You provide an xpub/ypub/zpub (extended public key)
+You provide an xpub / ypub / zpub (extended public key)
         │
         ▼
 CryptoLink derives a unique BIP44/49/84 address per payment
@@ -82,7 +80,27 @@ CryptoLink derives a unique BIP44/49/84 address per payment
 Customer sends BTC directly to that address — the private key never touches the server
 ```
 
-Your private key stays in your hardware wallet / cold storage. CryptoLink has *only* the extended public key, which can derive addresses but **cannot spend**. This is mathematically enforced by the BIP32 standard.
+Your private key stays in your hardware wallet or cold storage. CryptoLink only has the extended public key, which can derive addresses but **cannot spend**.
+
+---
+
+## Wallets: any wallet, desktop or phone
+
+There is no "MetaMask only" or "TronLink only" requirement anywhere — neither for merchants nor for customers. Wallet discovery uses open standards only ([EIP-6963](https://eips.ethereum.org/EIPS/eip-6963) for EVM, the injected TRON providers for TRON). **No WalletConnect / Reown relay or any other third-party service is involved.**
+
+**Merchants** (dashboard header → *Connect Wallet*):
+
+- Desktop: every installed extension is listed (MetaMask, Rabby, OKX, Coinbase, Trust, Brave…), with install links for the rest.
+- Same phone: *Open in MetaMask / Trust / OKX / Coinbase / TokenPocket / TronLink* reopens the dashboard inside the wallet app's built-in browser, which asks *"Continue as ad***@example.com"* before signing in.
+- PC → phone: *Use my phone* shows a QR code. The phone displays a 6-digit code that must be typed on the PC to approve the sign-in. Links are single-use, expire in 2 minutes, and carry their token in the URL fragment so it never reaches server logs.
+- Before a withdrawal, the collector's on-chain `owner()` is compared with the connected account; a different wallet gets *"not the owner of this contract"* instead of a transaction that would revert.
+- Before a deployment, the merchant must confirm that the connected address will be the contract's permanent owner.
+
+**Customers** (checkout page → *Pay with wallet*):
+
+- The transaction is built only from the server's [EIP-681](https://eips.ethereum.org/EIPS/eip-681) payment URI — network, token contract, recipient and exact raw amount. The wallet is switched to the right network and the chain is verified before sending; any inconsistency falls back to the QR code.
+- Works for invoices created by API, payment links and subscription payments (all of them use the same checkout page), including topping up a partial payment.
+- On a phone without an in-browser wallet, the checkout offers *Open in &lt;wallet app&gt;* links and the standard payment URI. Bitcoin uses the QR code / `bitcoin:` URI.
 
 ---
 
@@ -96,64 +114,62 @@ Your private key stays in your hardware wallet / cold storage. CryptoLink has *o
 | **Ethereum** | ETH, USDT (ERC-20), USDC (ERC-20) | Smart-contract collector |
 | **Polygon** | MATIC, USDT, USDC | Smart-contract collector |
 | **TRON** | TRX, USDT (TRC-20) | Smart-contract collector (clone factory) |
-| **BNB Chain** | BNB, USDT | Smart-contract collector |
+| **BNB Chain** | BNB, USDT (BEP-20) | Smart-contract collector |
 | **Arbitrum** | ETH, USDT, USDC | Smart-contract collector |
 | **Avalanche** | AVAX, USDT, USDC | Smart-contract collector |
 
+Tickers used by the API: `BTC`, `ETH`, `ETH_USDT`, `ETH_USDC`, `MATIC`, `MATIC_USDT`, `MATIC_USDC`, `TRON`, `TRON_USDT`, `BNB`, `BSC_USDT`, `ARB`, `ARBITRUM_USDT`, `ARBITRUM_USDC`, `AVAX`, `AVAX_USDT`, `AVAX_USDC`.
+
 **26 fiat currencies** for invoice pricing: USD, EUR, GBP, CAD, AUD, CHF, JPY, CNY, INR, BRL, MXN, KRW, SGD, HKD, SEK, NOK, DKK, PLN, CZK, TRY, ZAR, NZD, THB, AED, SAR, RUB.
 
-> Solana and Monero are **not** supported. Their key cryptography (ed25519 / CryptoNote) is incompatible with non-custodial xpub derivation, and no equivalent of the EVM smart-contract collector exists for them. Custodial integrations exist elsewhere — CryptoLink will not implement one.
+> Solana and Monero are **not** supported. Their key cryptography (ed25519 / CryptoNote) is incompatible with non-custodial xpub derivation, and no equivalent of the smart-contract collector exists for them.
 
 ---
 
 ## Features
 
 - **Non-custodial by construction** — funds flow only to wallets you control; the platform cannot move, freeze, or seize them
-- **Self-hosted** — runs on your own infrastructure; no external SaaS dependency
-- **Multi-merchant** — one installation supports unlimited merchants; admin panel for super-admin operators
-- **Smart-contract clone factory** — merchants deploy a personal collector clone in one transaction (~$0.50 of gas)
-- **Robust EVM payment detection** — event-based watcher (`eth_getLogs` on the collector's `Received(address,uint256)` log) catches direct sends *and* payments routed through exchange batch withdrawals, dispersers, multisigs, and payment splitters that are invisible to top-level transaction scans
-- **xpub / ypub / zpub support** — auto-detects BIP44 (legacy), BIP49 (P2SH-SegWit), BIP84 (native SegWit `bc1q…`)
-- **Multi-fiat invoicing** — price in any of 26 fiat currencies; merchant-configurable volatility-fee markup applied at conversion
-- **REST API** — full programmatic control over payments, webhooks, payment links, customers
-- **Payment links** — shareable URLs for no-code checkout (donations, invoices, etc.)
-- **Subscription plans** — Free / Starter / Growth / Business / Enterprise — flat monthly fee, **zero per-transaction cut**
-- **Underpayment handling** — automatic detection, grace period for top-up, configurable behavior
-- **Email notifications** — Brevo/SMTP; payment events, volume alerts (80/90/100%), underpayments, marketing
-- **Admin panel** — separate SPA at `/admin` for super-admin tasks (merchants, users, plans, contracts, marketing)
-- **Security audited** — constant-time HMAC, SSRF blocklist, HSTS / CSRF / CSP, rate-limited auth, parameterized SQL, bcrypt
+- **Self-hosted** — runs on your own infrastructure; direct blockchain providers, no payment-API vendor in the loop
+- **Any wallet, any device** — merchant *Connect Wallet* and customer *Pay with wallet*, desktop extensions and phone wallet apps (see above)
+- **Multi-merchant** — one installation supports many merchants; separate admin panel for operators
+- **Robust EVM payment detection** — the watcher reads the collector's `Received(address,uint256)` log, so payments routed through exchange batch withdrawals, dispersers, multisigs and payment splitters are detected, not only direct sends
+- **Cross-currency payments** — a customer who pays a collector in a different supported coin than the one on the invoice (e.g. native ETH against a USDT invoice) is credited at the live rate instead of being ignored
+- **RPC failover** — several RPC endpoints per chain; an endpoint that fails a real request is demoted, not only one that fails a health check
+- **xpub / ypub / zpub** — auto-detected (SLIP-0132): BIP44 legacy, BIP49 P2SH-SegWit, BIP84 native SegWit `bc1q…`
+- **Partial payments** — an underpayment keeps the invoice open (expiry extended per top-up, capped at +24h), the checkout shows *received / remaining* with a QR for the missing amount, and webhooks report the partial state
+- **Multi-fiat invoicing** — price in any of 26 fiat currencies; optional merchant volatility-fee markup applied at conversion
+- **REST API + webhooks** — payments, payment links, customers, xpub wallets; HMAC-SHA512 signed webhooks
+- **Payment links** — shareable URLs for no-code checkout
+- **Subscription plans** — flat monthly fee, **zero per-transaction cut**, limits enforced server-side
+- **Email notifications** — any SMTP relay; payment events, volume alerts (80/90/100%), underpayments
+- **Admin panel** — separate SPA at `/admin` (merchants, users, plans, contracts, payments, marketing)
 
 ---
 
 ## Anonymity & What Goes On-Chain
 
-CryptoLink is built for privacy-conscious operators. Here is **exactly** what is and isn't visible to whom:
-
 ### What is NEVER published or known to CryptoLink
 
-- Your **private keys** — they never leave your hardware wallet / cold storage / browser extension.
-- Your **legal identity** — there is no KYC. Sign-up requires only an email address, which you can rotate.
+- Your **private keys** — they never leave your wallet (browser extension, phone app or hardware wallet).
+- Your **legal identity** — there is no KYC. Sign-up requires only an email address.
 - Your **customer list / order data / business volume** — stored only in *your* self-hosted database.
-- The **mapping between a merchant account and a real-world identity** — CryptoLink-the-software has no such record. (If you self-host on a VPS you paid for with KYC'd fiat, that's an operational concern under your control.)
 
-### What IS publicly visible (because all blockchains are public ledgers)
+### What IS publicly visible (because blockchains are public ledgers)
 
-- **The deployed smart-contract addresses themselves.** EVM and TRON contracts live on a public chain; their bytecode is published and verified on block explorers (Etherscan, Tronscan, etc.). This is unavoidable for any on-chain payment system.
-- **Your collector clone's address and its owner.** When a merchant deploys a clone, the factory emits a `CloneCreated(owner, clone)` event. Anyone watching the chain can see "this owner address deployed a clone." There is no name, email, or business name attached — only a 20-byte address.
-- **Payment transactions to your address.** Every blockchain transaction is public. Anyone with your collector address can see incoming payments and the on-chain withdrawal to your personal wallet. This is true of *all* on-chain payments, custodial or not.
-- **The CryptoLink open-source code** — including the Solidity contracts in [`contracts/`](./contracts/). Publishing them is a *feature*, not a leak: it lets anyone verify the contract has no backdoor.
+- **Deployed contract addresses and their bytecode**, verifiable on block explorers.
+- **Your collector's address and its owner address.** No name, email or business name is attached on-chain.
+- **Payments to your collector and withdrawals to your wallet** — true of every on-chain payment, custodial or not.
+- **The open-source code**, including the Solidity contracts in [`contracts/`](./contracts/). Publishing them lets anyone verify there is no backdoor.
 
 ### Are the contracts safe to publish?
 
-**Yes, and they are intentionally public.** Read them yourself in [`contracts/`](./contracts/):
+**Yes, and they are intentionally public.** Read them in [`contracts/`](./contracts/):
 
-- [`MerchantCollectorV2.sol`](./contracts/MerchantCollectorV2.sol) — proxy-compatible collector, withdraws only to the immutable `owner` set at clone-init time.
-- [`CryptoLinkCloneFactory.sol`](./contracts/CryptoLinkCloneFactory.sol) — EIP-1167 minimal-proxy factory.
-- [`MerchantCollector.sol`](./contracts/MerchantCollector.sol) — original non-proxy variant (kept for reference).
+- [`MerchantCollectorV2.sol`](./contracts/MerchantCollectorV2.sol) — proxy-compatible collector; withdraws only to the immutable `owner`.
+- [`CryptoLinkCloneFactory.sol`](./contracts/CryptoLinkCloneFactory.sol) — EIP-1167 minimal-proxy factory (TRON).
+- [`MerchantCollector.sol`](./contracts/MerchantCollector.sol) — non-proxy collector used on EVM chains.
 
-There are **no hardcoded admin addresses, merchant addresses, or backdoor functions** in any of these. The factory itself has no admin powers over deployed clones. We publish the source so users can audit, verify on-chain bytecode matches source, and re-deploy on chains we don't yet support.
-
-> **Deployed addresses are not published here.** Each operator is expected to deploy their own factory per chain (compile with `tron_v0.8.25+commit.77bd169f`, optimizer 200 runs, evmVersion `paris`). EIP-1167 clones are 45 bytes and don't need separate verification — block explorers auto-detect them.
+There are **no hardcoded admin addresses, merchant addresses, or backdoor functions**. Deployed addresses are not published here: each operator deploys their own TRON factory (compile with `tron_v0.8.25+commit.77bd169f`, optimizer 200 runs, `evmVersion paris`). EIP-1167 clones are recognised automatically by block explorers.
 
 ---
 
@@ -161,43 +177,41 @@ There are **no hardcoded admin addresses, merchant addresses, or backdoor functi
 
 ### Requirements
 
-- Linux server (Ubuntu 22.04+ recommended)
-- Go 1.21+
+- Linux server (Ubuntu 22.04+ / Debian 12+ recommended)
+- Go **1.25+**
 - PostgreSQL 14+
-- Node.js 18+
-- An RPC endpoint per chain you want to support (Infura/Alchemy/Ankr/your own node)
+- Node.js **20.19+** (or 22.12+) — required by Vite 8
+- RPC endpoints for the chains you enable (public, paid or your own nodes)
 
-### 1. Clone & Configure
+### 1. Clone & configure
 
 ```bash
 git clone https://github.com/H0oligan/Cryptolink.git
 cd Cryptolink
-
-# Create your config (no example file is shipped — see internal/config/config.go for the full struct)
-cp config/cryptolink.yml.template config/cryptolink.yml   # if a template exists, otherwise create from scratch
-# Edit config/cryptolink.yml with your DB URL, RPC endpoints, and SMTP settings
 ```
 
-Run `./bin/cryptolink env` after building to see all supported environment variables.
+Create `config/cryptolink.yml` yourself — no example is shipped because every value is operator-specific (database DSN, RPC URLs, SMTP, secrets). See [`config/README.md`](./config/README.md). After building, `./bin/cryptolink env` lists every supported key and its environment-variable equivalent.
 
-### 2. Build Frontend
+### 2. Build the frontends (before the backend)
 
-The Go binary embeds the SPAs at compile time via `//go:embed`, so frontend **must** build before backend.
+The Go binary embeds the dashboard SPAs with `//go:embed`, so the frontends **must** be built first.
 
 ```bash
-# Merchant dashboard
+# Merchant + admin dashboards
 cd ui-dashboard
-npm install
-VITE_ROOTPATH=/merchants/ npx vite build              # outputs ./dist
-npx vite build --config vite.admin.config.ts          # outputs ./dist-admin (admin SPA)
+npm install --legacy-peer-deps
+VITE_ROOTPATH=/merchants/ npx vite build              # → ./dist
+npx vite build --config vite.admin.config.ts          # → ./dist-admin
 
-# Payment page (customer-facing checkout)
+# Customer checkout
 cd ../ui-payment
-npm install
-npx vite build                                        # outputs ./dist
+npm install --legacy-peer-deps
+npx vite build                                        # → ./dist (serve it at /p/)
 ```
 
-### 3. Build Backend
+`--legacy-peer-deps` is needed because some Ant Design Pro packages still declare an antd 5 peer while the dashboard runs antd 6.
+
+### 3. Build the backend
 
 ```bash
 go build \
@@ -205,54 +219,44 @@ go build \
   -o ./bin/cryptolink .
 ```
 
-### 4. Database Setup
-
-```bash
-# First-run migrations
-DB_MIGRATE_ON_START=true ./bin/cryptolink serve-web --config=./config/cryptolink.yml
-# After first boot, set DB_MIGRATE_ON_START=false (default Go struct value is true — explicit override is required)
-```
-
-Or run migrations standalone:
+### 4. Database
 
 ```bash
 ./bin/cryptolink migrate --config=./config/cryptolink.yml
 ```
 
+Then run with `DB_MIGRATE_ON_START=false` — the Go default is `true`, so it must be overridden explicitly.
+
 ### 5. Run
 
 ```bash
-# All-in-one (web + scheduler in a single process — recommended for small deployments)
-DB_MIGRATE_ON_START=false nohup ./bin/cryptolink all-in-one \
-  --config=./config/cryptolink.yml > ./logs/web.log 2>&1 &
+# Web + scheduler in one process (recommended for small deployments)
+DB_MIGRATE_ON_START=false ./bin/cryptolink all-in-one --config=./config/cryptolink.yml
 
-# OR split into web and scheduler processes:
-nohup ./bin/cryptolink serve-web    --config=./config/cryptolink.yml > ./logs/web.log 2>&1 &
-nohup ./bin/cryptolink run-scheduler --config=./config/cryptolink.yml > ./logs/sched.log 2>&1 &
+# or split:
+./bin/cryptolink serve-web     --config=./config/cryptolink.yml
+./bin/cryptolink run-scheduler --config=./config/cryptolink.yml
 ```
 
-Available subcommands: `all-in-one`, `serve-web`, `run-scheduler`, `migrate`, `create-user`, `list-balances`, `topup-balance`, `env`.
+Subcommands: `all-in-one`, `serve-web`, `run-scheduler`, `migrate`, `create-user`, `list-balances`, `topup-balance`, `recover-payment`, `env`. Use a systemd unit with `Restart=always` in production.
 
-### 6. Nginx Reverse Proxy
+### 6. Reverse proxy (nginx)
 
 ```nginx
 server {
     listen 443 ssl;
     server_name yourdomain.com;
 
-    # Static SPA assets served by nginx
-    location ~* \.(js|css|png|svg|ico|woff2)$ {
-        root /path/to/public_html;
-        expires max;
-    }
+    # Never serve dotfiles (.env, .git, …)
+    location ~ /\. { deny all; }
 
-    # Customer payment SPA — served from disk, NOT from Go embed
+    # Customer checkout SPA — served from disk, not from the Go binary
     location /p/ {
-        alias /path/to/public_html/p/;
+        alias /var/www/cryptolink/p/;
         try_files $uri $uri/ /p/index.html;
     }
 
-    # API + dashboard SPAs proxy to Go
+    # API + dashboards
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
@@ -262,16 +266,19 @@ server {
 }
 ```
 
+Step-by-step production instructions (PostgreSQL, systemd, TLS, firewall): **[Self-hosting guide →](https://cryptolink.cc/docs/#self-hosting)**
+
 ---
 
-## Two Separate SPAs
+## Two Dashboard SPAs + one checkout
 
-CryptoLink ships **two independent React/Vite frontends**:
+| App | Path | Source |
+|---|---|---|
+| Merchant panel | `/merchants/*` | `ui-dashboard/` with `VITE_ROOTPATH=/merchants/` |
+| Admin panel (super-admin only) | `/admin/*` | `ui-dashboard/` with `vite.admin.config.ts` |
+| Customer checkout | `/p/*` | `ui-payment/` |
 
-- **Merchant panel** at `/merchants/*` — built from `ui-dashboard/` with `VITE_ROOTPATH=/merchants/`
-- **Admin panel** at `/admin/*` — built from `ui-dashboard/` using `vite.admin.config.ts` (separate entry, super-admin only)
-
-A super-admin user can use both: log in at `/admin/login` for admin work, `/merchants/login` for their own merchant account. Old `/dashboard/*` URLs 301-redirect to `/merchants/*`.
+A super-admin can use both panels: `/admin/login` for operator work, `/merchants/login` for their own merchant account.
 
 ---
 
@@ -279,72 +286,55 @@ A super-admin user can use both: log in at `/admin/login` for admin work, `/merc
 
 ### Authentication
 
-All API requests require a token header:
-
 ```
 X-CRYPTOLINK-TOKEN: your-api-token
 ```
 
-Create tokens in: **Merchant Panel → Settings → API Tokens**.
+Create tokens in **Merchant Panel → Settings → API Tokens**.
 
-### Create a Payment
+### Create a payment
+
+The invoice is priced in **fiat**; the customer picks the coin/network on the checkout page.
 
 ```bash
 curl -X POST https://yourdomain.com/api/merchant/v1/merchant/{merchantId}/payment \
   -H "X-CRYPTOLINK-TOKEN: your-api-token" \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "order-uuid-here",
-    "currency": "USDT_TRON",
+    "id": "8b1e5f0a-3c2d-4e6f-9a7b-1c2d3e4f5a6b",
+    "orderId": "order#1234",
+    "currency": "USD",
     "price": 99.00,
     "description": "Order #1234",
-    "redirectUrl": "https://yourstore.com/thank-you",
-    "metadata": {"order_id": "1234", "customer": "user@example.com"}
+    "redirectUrl": "https://yourstore.com/thank-you"
   }'
 ```
 
-**Response:**
+`id` is a UUID you generate (idempotency key). Response (abridged):
+
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "url": "https://yourdomain.com/p/550e8400-e29b-41d4-a716-446655440000",
+  "id": "8b1e5f0a-3c2d-4e6f-9a7b-1c2d3e4f5a6b",
+  "orderId": "order#1234",
   "status": "pending",
-  "amount": "99.00",
-  "currency": "USDT_TRON"
+  "price": "99",
+  "currency": "USD",
+  "paymentUrl": "https://yourdomain.com/p/pay/8b1e5f0a-3c2d-4e6f-9a7b-1c2d3e4f5a6b"
 }
 ```
 
-Redirect your customer to `url`. CryptoLink handles the rest.
+Redirect your customer to `paymentUrl`.
 
-### Subscription enforcement
+### Webhooks
 
-When a merchant exceeds their plan's monthly volume / payment count, the payment-create endpoint returns **HTTP 402** with `status: "limit_exceeded"` and an `upgrade_url`. Handle this in your integration to prompt the merchant to upgrade.
-
-### Laravel Example
+Webhook bodies are signed with **HMAC-SHA512** of the raw body using your webhook secret, base64-encoded, in the `X-Signature` header. Webhook URLs must be public: private, loopback and link-local destinations are refused.
 
 ```php
-// Create payment
-$response = Http::withHeaders([
-    'X-CRYPTOLINK-TOKEN' => config('cryptolink.token'),
-])->post(config('cryptolink.url') . "/api/merchant/v1/merchant/{$merchantId}/payment", [
-    'id'          => $order->uuid,
-    'currency'    => 'USDT_TRON',
-    'price'       => $order->total,
-    'redirectUrl' => route('payment.success'),
-]);
-
-return redirect($response->json('url'));
-```
-
-```php
-// Verify webhook
 public function handle(Request $request): Response
 {
-    $signature = $request->header('X-Signature');
-    $body      = $request->getContent();
-    $expected  = base64_encode(hash_hmac('sha512', $body, config('cryptolink.hmac_secret'), true));
+    $expected = base64_encode(hash_hmac('sha512', $request->getContent(), config('cryptolink.webhook_secret'), true));
 
-    if (!hash_equals($expected, $signature ?? '')) {
+    if (!hash_equals($expected, $request->header('X-Signature', ''))) {
         return response('Unauthorized', 401);
     }
 
@@ -356,26 +346,17 @@ public function handle(Request $request): Response
 }
 ```
 
-→ **[Full documentation with Node.js, Python, WooCommerce examples →](https://cryptolink.cc/docs)**
+### Plan limits
 
----
+When a merchant exceeds their plan, payment creation returns **HTTP 402** with `status: "limit_exceeded"` and an `upgrade_url`.
 
-## Multi-Fiat & Volatility-Fee Markup
-
-Merchants can:
-
-1. **Pick a base fiat currency** (one of 26: USD, EUR, GBP, JPY, …) — invoices and dashboard totals render in that currency.
-2. **Set a global volatility-fee percent** — applied during fiat→crypto conversion to absorb price swings between invoice creation and on-chain confirmation.
-
-Configuration lives in **Merchant Panel → Currencies & Fees** (`/merchants/currencies`). The fee is shown to customers on the payment page as *"Includes X% volatility fee set by merchant."*
-
-Subscription plan prices and volume limits are always denominated in **USD** (system-level, not merchant-level).
+→ **[Full API reference, payment states, Laravel / Node.js / Python / WooCommerce examples →](https://cryptolink.cc/docs)**
 
 ---
 
 ## Subscription Plans
 
-| Plan | Price | Monthly Volume |
+| Plan | Price | Monthly volume |
 |---|---|---|
 | Free | $0/month | up to $1,000 |
 | Starter | $9.99/month | up to $10,000 |
@@ -383,72 +364,55 @@ Subscription plan prices and volume limits are always denominated in **USD** (sy
 | Business | $79.99/month | up to $250,000 |
 | Enterprise | $199.99/month | Unlimited |
 
-**Zero per-transaction fees at every tier.** Plan limits are enforced server-side: payment count, monthly volume, and merchant count are all checked before invoice creation.
-
-Subscription payments are made in crypto **through CryptoLink itself** — there is no credit-card processor in the loop.
+**Zero per-transaction fees at every tier.** Payment count, monthly volume and merchant count are checked server-side before an invoice is created. Plan prices are in USD; subscription payments are made in crypto through CryptoLink itself.
 
 ---
 
 ## Security
 
-A full security audit was performed in February 2025. Key findings and resolutions:
+- Constant-time HMAC verification; HMAC-SHA512 signed webhooks
+- **SSRF protection** on merchant webhook URLs, enforced on the IP actually dialed (covers DNS rebinding and redirects)
+- Login throttling per account (not only per IP), no account enumeration on login / registration, verified email required for merchants
+- Wallet sign-in handoff: single-use 2-minute tokens kept in the URL fragment, PC approval with a 6-digit code, never silently replaces another signed-in account
+- CSRF protection, HSTS / CSP / X-Frame-Options, rate-limited auth, parameterized SQL (sqlc), bcrypt passwords
+- Non-custodial contracts: no admin keys, owner fixed at deployment
 
-| Finding | Severity | Status |
-|---|---|---|
-| HMAC signature used `==` (timing attack) | High | ✅ Fixed — `crypto/subtle.ConstantTimeCompare` |
-| Sensitive data in error logs | Medium | ✅ Fixed — removed |
-| SSRF via webhook callback URLs | High | ✅ Fixed — RFC-1918 blocklist |
-| Missing HTTP security headers | Medium | ✅ Fixed — HSTS, X-Frame-Options, CSP, etc. |
-| Rate limiting on auth endpoints | — | ✅ Already present |
-| CSRF protection | — | ✅ Already present |
-| Parameterized SQL (no injection) | — | ✅ Already present |
-| bcrypt password hashing | — | ✅ Already present |
-
-Subsequent dependency hardening: Echo framework upgraded, `golang-jwt/jwt v3` removed, npm vulnerabilities patched in both SPAs.
-
-→ **[Full security audit report →](https://cryptolink.cc/docs#security-audit)**
+Found a vulnerability? See **[Reporting vulnerabilities](https://cryptolink.cc/docs/#security-audit)** — please disclose privately first.
 
 ---
 
 ## Project Structure
 
 ```
-├── cmd/                    # CLI entry points (serve-web, all-in-one, run-scheduler, migrate, create-user, …)
-├── config/                 # Config files — gitignored, must be created locally
-├── contracts/              # Solidity sources for MerchantCollector(V2) + CloneFactory (PUBLIC by design)
+├── cmd/                    # CLI: all-in-one, serve-web, run-scheduler, migrate, create-user, recover-payment, …
+├── config/                 # Operator config — gitignored (see config/README.md)
+├── contracts/              # Solidity: MerchantCollector(V2) + CloneFactory (public by design)
 ├── internal/
-│   ├── app/                # Application bootstrap
-│   ├── auth/               # Authentication (session, token, Google OAuth)
-│   ├── bus/                # Event bus
-│   ├── config/             # Config struct definitions
-│   ├── db/                 # PostgreSQL connection & sqlc-generated queries
-│   ├── event/              # Payment + user event types
-│   ├── kms/                # Key-derivation utilities (xpub/ypub/zpub → addresses)
-│   ├── locator/            # Service locator / dependency injection
-│   ├── money/              # Fiat & crypto money types, 26 fiat currency definitions
-│   ├── provider/           # Blockchain / pricefeed providers (RPC, Bitcoin, TronGrid, Binance, etc.)
-│   ├── scheduler/          # Background jobs (payment expiry, balance checks, watchers)
-│   ├── server/http/        # Echo HTTP server, middleware, all API handlers
-│   │   ├── merchantapi/    # Merchant-facing API
-│   │   ├── paymentapi/     # Customer-facing payment-page API
-│   │   ├── emailapi/       # Email settings + logs
-│   │   ├── subscriptionapi/# Subscription plans + billing
-│   │   ├── marketingapi/   # Marketing / unsubscribe endpoints
-│   │   └── internalapi/    # Internal-only endpoints
-│   ├── service/
-│   │   ├── payment/        # Payment lifecycle
-│   │   ├── processing/     # Incoming-tx processing, fee markup, webhooks
-│   │   ├── watcher/        # Block-by-block address watching (15s poll)
-│   │   ├── evmcollector/   # EVM smart-contract collector logic (balances, withdraw)
-│   │   ├── xpub/           # BIP44/49/84 derivation
-│   │   ├── subscription/   # Plan enforcement + usage tracking
-│   │   ├── marketing/      # Email campaigns + unsubscribe
-│   │   └── …               # merchant, user, email, contact, blockchain, transaction, registry, wallet
-│   └── webhook/            # Outbound webhook delivery + HMAC signing
-├── pkg/                    # Public Go packages (api models)
-├── scripts/migrations/     # SQL migration files
-├── ui-dashboard/           # Merchant + Admin SPAs (React + Vite, Ant Design v5 dark + Matrix Neon theme)
-└── ui-payment/             # Customer-facing payment-page SPA (React + Vite)
+│   ├── app/ bus/ locator/  # Bootstrap, event bus, dependency wiring
+│   ├── auth/               # Sessions, API tokens, Google OAuth
+│   ├── config/             # Config struct (yml + env)
+│   ├── db/                 # PostgreSQL + sqlc-generated queries
+│   ├── kms/                # xpub/ypub/zpub → address derivation
+│   ├── money/              # Fiat & crypto money types (26 fiat currencies)
+│   ├── provider/           # RPC (with failover), Bitcoin, TronGrid, price feeds
+│   ├── scheduler/          # Background jobs (expiry, reorg recheck, alerts)
+│   ├── server/http/        # Echo server, middleware, API handlers (merchant, payment, subscription, …)
+│   ├── service/            # payment, processing, watcher, evmcollector, xpub, subscription, …
+│   └── webhook/            # Outbound webhooks: HMAC signing + SSRF guard
+├── pkg/                    # Public Go API models
+├── scripts/migrations/     # SQL migrations
+├── ui-dashboard/           # Merchant + admin SPAs (React, Vite, Ant Design 6, Matrix Neon theme)
+│   └── src/wallet/         # Wallet discovery, Connect Wallet modal, owner checks, phone handoff
+└── ui-payment/             # Customer checkout SPA (React, Vite, Tailwind)
+    └── src/wallet/         # Pay with wallet: EIP-681 parsing, chain guard, TRON transfers
+```
+
+### Tests
+
+```bash
+go test ./...                       # backend (some suites need PostgreSQL)
+cd ui-dashboard && npm test         # wallet modules (vitest)
+cd ui-payment   && npm test         # checkout payment logic (vitest)
 ```
 
 ---
@@ -460,7 +424,7 @@ Subsequent dependency hardening: Echo framework upgraded, `golang-jwt/jwt v3` re
 3. Commit your changes — **never commit credentials, config files, or `.env` files**
 4. Open a Pull Request
 
-The `config/*.yml`, `.env`, and any `*.pem` / `*.key` / `secrets/` files are gitignored — keep them that way.
+`config/*.yml`, `.env`, and any `*.pem` / `*.key` / `secrets/` files are gitignored — keep them that way.
 
 ---
 
