@@ -22,6 +22,7 @@ type Handler struct {
 	emailService     *email.Service
 	enabledProviders []auth.ProviderType
 	loginThrottle    *loginThrottle
+	handoffs         *handoffStore
 	logger           *zerolog.Logger
 }
 
@@ -40,6 +41,7 @@ func NewHandler(
 		emailService:     emailService,
 		enabledProviders: enabledProviders,
 		loginThrottle:    newLoginThrottle(),
+		handoffs:         newHandoffStore(),
 		logger:           &log,
 	}
 }

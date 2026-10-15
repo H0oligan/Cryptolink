@@ -61,6 +61,29 @@ func WithDashboardAPI(
 		authGroup.PUT("/password", authHandler.UpdatePassword, guardsUsersMW)
 		authGroup.POST("/logout", authHandler.PostLogout, guardsUsersMW)
 
+		// Wallet handoff: continue a logged-in session inside a wallet app's browser.
+		handoffCreateRL := mw.RateLimiterWithConfig(mw.RateLimiterConfig{
+			Store: mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
+				Rate: rate.Every(time.Minute), Burst: 10, ExpiresIn: time.Hour,
+			}),
+			IdentifierExtractor: func(c echo.Context) (string, error) {
+				if u := middleware.ResolveUser(c); u != nil {
+					return "user:" + strconv.FormatInt(u.ID, 10), nil
+				}
+
+				return c.RealIP(), nil
+			},
+		})
+		// The phone polls /complete every 2s for up to 2 minutes: ~60 calls.
+		handoffPublicRL := mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
+			Rate: rate.Every(time.Second), Burst: 20, ExpiresIn: 30 * time.Minute,
+		})
+		authGroup.POST("/handoff", authHandler.PostHandoff, guardsUsersMW, handoffCreateRL)
+		authGroup.POST("/handoff/claim", authHandler.PostHandoffClaim, mw.RateLimiter(handoffPublicRL))
+		authGroup.POST("/handoff/complete", authHandler.PostHandoffComplete, mw.RateLimiter(handoffPublicRL))
+		authGroup.GET("/handoff/:id", authHandler.GetHandoffStatus, guardsUsersMW)
+		authGroup.POST("/handoff/:id/decision", authHandler.PostHandoffDecision, guardsUsersMW)
+
 		// email auth routes
 		if enableEmailAuth {
 			// Per-IP limits on top of the group-wide 10 rps. Login is also
