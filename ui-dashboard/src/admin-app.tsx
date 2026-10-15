@@ -10,7 +10,7 @@ import {
     ShopOutlined, CrownOutlined, MailOutlined, AlertOutlined, ThunderboltOutlined, TeamOutlined,
     NotificationOutlined
 } from "@ant-design/icons";
-import {Avatar, Space, Dropdown, MenuProps} from "antd";
+import {Space, MenuProps} from "antd";
 import bevis from "src/utils/bevis";
 const logoImg = "/logo.svg";
 import {User} from "src/types";
@@ -25,8 +25,7 @@ import AdminPaymentsPage from "src/pages/admin/payments-page/payments-page";
 import AdminContractsPage from "src/pages/admin/contracts-page/contracts-page";
 import AdminContactsPage from "src/pages/admin/contacts-page/contacts-page";
 import AdminMarketingPage from "src/pages/admin/marketing-page/marketing-page";
-import ThemeToggle from "src/theme/theme-toggle";
-import ConnectWalletButton from "src/wallet/connect-wallet-button";
+import HeaderActions from "src/components/header-actions/header-actions";
 import ConnectWalletModal from "src/wallet/connect-wallet-modal";
 import {useTheme} from "src/theme/theme-context";
 
@@ -177,28 +176,7 @@ const AdminApp: React.FC = () => {
                         }
                         loading={isLoading}
                         navTheme={isDark ? "realDark" : "light"}
-                        actionsRender={() => [
-                            <RouteContext.Consumer key="wallet">
-                                {(routeCtx: RouteContextType) => <ConnectWalletButton compact={routeCtx.isMobile} />}
-                            </RouteContext.Consumer>,
-                            <ThemeToggle key="theme-toggle" />,
-                            <Dropdown key="user-dropdown" menu={{items: userMenu}} trigger={["click"]}
-                                className={b("user-wrap")} getPopupContainer={() => document.body}>
-                                <Space className={b("user-container", {"user-container_selected": true})}>
-                                    <RouteContext.Consumer>
-                                        {(routeCtx: RouteContextType) => (
-                                            <Space align="center">
-                                                <Avatar src={user?.profileImageUrl} size="default"
-                                                    className={b("user-avatar")} />
-                                                {routeCtx.isMobile ? null : (
-                                                    <div className={b("user-text")}>{user?.email || user?.name}</div>
-                                                )}
-                                            </Space>
-                                        )}
-                                    </RouteContext.Consumer>
-                                </Space>
-                            </Dropdown>
-                        ]}
+                        actionsRender={() => [<HeaderActions key="actions" user={user} menu={userMenu} />]}
                         menuItemRender={(item: MenuItem, dom: React.ReactNode) => (
                             <RouteContext.Consumer>
                                 {(routeCtx: RouteContextType) => (
@@ -213,7 +191,7 @@ const AdminApp: React.FC = () => {
                         collapsedButtonRender={false}
                         layout="mix"
                         splitMenus={false}
-                        headerTitleRender={() => null}
+                        headerTitleRender={(logo) => logo}
                     >
                         <ConnectWalletModal />
                         {/* Don't render inner routes while loading — prevents premature redirects */}

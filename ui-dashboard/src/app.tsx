@@ -11,7 +11,7 @@ import {
     TeamOutlined, CrownOutlined, SettingOutlined, BookOutlined, ShopOutlined,
     WarningOutlined, DollarOutlined
 } from "@ant-design/icons";
-import {Select, Divider, Button, Avatar, Space, Dropdown, MenuProps, notification, FormInstance, Alert} from "antd";
+import {Select, Divider, Button, Space, MenuProps, notification, FormInstance, Alert} from "antd";
 import {usePostHog} from "posthog-js/react";
 import bevis from "src/utils/bevis";
 const logoImg = "/logo.svg";
@@ -38,8 +38,7 @@ import SubscriptionPage from "src/pages/subscription-page/subscription-page";
 import CurrenciesPage from "src/pages/currencies-page/currencies-page";
 import useSharedPosthogStatus from "src/hooks/use-posthog-status";
 import {toggled} from "./providers/toggles";
-import ThemeToggle from "src/theme/theme-toggle";
-import ConnectWalletButton from "src/wallet/connect-wallet-button";
+import HeaderActions from "src/components/header-actions/header-actions";
 import ConnectWalletModal from "src/wallet/connect-wallet-modal";
 import {useTheme} from "src/theme/theme-context";
 
@@ -343,16 +342,16 @@ const App: React.FC = () => {
                             }
                             loading={isLoading}
                             navTheme={isDark ? "realDark" : "light"}
-                            actionsRender={() => {
-                                return [
-                                    <RouteContext.Consumer key="wallet">
-                                        {(routeCtx: RouteContextType) => <ConnectWalletButton compact={routeCtx.isMobile} />}
-                                    </RouteContext.Consumer>,
-                                    <ThemeToggle key="theme-toggle" />,
-                                    !isManageMerchantsActive ? (
+                            actionsRender={() => [
+                                <HeaderActions
+                                    key="actions"
+                                    user={user}
+                                    menu={userMenu}
+                                    switcher={
+                                        !isManageMerchantsActive ? (
                                         <Select
-                                            key="merchant-select"
                                             className={b("select")}
+                                            prefix={<ShopOutlined />}
                                             getPopupContainer={() => document.body}
                                             dropdownRender={(menu) => (
                                                 <>
@@ -388,31 +387,10 @@ const App: React.FC = () => {
                                                 await getMerchant(value);
                                             }}
                                         />
-                                    ) : null,
-                                    <Dropdown key="user-dropdown" menu={{items: userMenu}} trigger={["click"]} className={b("user-wrap")} getPopupContainer={() => document.body}>
-                                        <Space
-                                            className={b("user-container", {
-                                                "user-container_selected": true
-                                            })}
-                                        >
-                                            <RouteContext.Consumer>
-                                                {(routeCtx: RouteContextType) => (
-                                                    <Space align="center">
-                                                        <Avatar
-                                                            src={user?.profileImageUrl}
-                                                            size={"default"}
-                                                            className={b("user-avatar")}
-                                                        />
-                                                        {routeCtx.isMobile ? null : (
-                                                            <div className={b("user-text")}>{user?.email || user?.name}</div>
-                                                        )}
-                                                    </Space>
-                                                )}
-                                            </RouteContext.Consumer>
-                                        </Space>
-                                    </Dropdown>
-                                ];
-                            }}
+                                        ) : null
+                                    }
+                                />
+                            ]}
                             menuItemRender={(item: MenuItem, dom: React.ReactNode) => {
                                 const isLink = item.path?.includes("http", 0);
 
@@ -449,7 +427,7 @@ const App: React.FC = () => {
                             collapsedButtonRender={false}
                             layout="mix"
                             splitMenus={false}
-                            headerTitleRender={() => null}
+                            headerTitleRender={(logo) => logo}
                         >
                             {notificationElement}
                             <ConnectWalletModal />
