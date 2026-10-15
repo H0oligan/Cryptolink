@@ -3,9 +3,13 @@ package auth
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
+	"math/big"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,37 +20,53 @@ import (
 )
 
 // Handoff carries a logged-in dashboard session into a wallet app's built-in
-// browser. "direct" (same phone, native-scheme deep link) completes on claim.
-// "qr" (PC -> phone) needs the PC user to approve the claiming device, because
-// a QR can be scanned by someone else and https wallet links pass through the
-// vendor's servers. In memory: a restart just means "generate a new code".
+// browser. A completed handoff is a full session (it can change the xpub and
+// collectors), so:
+//   - Claim never creates a session; only Complete does, exactly once.
+//   - "qr" (PC -> phone): the phone shows a 6-digit code and the PC user must
+//     type it to approve. A device label alone is attacker-controlled, and a
+//     QR can be scanned by someone else.
+//   - "direct" (same phone, native-scheme link): approved on claim, but the
+//     phone shows "Continue as <masked email>" before Complete, so a link sent
+//     by someone else can't silently sign the victim into a foreign account.
+//   - Complete refuses to replace a session that belongs to another user.
+//
+// The token travels in the URL fragment, so nginx never logs it. In memory: a
+// restart just means "generate a new code".
 const (
-	handoffTTL    = 2 * time.Minute
-	handoffDirect = "direct"
-	handoffQR     = "qr"
+	handoffTTL          = 2 * time.Minute
+	handoffDirect       = "direct"
+	handoffQR           = "qr"
+	handoffMaxCodeTries = 3
 )
 
 var (
 	errHandoffInvalid     = errors.New("invalid handoff request")
 	errHandoffGone        = errors.New("handoff expired or already used")
+	errHandoffBadCode     = errors.New("wrong confirmation code")
+	errHandoffOtherUser   = errors.New("browser is signed in as another user")
 	handoffAllowedReturns = map[string]bool{"/balance": true, "/wallet-setup": true}
 )
 
 type handoffEntry struct {
 	id         string
 	userID     int64
+	email      string
 	merchantID string
 	returnPath string
 	mode       string
 	state      string // pending | claimed | approved | denied | done
 	device     string
+	matchCode  string
+	codeTries  int
 	expires    time.Time
 }
 
 type claimResult struct {
-	entry       handoffEntry
-	complete    bool   // direct mode: create the session now
-	claimSecret string // qr mode: phone polls Complete with this
+	claimSecret string
+	matchCode   string // qr mode: shown on the phone, typed on the PC
+	email       string
+	mode        string
 }
 
 type handoffStore struct {
@@ -72,9 +92,29 @@ func randomB64(n int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+func randomCode() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
 func hashKey(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(sum[:])
+}
+
+func maskEmail(email string) string {
+	at := strings.LastIndex(email, "@")
+	if at < 1 {
+		return "***"
+	}
+	keep := 2
+	if at < keep {
+		keep = at
+	}
+	return email[:keep] + "***" + email[at:]
 }
 
 func (s *handoffStore) gc(now time.Time) {
@@ -95,7 +135,7 @@ func (s *handoffStore) gc(now time.Time) {
 	}
 }
 
-func (s *handoffStore) Create(userID int64, merchantID, returnPath, mode string, now time.Time) (id, token string, expires time.Time, err error) {
+func (s *handoffStore) Create(userID int64, email, merchantID, returnPath, mode string, now time.Time) (id, token string, expires time.Time, err error) {
 	if !handoffAllowedReturns[returnPath] || (mode != handoffDirect && mode != handoffQR) {
 		return "", "", time.Time{}, errHandoffInvalid
 	}
@@ -115,7 +155,10 @@ func (s *handoffStore) Create(userID int64, merchantID, returnPath, mode string,
 	defer s.mu.Unlock()
 	s.gc(now)
 
-	e := &handoffEntry{id: id, userID: userID, merchantID: merchantID, returnPath: returnPath, mode: mode, state: "pending", expires: now.Add(handoffTTL)}
+	e := &handoffEntry{
+		id: id, userID: userID, email: email, merchantID: merchantID, returnPath: returnPath,
+		mode: mode, state: "pending", expires: now.Add(handoffTTL),
+	}
 	s.byToken[hashKey(token)] = e
 	s.byID[id] = e
 
@@ -123,7 +166,17 @@ func (s *handoffStore) Create(userID int64, merchantID, returnPath, mode string,
 }
 
 // Claim consumes the token under the lock, so concurrent claims cannot both win.
+// It never creates a session: the phone gets a claim secret for Complete.
 func (s *handoffStore) Claim(token, device string, now time.Time) (claimResult, error) {
+	secret, err := randomB64(32)
+	if err != nil {
+		return claimResult{}, err
+	}
+	code, err := randomCode()
+	if err != nil {
+		return claimResult{}, err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -141,24 +194,23 @@ func (s *handoffStore) Claim(token, device string, now time.Time) (claimResult, 
 		device = device[:80]
 	}
 	e.device = device
-
-	if e.mode == handoffDirect {
-		e.state = "done"
-		return claimResult{entry: *e, complete: true}, nil
-	}
-
-	secret, err := randomB64(32)
-	if err != nil {
-		return claimResult{}, err
-	}
-	e.state = "claimed"
-	e.expires = now.Add(handoffTTL) // approval window
+	e.expires = now.Add(handoffTTL) // approval / confirmation window
 	s.bySecret[hashKey(secret)] = e
 
-	return claimResult{entry: *e, claimSecret: secret}, nil
+	res := claimResult{claimSecret: secret, email: e.email, mode: e.mode}
+	if e.mode == handoffDirect {
+		e.state = "approved"
+	} else {
+		e.state = "claimed"
+		e.matchCode = code
+		res.matchCode = code
+	}
+
+	return res, nil
 }
 
-func (s *handoffStore) Decide(id string, userID int64, approve bool, now time.Time) error {
+// Decide approves (with the code shown on the phone) or denies a QR claim.
+func (s *handoffStore) Decide(id string, userID int64, approve bool, code string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -166,17 +218,29 @@ func (s *handoffStore) Decide(id string, userID int64, approve bool, now time.Ti
 	if !ok || e.userID != userID || e.state != "claimed" || now.After(e.expires) {
 		return errHandoffGone
 	}
-	if approve {
-		e.state = "approved"
-	} else {
+
+	if !approve {
 		e.state = "denied"
+		return nil
 	}
+
+	if subtle.ConstantTimeCompare([]byte(code), []byte(e.matchCode)) != 1 {
+		e.codeTries++
+		if e.codeTries >= handoffMaxCodeTries {
+			e.state = "denied"
+		}
+		return errHandoffBadCode
+	}
+
+	e.state = "approved"
 
 	return nil
 }
 
-// Complete returns done=true exactly once, after approval.
-func (s *handoffStore) Complete(claimSecret string, now time.Time) (handoffEntry, bool, error) {
+// Complete returns done=true exactly once, after approval. currentUserID is
+// the user already signed in on the calling browser (0 if none); a different
+// user is refused rather than silently replaced.
+func (s *handoffStore) Complete(claimSecret string, currentUserID int64, now time.Time) (handoffEntry, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -190,6 +254,9 @@ func (s *handoffStore) Complete(claimSecret string, now time.Time) (handoffEntry
 	case "claimed":
 		return handoffEntry{}, false, nil
 	case "approved":
+		if currentUserID != 0 && currentUserID != e.userID {
+			return handoffEntry{}, false, errHandoffOtherUser
+		}
 		delete(s.bySecret, k)
 		e.state = "done"
 		return *e, true, nil
@@ -231,7 +298,7 @@ func (h *Handler) PostHandoff(c echo.Context) error {
 	}
 
 	u := middleware.ResolveUser(c)
-	id, token, expires, err := h.handoffs.Create(u.ID, req.MerchantID, req.ReturnPath, req.Mode, time.Now())
+	id, token, expires, err := h.handoffs.Create(u.ID, u.Email, req.MerchantID, req.ReturnPath, req.Mode, time.Now())
 	switch {
 	case errors.Is(err, errHandoffInvalid):
 		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid handoff request"})
@@ -250,14 +317,19 @@ func (h *Handler) GetHandoffStatus(c echo.Context) error {
 
 func (h *Handler) PostHandoffDecision(c echo.Context) error {
 	var req struct {
-		Approve bool `json:"approve"`
+		Approve bool   `json:"approve"`
+		Code    string `json:"code"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid JSON"})
 	}
 
 	u := middleware.ResolveUser(c)
-	if err := h.handoffs.Decide(c.Param("id"), u.ID, req.Approve, time.Now()); err != nil {
+	err := h.handoffs.Decide(c.Param("id"), u.ID, req.Approve, strings.TrimSpace(req.Code), time.Now())
+	switch {
+	case errors.Is(err, errHandoffBadCode):
+		return c.JSON(http.StatusUnprocessableEntity, echo.Map{"message": "Wrong code. Check the code shown on your phone."})
+	case err != nil:
 		return c.JSON(http.StatusBadRequest, handoffGoneResponse)
 	}
 
@@ -280,11 +352,12 @@ func (h *Handler) PostHandoffClaim(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, handoffGoneResponse)
 	}
 
-	if !res.complete {
-		return c.JSON(http.StatusAccepted, echo.Map{"claimSecret": res.claimSecret})
-	}
-
-	return h.finishHandoff(c, res.entry)
+	return c.JSON(http.StatusOK, echo.Map{
+		"claimSecret": res.claimSecret,
+		"matchCode":   res.matchCode,
+		"mode":        res.mode,
+		"account":     maskEmail(res.email),
+	})
 }
 
 func (h *Handler) PostHandoffComplete(c echo.Context) error {
@@ -295,18 +368,21 @@ func (h *Handler) PostHandoffComplete(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid JSON"})
 	}
 
-	e, done, err := h.handoffs.Complete(req.ClaimSecret, time.Now())
+	var currentUserID int64
+	if u := middleware.ResolveUser(c); u != nil {
+		currentUserID = u.ID
+	}
+
+	e, done, err := h.handoffs.Complete(req.ClaimSecret, currentUserID, time.Now())
 	switch {
+	case errors.Is(err, errHandoffOtherUser):
+		return c.JSON(http.StatusConflict, echo.Map{"message": "This browser is signed in to another account. Log out first, then try again."})
 	case err != nil:
 		return c.JSON(http.StatusBadRequest, handoffGoneResponse)
 	case !done:
 		return c.JSON(http.StatusAccepted, echo.Map{"status": "waiting"})
 	}
 
-	return h.finishHandoff(c, e)
-}
-
-func (h *Handler) finishHandoff(c echo.Context, e handoffEntry) error {
 	if err := h.persistSession(c, "handoff", map[string]any{middleware.UserIDContextKey: e.userID}); err != nil {
 		return errors.Wrap(err, "unable to persist session")
 	}
