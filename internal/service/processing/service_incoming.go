@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -880,6 +881,21 @@ func (s *Service) btcPaymentInMempool(ctx context.Context, pt *payment.Payment, 
 	}
 
 	if info.MempoolFunded <= 0 {
+		return false
+	}
+
+	// Only defer when what's in flight covers the invoice. Otherwise a dust send
+	// would hold the locked BTC rate open for the whole window. FundedSum, not
+	// Balance: the merchant may already have swept confirmed partial fills.
+	expected, _ := tx.Amount.BigInt()
+	inFlight := big.NewInt(info.FundedSum + info.MempoolFunded)
+	if inFlight.Cmp(expected) < 0 {
+		s.logger.Info().
+			Int64("payment_id", pt.ID).
+			Str("address", tx.RecipientAddress).
+			Int64("mempool_funded_sats", info.MempoolFunded).
+			Str("expected_sats", expected.String()).
+			Msg("BTC mempool funds don't cover invoice — not deferring expiration")
 		return false
 	}
 

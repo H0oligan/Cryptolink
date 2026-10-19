@@ -2,6 +2,7 @@ package processing
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
@@ -34,9 +35,13 @@ func TestService_btcPaymentInMempool(t *testing.T) {
 	}
 
 	btcTx := func() *transaction.Transaction {
+		amount, err := money.NewFromBigInt(money.Crypto, "BTC", big.NewInt(73023), 8)
+		assert.NoError(t, err)
+
 		return &transaction.Transaction{
 			RecipientAddress: "bc1qhwh2axexux3c5d8puajhf0d9zrr4eexlprj0l5",
-			Currency:         money.CryptoCurrency{Blockchain: "BTC", Ticker: "BTC"},
+			Currency:         money.CryptoCurrency{Blockchain: "BTC", Ticker: "BTC", Decimals: 8},
+			Amount:           amount,
 		}
 	}
 
@@ -62,6 +67,22 @@ func TestService_btcPaymentInMempool(t *testing.T) {
 			expiresAt: ago(31 * time.Minute),
 			tx:        btcTx(),
 			want:      false,
+			wantCalls: 1,
+		},
+		{
+			name:      "dust in mempool does not hold the invoice open",
+			inspector: &fakeBTCInspector{info: &bitcoin.AddressInfo{MempoolFunded: 546}},
+			expiresAt: ago(31 * time.Minute),
+			tx:        btcTx(),
+			want:      false,
+			wantCalls: 1,
+		},
+		{
+			name:      "confirmed partial fill plus mempool remainder defers expiry",
+			inspector: &fakeBTCInspector{info: &bitcoin.AddressInfo{FundedSum: 50000, MempoolFunded: 23023}},
+			expiresAt: ago(31 * time.Minute),
+			tx:        btcTx(),
+			want:      true,
 			wantCalls: 1,
 		},
 		{
