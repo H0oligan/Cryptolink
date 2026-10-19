@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/email"
@@ -848,6 +849,50 @@ func (s *Service) BatchExpirePayments(ctx context.Context, paymentsIDs []int64) 
 // the blockchain address during this window.
 const gracePeriod = 30 * time.Minute
 
+// mempoolGracePeriod is how long past nominal expiration a BTC invoice is kept
+// alive while its address has unconfirmed incoming funds. Low-fee BTC sends can
+// take hours to confirm; failing the invoice meanwhile strands a payment the
+// customer made on time. Hard cap so an evicted tx doesn't pin the invoice.
+const mempoolGracePeriod = 24 * time.Hour
+
+// btcPaymentInMempool reports whether a BTC invoice past its grace period should
+// still be kept alive because funds to its address are waiting in the mempool.
+// Mempool state only defers expiry — detection and crediting stay confirmed-only,
+// the watcher picks the payment up once it confirms.
+func (s *Service) btcPaymentInMempool(ctx context.Context, pt *payment.Payment, tx *transaction.Transaction) bool {
+	if s.btc == nil || kms.Blockchain(tx.Currency.Blockchain) != kms.BTC || tx.RecipientAddress == "" {
+		return false
+	}
+
+	if pt.ExpiresAt == nil || time.Since(*pt.ExpiresAt) >= mempoolGracePeriod {
+		return false
+	}
+
+	info, err := s.btc.GetAddressInfo(ctx, tx.RecipientAddress, tx.IsTest)
+	if err != nil {
+		// Can't tell — keep the invoice alive and retry on the next run rather
+		// than fail a payment that may be sitting in the mempool.
+		s.logger.Warn().Err(err).
+			Int64("payment_id", pt.ID).
+			Str("address", tx.RecipientAddress).
+			Msg("unable to check BTC mempool before expiring payment — deferring expiration")
+		return true
+	}
+
+	if info.MempoolFunded <= 0 {
+		return false
+	}
+
+	s.logger.Info().
+		Int64("payment_id", pt.ID).
+		Str("address", tx.RecipientAddress).
+		Int64("mempool_funded_sats", info.MempoolFunded).
+		Time("expires_at", *pt.ExpiresAt).
+		Msg("BTC payment unconfirmed in mempool — deferring expiration until it confirms")
+
+	return true
+}
+
 func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 	pt, err := s.payments.GetByID(ctx, payment.MerchantIDWildcard, paymentID)
 	if err != nil {
@@ -879,6 +924,10 @@ func (s *Service) expirePayment(ctx context.Context, paymentID int64) error {
 				Int64("payment_id", paymentID).
 				Time("expires_at", *pt.ExpiresAt).
 				Msg("payment in grace period — skipping expiration, watcher still monitoring")
+			return nil
+		}
+
+		if s.btcPaymentInMempool(ctx, pt, tx) {
 			return nil
 		}
 	}

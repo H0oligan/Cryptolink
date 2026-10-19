@@ -12,6 +12,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/bus"
 	"github.com/cryptolink/cryptolink/internal/lock"
 	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/email"
 	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
@@ -32,6 +33,13 @@ type BlockchainService interface {
 	blockchain.FeeCalculator
 }
 
+// BTCAddressInspector reads BTC address state, including unconfirmed (mempool)
+// funds. Used only to defer expiry of invoices whose payment is still waiting
+// for its first confirmation — never to detect or credit a payment.
+type BTCAddressInspector interface {
+	GetAddressInfo(ctx context.Context, address string, isTest bool) (*bitcoin.AddressInfo, error)
+}
+
 type Service struct {
 	config           Config
 	wallets          *wallet.Service
@@ -43,6 +51,7 @@ type Service struct {
 	emailService     *email.Service
 	subscriptions    *subscription.Service
 	blockchain       BlockchainService
+	btc              BTCAddressInspector
 	publisher        bus.Publisher
 	locker           *lock.Locker
 	logger           *zerolog.Logger
@@ -84,6 +93,7 @@ func New(
 	emailService *email.Service,
 	subscriptionService *subscription.Service,
 	blockchainService BlockchainService,
+	btcInspector BTCAddressInspector,
 	publisher bus.Publisher,
 	locker *lock.Locker,
 	logger *zerolog.Logger,
@@ -101,6 +111,7 @@ func New(
 		emailService:  emailService,
 		subscriptions: subscriptionService,
 		blockchain:    blockchainService,
+		btc:           btcInspector,
 		publisher:     publisher,
 		locker:        locker,
 		logger:        &log,

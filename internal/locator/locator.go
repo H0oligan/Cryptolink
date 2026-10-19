@@ -350,6 +350,7 @@ func (loc *Locator) ProcessingService() *processing.Service {
 			loc.EmailService(),
 			loc.SubscriptionService(),
 			loc.BlockchainService(),
+			loc.BitcoinProvider(),
 			loc.EventBus(),
 			loc.Locker(),
 			loc.logger,

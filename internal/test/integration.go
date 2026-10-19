@@ -157,6 +157,7 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 		nil, // emailService (not needed in tests)
 		nil, // subscriptionService (not needed in tests)
 		globalFaker,
+		nil, // btcInspector (no mempool lookups in tests)
 		globalFaker.Bus,
 		locker,
 		&logger,
