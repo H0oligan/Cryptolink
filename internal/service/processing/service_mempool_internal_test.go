@@ -8,8 +8,10 @@ import (
 
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
+	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
+	"github.com/ethereum/go-ethereum"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -125,4 +127,24 @@ func TestService_btcPaymentInMempool(t *testing.T) {
 		pt := &payment.Payment{ID: 1, ExpiresAt: ago(31 * time.Minute)}
 		assert.False(t, s.btcPaymentInMempool(context.Background(), pt, btcTx()))
 	})
+}
+
+func TestFillReorged(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		receipt *blockchain.TransactionReceipt
+		err     error
+		want    bool
+	}{
+		{name: "1 conf below BTC 2-conf threshold is not a reorg", receipt: &blockchain.TransactionReceipt{Confirmations: 1, IsConfirmed: false}},
+		{name: "confirmed receipt is not a reorg", receipt: &blockchain.TransactionReceipt{Confirmations: 6, IsConfirmed: true}},
+		{name: "transient RPC error is not a reorg", err: errors.New("request timed out")},
+		{name: "BTC tx not found is a reorg", err: errors.Wrap(bitcoin.ErrNotFound, "unable to get BTC transaction"), want: true},
+		{name: "EVM tx not found is a reorg", err: errors.Wrap(ethereum.NotFound, "unable to get receipt"), want: true},
+		{name: "back to zero confirmations is a reorg", receipt: &blockchain.TransactionReceipt{Confirmations: 0}, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, fillReorged(tc.receipt, tc.err))
+		})
+	}
 }

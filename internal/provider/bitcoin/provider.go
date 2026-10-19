@@ -15,6 +15,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// ErrNotFound is returned when the API reports the requested object (e.g. a
+// transaction) does not exist.
+var ErrNotFound = errors.New("not found")
+
 // Config for the Bitcoin provider.
 type Config struct {
 	// Primary API (Blockstream)
@@ -402,6 +406,10 @@ func (p *Provider) doGet(ctx context.Context, url string) ([]byte, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to read response body")
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, errors.Wrapf(ErrNotFound, "API returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	if resp.StatusCode != http.StatusOK {

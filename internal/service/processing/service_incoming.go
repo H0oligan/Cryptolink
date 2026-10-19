@@ -8,8 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
 	"github.com/cryptolink/cryptolink/internal/money"
+	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/email"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
@@ -340,6 +342,20 @@ func (s *Service) createUnexpectedTransaction(ctx context.Context, wt *wallet.Wa
 // against newly-broadcast fills that haven't propagated to every node yet.
 const reorgGracePeriod = 30 * time.Minute
 
+// fillReorged reports whether a receipt lookup is definitive evidence that a
+// fill's transaction is no longer in the chain: the tx is not found, or it's
+// back to zero confirmations (BTC: dropped to the mempool). A transient RPC
+// error or a tx still below the confirmation threshold is NOT evidence —
+// BTC needs 2 confirmations for IsConfirmed, and a 30+ min gap between blocks
+// used to flag real 1-conf fills as reorged (payment 1664, 2026-09-18).
+func fillReorged(receipt *blockchain.TransactionReceipt, err error) bool {
+	if err != nil {
+		return errors.Is(err, ethereum.NotFound) || errors.Is(err, bitcoin.ErrNotFound)
+	}
+
+	return receipt != nil && receipt.Confirmations <= 0
+}
+
 // RecheckPartialFills iterates every fill on every payment currently in
 // StatusPartial and re-verifies each fill's hash on chain. Fills whose
 // on-chain receipt no longer confirms (and which are at least
@@ -382,22 +398,27 @@ func (s *Service) RecheckPartialFills(ctx context.Context) error {
 			}
 
 			receipt, recErr := s.blockchain.GetTransactionReceipt(ctx, tx.Currency.Blockchain, f.TransactionHash, tx.IsTest)
-			// Treat any "tx no longer on chain" signal as reorg evidence.
-			// Transient RPC errors don't get past the grace-period gate
-			// because they'd resolve on the next scheduler tick.
-			if recErr != nil || receipt == nil || !receipt.IsConfirmed {
-				if mErr := s.transactions.MarkFillReorged(ctx, f.ID); mErr != nil {
-					s.logger.Error().Err(mErr).Int64("fill_id", f.ID).
-						Msg("recheck: failed to mark fill reorged")
-					continue
+			if !fillReorged(receipt, recErr) {
+				if recErr != nil {
+					s.logger.Warn().Err(recErr).
+						Int64("fill_id", f.ID).
+						Str("hash", f.TransactionHash).
+						Msg("recheck: receipt lookup failed — will retry next tick")
 				}
-				flagged++
-				s.logger.Warn().
-					Int64("fill_id", f.ID).
-					Int64("tx_id", txID).
-					Str("hash", f.TransactionHash).
-					Msg("partial fill reorged off-chain — marked reorged, sum decremented")
+				continue
 			}
+
+			if mErr := s.transactions.MarkFillReorged(ctx, f.ID); mErr != nil {
+				s.logger.Error().Err(mErr).Int64("fill_id", f.ID).
+					Msg("recheck: failed to mark fill reorged")
+				continue
+			}
+			flagged++
+			s.logger.Warn().
+				Int64("fill_id", f.ID).
+				Int64("tx_id", txID).
+				Str("hash", f.TransactionHash).
+				Msg("partial fill reorged off-chain — marked reorged, sum decremented")
 		}
 	}
 
