@@ -8,6 +8,7 @@ import (
 
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
@@ -140,6 +141,7 @@ func TestFillReorged(t *testing.T) {
 		{name: "confirmed receipt is not a reorg", receipt: &blockchain.TransactionReceipt{Confirmations: 6, IsConfirmed: true}},
 		{name: "transient RPC error is not a reorg", err: errors.New("request timed out")},
 		{name: "BTC tx not found is a reorg", err: errors.Wrap(bitcoin.ErrNotFound, "unable to get BTC transaction"), want: true},
+		{name: "TRON tx not found is a reorg", err: errors.Wrap(trongrid.ErrNotFound, "unable to get tron transaction receipt"), want: true},
 		{name: "EVM tx not found is a reorg", err: errors.Wrap(ethereum.NotFound, "unable to get receipt"), want: true},
 		{name: "back to zero confirmations is a reorg", receipt: &blockchain.TransactionReceipt{Confirmations: 0}, want: true},
 	} {

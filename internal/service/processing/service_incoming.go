@@ -12,6 +12,7 @@ import (
 	kms "github.com/cryptolink/cryptolink/internal/kms/wallet"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/provider/bitcoin"
+	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/email"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
@@ -350,7 +351,9 @@ const reorgGracePeriod = 30 * time.Minute
 // used to flag real 1-conf fills as reorged (payment 1664, 2026-09-18).
 func fillReorged(receipt *blockchain.TransactionReceipt, err error) bool {
 	if err != nil {
-		return errors.Is(err, ethereum.NotFound) || errors.Is(err, bitcoin.ErrNotFound)
+		return errors.Is(err, ethereum.NotFound) ||
+			errors.Is(err, bitcoin.ErrNotFound) ||
+			errors.Is(err, trongrid.ErrNotFound)
 	}
 
 	return receipt != nil && receipt.Confirmations <= 0
