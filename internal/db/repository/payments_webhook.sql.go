@@ -102,23 +102,29 @@ func (q *Queries) MarkPaymentWebhookFailed(ctx context.Context, arg MarkPaymentW
 }
 
 const listPaymentsWithUndeliveredWebhook = `-- name: ListPaymentsWithUndeliveredWebhook :many
-SELECT p.id, p.merchant_id FROM payments p
-JOIN merchants m ON m.id = p.merchant_id
-WHERE p.status NOT IN ('pending', 'locked')
-  AND p.updated_at > $1 AND p.updated_at < $2
-  AND m.deleted_at IS NULL
-  AND COALESCE(m.settings->>'webhook.url', '') <> ''
-  AND (
-    split_part(COALESCE(p.webhook_delivered_status, ''), ':', 1) IS DISTINCT FROM p.status
-    OR (p.webhook_pending_status IS NOT NULL AND p.webhook_pending_status IS DISTINCT FROM p.webhook_delivered_status)
-  )
-  AND (p.webhook_next_attempt_at IS NULL OR p.webhook_next_attempt_at <= $3)
-  AND NOT (
-    split_part(COALESCE(p.webhook_pending_status, ''), ':', 1) = p.status
-    AND p.webhook_attempts >= $4
-  )
-ORDER BY p.id
-LIMIT $5
+SELECT id, merchant_id FROM (
+  SELECT p.id, p.merchant_id,
+    COALESCE(p.webhook_next_attempt_at, p.updated_at) AS due_at,
+    row_number() OVER (PARTITION BY p.merchant_id ORDER BY COALESCE(p.webhook_next_attempt_at, p.updated_at), p.id) AS merchant_rank
+  FROM payments p
+  JOIN merchants m ON m.id = p.merchant_id
+  WHERE p.status NOT IN ('pending', 'locked')
+    AND p.updated_at > $1 AND p.updated_at < $2
+    AND m.deleted_at IS NULL
+    AND COALESCE(m.settings->>'webhook.url', '') <> ''
+    AND (
+      split_part(COALESCE(p.webhook_delivered_status, ''), ':', 1) IS DISTINCT FROM p.status
+      OR (p.webhook_pending_status IS NOT NULL AND p.webhook_pending_status IS DISTINCT FROM p.webhook_delivered_status)
+    )
+    AND (p.webhook_next_attempt_at IS NULL OR p.webhook_next_attempt_at <= $3)
+    AND NOT (
+      split_part(COALESCE(p.webhook_pending_status, ''), ':', 1) = p.status
+      AND p.webhook_attempts >= $4
+    )
+) due
+WHERE merchant_rank <= $5
+ORDER BY due_at, id
+LIMIT $6
 `
 
 type ListPaymentsWithUndeliveredWebhookParams struct {
@@ -126,6 +132,7 @@ type ListPaymentsWithUndeliveredWebhookParams struct {
 	UpdatedBefore time.Time
 	Now           time.Time
 	MaxAttempts   int32
+	PerMerchant   int32
 	RowLimit      int32
 }
 
@@ -143,6 +150,7 @@ func (q *Queries) ListPaymentsWithUndeliveredWebhook(
 		arg.UpdatedBefore,
 		arg.Now,
 		arg.MaxAttempts,
+		arg.PerMerchant,
 		arg.RowLimit,
 	)
 	if err != nil {

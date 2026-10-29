@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -107,6 +108,12 @@ const (
 	webhookRetryWindow = 7 * 24 * time.Hour
 	webhookRetrySettle = time.Minute
 	webhookRetryBatch  = 50
+
+	// Per-merchant cap per run and parallel merchants: a merchant whose
+	// endpoint hangs can hold at most one worker for
+	// webhookRetryPerMerchant * webhook.Timeout.
+	webhookRetryPerMerchant = 3
+	webhookRetryWorkers     = 10
 )
 
 var WebhookBackoff = []time.Duration{
@@ -164,20 +171,43 @@ func (h *Handler) RetryUndeliveredWebhooks(ctx context.Context) error {
 		now.Add(-webhookRetryWindow),
 		now.Add(-webhookRetrySettle),
 		WebhookMaxAttempts,
+		webhookRetryPerMerchant,
 		webhookRetryBatch,
 	)
 	if err != nil {
 		return err
 	}
 
+	// Merchants are retried in parallel and each merchant's rows in sequence,
+	// so a slow or hanging merchant endpoint only delays its own webhooks.
+	byMerchant := make(map[int64][]payment.UndeliveredWebhook)
 	for _, d := range due {
-		if err := h.deliverWebhook(ctx, d.MerchantID, d.PaymentID); err != nil {
-			h.logger.Error().Err(err).
-				Int64("merchant_id", d.MerchantID).
-				Int64("payment_id", d.PaymentID).
-				Msg("webhook retry failed")
-		}
+		byMerchant[d.MerchantID] = append(byMerchant[d.MerchantID], d)
 	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, webhookRetryWorkers)
+
+	for _, items := range byMerchant {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(items []payment.UndeliveredWebhook) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			for _, d := range items {
+				if err := h.deliverWebhook(ctx, d.MerchantID, d.PaymentID); err != nil {
+					h.logger.Error().Err(err).
+						Int64("merchant_id", d.MerchantID).
+						Int64("payment_id", d.PaymentID).
+						Msg("webhook retry failed")
+				}
+			}
+		}(items)
+	}
+
+	wg.Wait()
 
 	if len(due) > 0 {
 		h.logger.Info().Int("count", len(due)).Msg("retried undelivered webhooks")
@@ -229,15 +259,8 @@ func (h *Handler) deliverWebhook(ctx context.Context, merchantID, paymentID int6
 			wh.IdempotencyKey = key
 		}
 	}
-	if webhookURL != "" && p.Payment.LinkID() != 0 {
-		link, err := h.payments.GetPaymentLinkByID(ctx, mt.ID, p.Payment.LinkID())
-		if err != nil {
-			return errors.Wrap(err, "unable to get payment link")
-		}
-
-		wh.LinkID = util.Ptr(link.PublicID.String())
-	}
-
+	// Claim before any further lookups: once claimed, every failure goes
+	// through backoff and the attempt cap, so no row can be retried forever.
 	key := WebhookDeliveryKey(p.Payment.Status, wh.IdempotencyKey)
 	now := time.Now()
 
@@ -261,6 +284,18 @@ func (h *Handler) deliverWebhook(ctx context.Context, merchantID, paymentID int6
 		// Nothing to deliver; record it so a webhook URL set later doesn't
 		// replay old statuses.
 		return h.payments.MarkWebhookDelivered(ctx, merchantID, paymentID, key, nil)
+	}
+
+	if p.Payment.LinkID() != 0 {
+		link, err := h.payments.GetPaymentLinkByID(ctx, mt.ID, p.Payment.LinkID())
+		if err != nil {
+			// The webhook matters more than the optional link id.
+			h.logger.Warn().Err(err).
+				Int64("merchant_id", merchantID).Int64("payment_id", paymentID).
+				Msg("unable to get payment link; sending webhook without paymentLinkId")
+		} else {
+			wh.LinkID = util.Ptr(link.PublicID.String())
+		}
 	}
 
 	if err := webhook.Send(ctx, webhookURL, signatureSecret, wh); err != nil {

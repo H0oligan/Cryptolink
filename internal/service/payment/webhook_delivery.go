@@ -76,17 +76,18 @@ func (s *Service) MarkWebhookFailed(ctx context.Context, merchantID, paymentID i
 
 // ListUndeliveredWebhooks returns payments whose current status was never
 // acknowledged by the merchant, or whose last attempt failed, and that are
-// due for an attempt now.
+// due for an attempt now: oldest-due first, at most perMerchant per merchant.
 func (s *Service) ListUndeliveredWebhooks(
 	ctx context.Context,
 	updatedAfter, updatedBefore time.Time,
-	maxAttempts, limit int,
+	maxAttempts, perMerchant, limit int,
 ) ([]UndeliveredWebhook, error) {
 	rows, err := s.repo.ListPaymentsWithUndeliveredWebhook(ctx, repository.ListPaymentsWithUndeliveredWebhookParams{
 		UpdatedAfter:  updatedAfter,
 		UpdatedBefore: updatedBefore,
 		Now:           time.Now(),
 		MaxAttempts:   int32(maxAttempts),
+		PerMerchant:   int32(perMerchant),
 		RowLimit:      int32(limit),
 	})
 	if err != nil {
