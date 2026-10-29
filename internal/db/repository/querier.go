@@ -127,6 +127,10 @@ type Querier interface {
 	ExtendPaymentExpiry(ctx context.Context, arg ExtendPaymentExpiryParams) (ExtendPaymentExpiryRow, error)
 	UpdatePaymentCustomerID(ctx context.Context, arg UpdatePaymentCustomerIDParams) error
 	UpdatePaymentWebhookInfo(ctx context.Context, arg UpdatePaymentWebhookInfoParams) error
+	ClaimPaymentWebhook(ctx context.Context, arg ClaimPaymentWebhookParams) (int32, error)
+	MarkPaymentWebhookDelivered(ctx context.Context, arg MarkPaymentWebhookDeliveredParams) error
+	MarkPaymentWebhookFailed(ctx context.Context, arg MarkPaymentWebhookFailedParams) error
+	ListPaymentsWithUndeliveredWebhook(ctx context.Context, arg ListPaymentsWithUndeliveredWebhookParams) ([]ListPaymentsWithUndeliveredWebhookRow, error)
 	InsertTransactionFill(ctx context.Context, arg InsertTransactionFillParams) (TransactionFill, error)
 	ListTransactionFills(ctx context.Context, transactionID int64) ([]TransactionFill, error)
 	SumConfirmedFillsForTx(ctx context.Context, transactionID int64) (pgtype.Numeric, error)

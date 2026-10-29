@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	Timeout         = time.Second * 5
+	Timeout         = time.Second * 15
 	HeaderSignature = "X-Signature"
 )
 

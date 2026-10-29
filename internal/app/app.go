@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/cryptolink/cryptolink/internal/bus"
@@ -39,6 +40,11 @@ type App struct {
 	logger    *zerolog.Logger
 	services  *locator.Locator
 	beforeRun []BeforeRun
+
+	// RunServer and RunScheduler both need the event handlers, and serve-web
+	// runs both: registering twice made every webhook and alert fire twice.
+	eventHandlersOnce sync.Once
+	paymentEvents     *paymentevents.Handler
 }
 
 type BeforeRun func(ctx context.Context, app *App) error
@@ -248,31 +254,37 @@ func (app *App) RunScheduler() {
 	register("@every 2m", "cancelExpiredPayments", jobs.CancelExpiredPayments, false)
 
 	register("@every 5m", "recheckPartialFills", jobs.RecheckPartialFills, false)
+
+	register("@every 1m", "retryUndeliveredWebhooks", app.paymentEvents.RetryUndeliveredWebhooks, false)
 }
 
 func (app *App) registerEventHandlers() {
-	handlers := []bus.Handler{
-		paymentevents.New(
+	app.eventHandlersOnce.Do(func() {
+		app.paymentEvents = paymentevents.New(
 			app.services.MerchantService(),
 			app.services.ProcessingService(),
 			app.services.PaymentService(),
 			app.services.SubscriptionService(),
 			app.config.Notifications.SlackWebhookURL,
 			app.logger,
-		),
-		userevents.New(
-			app.config.Env,
-			app.config.Notifications.SlackWebhookURL,
-			app.services.UserService(),
-			app.logger,
-		),
-	}
+		)
 
-	for _, h := range handlers {
-		if err := app.services.EventBus().RegisterHandler(h); err != nil {
-			panic(errors.Wrapf(err, "unable to register handler %T", h))
+		handlers := []bus.Handler{
+			app.paymentEvents,
+			userevents.New(
+				app.config.Env,
+				app.config.Notifications.SlackWebhookURL,
+				app.services.UserService(),
+				app.logger,
+			),
 		}
-	}
+
+		for _, h := range handlers {
+			if err := app.services.EventBus().RegisterHandler(h); err != nil {
+				panic(errors.Wrapf(err, "unable to register handler %T", h))
+			}
+		}
+	})
 }
 
 type registerFunc func(cronSpec, name string, job jobFunc, enableTableLogging bool)

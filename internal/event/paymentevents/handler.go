@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/cryptolink/cryptolink/internal/bus"
@@ -25,6 +26,9 @@ type Handler struct {
 	subscriptions   *subscription.Service
 	slackWebhookURL string
 	logger          *zerolog.Logger
+
+	// retrying prevents overlapping RetryUndeliveredWebhooks runs.
+	retrying atomic.Bool
 }
 
 func New(
@@ -85,7 +89,108 @@ func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Me
 		return err
 	}
 
-	mt, err := h.merchants.GetByID(ctx, req.MerchantID, false)
+	return h.deliverWebhook(ctx, req.MerchantID, req.PaymentID)
+}
+
+// Webhook retry policy. A failed delivery is retried by RetryUndeliveredWebhooks
+// with WebhookBackoff between attempts; after WebhookMaxAttempts it gives up
+// and raises an alert.
+const (
+	WebhookMaxAttempts = 12
+
+	// webhookLease must comfortably exceed webhook.Timeout: while it holds,
+	// no other sender may deliver the same key.
+	webhookLease = 2 * time.Minute
+
+	// Retry job scope: payments changed within the window, and settled long
+	// enough for the live event to have had its chance.
+	webhookRetryWindow = 7 * 24 * time.Hour
+	webhookRetrySettle = time.Minute
+	webhookRetryBatch  = 50
+)
+
+var WebhookBackoff = []time.Duration{
+	time.Minute,
+	2 * time.Minute,
+	5 * time.Minute,
+	10 * time.Minute,
+	30 * time.Minute,
+	time.Hour,
+	2 * time.Hour,
+	6 * time.Hour,
+	12 * time.Hour,
+	24 * time.Hour,
+	24 * time.Hour,
+}
+
+// NextWebhookAttempt returns when to retry after failed attempt number
+// `attempt` (1-based), or false when the delivery should give up.
+func NextWebhookAttempt(attempt int, now time.Time) (time.Time, bool) {
+	if attempt < 1 || attempt >= WebhookMaxAttempts {
+		return time.Time{}, false
+	}
+
+	i := attempt - 1
+	if i >= len(WebhookBackoff) {
+		i = len(WebhookBackoff) - 1
+	}
+
+	return now.Add(WebhookBackoff[i]), true
+}
+
+// WebhookDeliveryKey identifies one webhook the merchant must receive exactly
+// once: the status, or the status plus fill key for partial payments, which
+// get one webhook per fill.
+func WebhookDeliveryKey(status payment.Status, fillKey string) string {
+	if status == payment.StatusPartial && fillKey != "" {
+		return status.String() + ":" + fillKey
+	}
+
+	return status.String()
+}
+
+// RetryUndeliveredWebhooks is a scheduler job that re-sends webhooks that
+// failed, or whose status event never reached the live sender.
+func (h *Handler) RetryUndeliveredWebhooks(ctx context.Context) error {
+	if !h.retrying.CompareAndSwap(false, true) {
+		return nil
+	}
+	defer h.retrying.Store(false)
+
+	now := time.Now()
+
+	due, err := h.payments.ListUndeliveredWebhooks(
+		ctx,
+		now.Add(-webhookRetryWindow),
+		now.Add(-webhookRetrySettle),
+		WebhookMaxAttempts,
+		webhookRetryBatch,
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, d := range due {
+		if err := h.deliverWebhook(ctx, d.MerchantID, d.PaymentID); err != nil {
+			h.logger.Error().Err(err).
+				Int64("merchant_id", d.MerchantID).
+				Int64("payment_id", d.PaymentID).
+				Msg("webhook retry failed")
+		}
+	}
+
+	if len(due) > 0 {
+		h.logger.Info().Int("count", len(due)).Msg("retried undelivered webhooks")
+	}
+
+	return nil
+}
+
+// deliverWebhook sends the payment's current status to the merchant at most
+// once per delivery key. The DB claim makes the live event and the retry job
+// mutually exclusive, so concurrent or repeated triggers never double-send.
+func (h *Handler) deliverWebhook(ctx context.Context, merchantID, paymentID int64) error {
+	mt, err := h.merchants.GetByID(ctx, merchantID, false)
 	if err != nil {
 		return errors.Wrap(err, "unable to get merchant")
 	}
@@ -93,15 +198,7 @@ func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Me
 	webhookURL := mt.Settings().WebhookURL()
 	signatureSecret := mt.Settings().WebhookSignatureSecret()
 
-	if webhookURL == "" {
-		h.logger.Warn().
-			Int64("merchant_id", req.MerchantID).Int64("payment_id", req.PaymentID).
-			Msg("webhook not set; skipping sending")
-
-		return nil
-	}
-
-	p, err := h.processing.GetDetailedPayment(ctx, req.MerchantID, req.PaymentID)
+	p, err := h.processing.GetDetailedPayment(ctx, merchantID, paymentID)
 	if err != nil {
 		return errors.Wrap(err, "unable to get detailed payment")
 	}
@@ -128,11 +225,11 @@ func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Me
 	if p.Payment.Status == payment.StatusPartial && p.PaymentInfo != nil {
 		wh.ReceivedAmount = p.PaymentInfo.ReceivedAmount
 		wh.RemainingAmount = p.PaymentInfo.RemainingAmount
-		if key, keyErr := h.processing.LatestFillIdempotencyKey(ctx, req.MerchantID, req.PaymentID); keyErr == nil {
+		if key, keyErr := h.processing.LatestFillIdempotencyKey(ctx, merchantID, paymentID); keyErr == nil {
 			wh.IdempotencyKey = key
 		}
 	}
-	if p.Payment.LinkID() != 0 {
+	if webhookURL != "" && p.Payment.LinkID() != 0 {
 		link, err := h.payments.GetPaymentLinkByID(ctx, mt.ID, p.Payment.LinkID())
 		if err != nil {
 			return errors.Wrap(err, "unable to get payment link")
@@ -141,26 +238,45 @@ func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Me
 		wh.LinkID = util.Ptr(link.PublicID.String())
 	}
 
-	if err := webhook.Send(ctx, webhookURL, signatureSecret, wh); err != nil {
-		h.logger.Warn().Err(err).
-			Int64("merchant_id", req.MerchantID).
-			Int64("payment_id", req.PaymentID).
-			Interface("webhook", wh).
-			Str("webhook_url", webhookURL).
-			Msg("unable to send webhook")
+	key := WebhookDeliveryKey(p.Payment.Status, wh.IdempotencyKey)
+	now := time.Now()
 
-		// todo some visual alert for merchant
+	attempt, err := h.payments.ClaimWebhook(ctx, merchantID, paymentID, p.Payment.Status, key, now.Add(webhookLease), WebhookMaxAttempts)
+	switch {
+	case errors.Is(err, payment.ErrWebhookNotClaimed):
+		h.logger.Debug().
+			Int64("merchant_id", merchantID).Int64("payment_id", paymentID).Str("delivery_key", key).
+			Msg("webhook already delivered or in flight; skipping")
 
 		return nil
+	case err != nil:
+		return err
 	}
 
-	if err := h.payments.SetWebhookTimestamp(ctx, req.MerchantID, req.PaymentID, time.Now()); err != nil {
-		return errors.Wrap(err, "unable to set webhook timestamp")
+	if webhookURL == "" {
+		h.logger.Warn().
+			Int64("merchant_id", merchantID).Int64("payment_id", paymentID).
+			Msg("webhook not set; skipping sending")
+
+		// Nothing to deliver; record it so a webhook URL set later doesn't
+		// replay old statuses.
+		return h.payments.MarkWebhookDelivered(ctx, merchantID, paymentID, key, nil)
+	}
+
+	if err := webhook.Send(ctx, webhookURL, signatureSecret, wh); err != nil {
+		return h.handleWebhookFailure(ctx, mt, p.Payment.ID, key, attempt, webhookURL, wh, err)
+	}
+
+	sentAt := time.Now()
+	if err := h.payments.MarkWebhookDelivered(ctx, merchantID, paymentID, key, &sentAt); err != nil {
+		return errors.Wrap(err, "unable to mark webhook delivered")
 	}
 
 	h.logger.Info().
-		Int64("merchant_id", req.MerchantID).
-		Int64("payment_id", req.PaymentID).
+		Int64("merchant_id", merchantID).
+		Int64("payment_id", paymentID).
+		Str("delivery_key", key).
+		Int("attempt", attempt).
 		Str("webhook_url", webhookURL).
 		Msg("sent webhook to merchant")
 
@@ -177,7 +293,61 @@ func (h *Handler) ProcessPaymentStatusUpdate(ctx context.Context, message bus.Me
 	return nil
 }
 
+func (h *Handler) handleWebhookFailure(
+	ctx context.Context,
+	mt *merchant.Merchant,
+	paymentID int64,
+	key string,
+	attempt int,
+	webhookURL string,
+	wh PaymentWebhook,
+	sendErr error,
+) error {
+	next, retry := NextWebhookAttempt(attempt, time.Now())
+
+	if retry {
+		h.logger.Warn().Err(sendErr).
+			Int64("merchant_id", mt.ID).
+			Int64("payment_id", paymentID).
+			Str("delivery_key", key).
+			Int("attempt", attempt).
+			Time("next_attempt_at", next).
+			Interface("webhook", wh).
+			Str("webhook_url", webhookURL).
+			Msg("unable to send webhook; will retry")
+
+		return h.payments.MarkWebhookFailed(ctx, mt.ID, paymentID, key, &next)
+	}
+
+	h.logger.Error().Err(sendErr).
+		Int64("merchant_id", mt.ID).
+		Int64("payment_id", paymentID).
+		Str("delivery_key", key).
+		Int("attempt", attempt).
+		Interface("webhook", wh).
+		Str("webhook_url", webhookURL).
+		Msg("unable to send webhook; giving up")
+
+	if err := h.payments.MarkWebhookFailed(ctx, mt.ID, paymentID, key, nil); err != nil {
+		return errors.Wrap(err, "unable to mark webhook failed")
+	}
+
+	alert := fmt.Sprintf(
+		"⚠️ webhook delivery gave up after %d attempts: payment #%d (%s) for merchant %q id#%d → %s",
+		attempt, paymentID, wh.Status, mt.Name, mt.ID, webhookURL,
+	)
+	if err := h.sendSlackMessage(alert); err != nil {
+		h.logger.Error().Err(err).Int64("payment_id", paymentID).Msg("unable to send webhook give-up alert")
+	}
+
+	return nil
+}
+
 func (h *Handler) handleSubscriptionPayment(ctx context.Context, paymentID int64) error {
+	if h.subscriptions == nil {
+		return nil
+	}
+
 	// Try to activate subscription webhook - it will check if payment has subscription metadata
 	if err := h.subscriptions.HandlePaymentWebhook(ctx, paymentID, ""); err != nil {
 		// Only log if it's a real error, not just "no subscription" case

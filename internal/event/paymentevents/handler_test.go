@@ -40,6 +40,7 @@ func setup(t *testing.T) (*test.IntegrationTest, *paymentevents.Handler, *[]stri
 		tc.Services.Merchants,
 		tc.Services.Processing,
 		tc.Services.Payment,
+		nil,
 		httptest.NewServer(http.HandlerFunc(okResponder)).URL,
 		tc.Logger,
 	)

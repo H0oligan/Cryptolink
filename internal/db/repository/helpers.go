@@ -43,6 +43,14 @@ func TimeToNullable(t time.Time) sql.NullTime {
 	return sql.NullTime{Time: t, Valid: true}
 }
 
+func PointerTimeToNullable(t *time.Time) sql.NullTime {
+	if t == nil {
+		return sql.NullTime{}
+	}
+
+	return TimeToNullable(*t)
+}
+
 func Int64ToNullable(i int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: i, Valid: true}
 }
