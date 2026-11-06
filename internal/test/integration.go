@@ -32,7 +32,6 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/cryptolink/cryptolink/internal/service/xpub"
 	"github.com/cryptolink/cryptolink/internal/test/fakes"
-	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
