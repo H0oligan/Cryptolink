@@ -3,7 +3,7 @@ package common
 import (
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/pkg/errors"
 )
 
@@ -30,7 +30,7 @@ type PaginationQuery struct {
 	ReverseSort bool
 }
 
-func QueryPagination(c echo.Context) (PaginationQuery, error) {
+func QueryPagination(c *echo.Context) (PaginationQuery, error) {
 	limit, err := QueryLimit(c)
 	if err != nil {
 		return PaginationQuery{}, err
@@ -48,7 +48,7 @@ func QueryPagination(c echo.Context) (PaginationQuery, error) {
 	}, nil
 }
 
-func QueryLimit(c echo.Context) (int, error) {
+func QueryLimit(c *echo.Context) (int, error) {
 	raw := c.QueryParams().Get(ParamQueryLimit)
 	if raw == "" {
 		return queryLimitDefault, nil
@@ -71,7 +71,7 @@ func QueryLimit(c echo.Context) (int, error) {
 	return limit, nil
 }
 
-func QueryReverseOrder(c echo.Context) (bool, error) {
+func QueryReverseOrder(c *echo.Context) (bool, error) {
 	raw := c.QueryParams().Get(ParamQueryReserveOrder)
 	if raw == "" {
 		return false, nil

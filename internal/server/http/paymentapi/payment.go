@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
@@ -26,7 +26,7 @@ const (
 	queryParamCryptoCurrency = "cryptoCurrency"
 )
 
-func (h *Handler) GetPayment(c echo.Context) error {
+func (h *Handler) GetPayment(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	pt, err := middleware.ResolvePayment(c)
@@ -72,7 +72,7 @@ func (h *Handler) GetPayment(c echo.Context) error {
 }
 
 // CreateCustomer upserts customer for the payment and records contact consent.
-func (h *Handler) CreateCustomer(c echo.Context) error {
+func (h *Handler) CreateCustomer(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req model.CreateCustomerRequest
@@ -122,7 +122,7 @@ func (h *Handler) CreateCustomer(c echo.Context) error {
 }
 
 //nolint:gocritic
-func (h *Handler) GetSupportedMethods(c echo.Context) error {
+func (h *Handler) GetSupportedMethods(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	p, err := middleware.ResolvePayment(c)
@@ -158,7 +158,7 @@ func (h *Handler) GetSupportedMethods(c echo.Context) error {
 	})
 }
 
-func (h *Handler) CreatePaymentMethod(c echo.Context) error {
+func (h *Handler) CreatePaymentMethod(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req model.CreatePaymentMethodRequest
@@ -190,7 +190,7 @@ func (h *Handler) CreatePaymentMethod(c echo.Context) error {
 	return c.JSON(http.StatusCreated, paymentMethodToResponse(method))
 }
 
-func (h *Handler) LockPaymentOptions(c echo.Context) error {
+func (h *Handler) LockPaymentOptions(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	p, err := middleware.ResolvePayment(c)
@@ -215,7 +215,7 @@ func (h *Handler) LockPaymentOptions(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) GetExchangeRate(c echo.Context) error {
+func (h *Handler) GetExchangeRate(c *echo.Context) error {
 	from := c.QueryParam(queryParamFiatCurrency)
 	amount := c.QueryParam(queryParamFiatAmount)
 	to := c.QueryParam(queryParamCryptoCurrency)

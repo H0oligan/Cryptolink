@@ -7,7 +7,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/pkg/errors"
 )
 
@@ -56,7 +56,7 @@ type collectorBalanceResponse struct {
 // ────────────────────────────────────────────────────────────────────────────
 
 // ListEvmCollectors returns all active EVM collector wallets for the merchant.
-func (h *Handler) ListEvmCollectors(c echo.Context) error {
+func (h *Handler) ListEvmCollectors(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 
@@ -74,7 +74,7 @@ func (h *Handler) ListEvmCollectors(c echo.Context) error {
 }
 
 // GetEvmCollector returns a single collector by blockchain name.
-func (h *Handler) GetEvmCollector(c echo.Context) error {
+func (h *Handler) GetEvmCollector(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 	blockchain := strings.ToUpper(c.Param("blockchain"))
@@ -93,7 +93,7 @@ func (h *Handler) GetEvmCollector(c echo.Context) error {
 // SetupEvmCollector registers a new EVM smart contract collector for the merchant.
 // The contract_address should be pre-computed by the frontend using CREATE2 prediction
 // (via wagmi/viem calling factory.predictAddress) or set to the merchant's wallet address.
-func (h *Handler) SetupEvmCollector(c echo.Context) error {
+func (h *Handler) SetupEvmCollector(c *echo.Context) error {
 	var req setupCollectorRequest
 	if err := c.Bind(&req); err != nil {
 		return common.ValidationErrorResponse(c, "invalid request body")
@@ -150,7 +150,7 @@ func (h *Handler) SetupEvmCollector(c echo.Context) error {
 }
 
 // DeleteEvmCollector soft-deletes an EVM collector for the merchant.
-func (h *Handler) DeleteEvmCollector(c echo.Context) error {
+func (h *Handler) DeleteEvmCollector(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 	blockchain := strings.ToUpper(c.Param("blockchain"))
@@ -169,7 +169,7 @@ func (h *Handler) DeleteEvmCollector(c echo.Context) error {
 // GetEvmCollectorBalance returns the collector's on-chain balance info.
 // The actual balance query requires an RPC endpoint — currently returns the contract address
 // so the frontend can query it directly via wagmi/viem.
-func (h *Handler) GetEvmCollectorBalance(c echo.Context) error {
+func (h *Handler) GetEvmCollectorBalance(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 	blockchain := strings.ToUpper(c.Param("blockchain"))

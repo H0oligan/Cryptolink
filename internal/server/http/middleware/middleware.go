@@ -1,14 +1,15 @@
 package middleware
 
 import (
+	"runtime"
+	"slices"
 	"fmt"
 	"net/http"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
-	mw "github.com/labstack/echo/v4/middleware"
-	"github.com/labstack/gommon/log"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
+	mw "github.com/labstack/echo/v5/middleware"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/rs/zerolog"
@@ -44,7 +45,7 @@ func Session(cfg SessionConfig) echo.MiddlewareFunc {
 	}
 
 	applySessionOptions := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Set(sessionOptionsKey, sessionOptions)
 			return next(c)
 		}
@@ -80,7 +81,15 @@ func CSRF(cfg CSRFConfig) echo.MiddlewareFunc {
 		CookieMaxAge:   cfg.CookieMaxAge,
 		CookieSameSite: parseSameSite(cfg.CookieSameSite),
 
-		Skipper: func(c echo.Context) bool {
+		// Echo v5 rejects every cross-site write outright. Fall back to the token
+		// check instead, so origins allowed by CORS (e.g. a self-hosted payment
+		// domain) keep working. Same-origin browser requests are trusted through
+		// Sec-Fetch-Site, which page scripts cannot forge.
+		AllowSecFetchSiteFunc: func(_ *echo.Context) (bool, error) {
+			return false, nil
+		},
+
+		Skipper: func(c *echo.Context) bool {
 			// if token-based auth -> skip
 
 			tokenAuthRaw := c.Get(IsTokenAuthContextKey)
@@ -97,8 +106,16 @@ type CORSConfig struct {
 }
 
 func CORS(cfg CORSConfig) echo.MiddlewareFunc {
+	// Echo v5 refuses to start without origins, so no origins means same-origin only.
+	if len(cfg.AllowOrigins) == 0 {
+		return func(next echo.HandlerFunc) echo.HandlerFunc { return next }
+	}
+
+	// Browsers never send credentials to a wildcard origin, and v5 refuses that combination.
+	allowCredentials := cfg.AllowCredentials && !slices.Contains(cfg.AllowOrigins, "*")
+
 	return mw.CORSWithConfig(mw.CORSConfig{
-		AllowCredentials: cfg.AllowCredentials,
+		AllowCredentials: allowCredentials,
 		AllowOrigins:     cfg.AllowOrigins,
 		AllowHeaders: []string{
 			echo.HeaderContentType,
@@ -109,43 +126,61 @@ func CORS(cfg CORSConfig) echo.MiddlewareFunc {
 	})
 }
 
+const recoverStackSize = 4 << 10 // 4 KB
+
 func Recover(logger *zerolog.Logger) echo.MiddlewareFunc {
-	return mw.RecoverWithConfig(mw.RecoverConfig{
-		Skipper:           mw.DefaultSkipper,
-		StackSize:         4 << 10, // 4 KB
-		DisableStackAll:   false,
-		DisablePrintStack: false,
-		LogLevel:          log.OFF,
-		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
-			req := c.Request()
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) (err error) {
+			defer func() {
+				r := recover()
+				if r == nil {
+					return
+				}
 
-			evt := logger.Error().Err(err)
+				if r == http.ErrAbortHandler {
+					panic(r)
+				}
 
-			evt.Str("stack", string(stack))
-			evt.Str("remote_ip", c.RealIP())
-			evt.Str("host", req.Host)
-			evt.Str("method", req.Method)
-			evt.Str("uri", req.RequestURI)
-			evt.Str("user_agent", req.UserAgent())
-			evt.Str("referer", req.Referer())
+				panicErr, ok := r.(error)
+				if !ok {
+					panicErr = fmt.Errorf("%v", r)
+				}
 
-			cl := req.Header.Get(echo.HeaderContentLength)
-			if cl == "" {
-				cl = "0"
-			}
-			evt.Str("bytes_in", cl)
+				stack := make([]byte, recoverStackSize)
+				stack = stack[:runtime.Stack(stack, true)]
 
-			evt.Msg("PANIC RECOVERED")
+				req := c.Request()
 
-			return common.ErrorResponse(c, "server error")
-		},
-	})
+				evt := logger.Error().Err(panicErr)
+
+				evt.Str("stack", string(stack))
+				evt.Str("remote_ip", c.RealIP())
+				evt.Str("host", req.Host)
+				evt.Str("method", req.Method)
+				evt.Str("uri", req.RequestURI)
+				evt.Str("user_agent", req.UserAgent())
+				evt.Str("referer", req.Referer())
+
+				cl := req.Header.Get(echo.HeaderContentLength)
+				if cl == "" {
+					cl = "0"
+				}
+				evt.Str("bytes_in", cl)
+
+				evt.Msg("PANIC RECOVERED")
+
+				err = common.ErrorResponse(c, "server error")
+			}()
+
+			return next(c)
+		}
+	}
 }
 
 // SecurityHeaders adds hardening headers to every response.
 func SecurityHeaders() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			h := c.Response().Header()
 			h.Set("X-Frame-Options", "SAMEORIGIN")
 			h.Set("X-Content-Type-Options", "nosniff")
@@ -164,7 +199,7 @@ func SecurityHeaders() echo.MiddlewareFunc {
 // without shelling into the box.
 func VersionHeader(release string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Response().Header().Set("X-CryptoLink-Version", release)
 			return next(c)
 		}

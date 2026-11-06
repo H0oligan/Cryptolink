@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/xpub"
@@ -39,7 +39,7 @@ type DerivedAddressResponse struct {
 }
 
 // CreateXpubWallet creates a new xpub wallet for a merchant
-func (h *Handler) CreateXpubWallet(c echo.Context) error {
+func (h *Handler) CreateXpubWallet(c *echo.Context) error {
 	ctx := c.Request().Context()
 	merchant := middleware.ResolveMerchant(c)
 
@@ -73,7 +73,7 @@ func (h *Handler) CreateXpubWallet(c echo.Context) error {
 }
 
 // ListXpubWallets lists all xpub wallets for a merchant
-func (h *Handler) ListXpubWallets(c echo.Context) error {
+func (h *Handler) ListXpubWallets(c *echo.Context) error {
 	ctx := c.Request().Context()
 	merchant := middleware.ResolveMerchant(c)
 
@@ -97,7 +97,7 @@ func (h *Handler) ListXpubWallets(c echo.Context) error {
 }
 
 // GetXpubWallet gets an xpub wallet by UUID
-func (h *Handler) GetXpubWallet(c echo.Context) error {
+func (h *Handler) GetXpubWallet(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	walletUUID, err := uuid.Parse(c.Param("walletId"))
@@ -123,7 +123,7 @@ func (h *Handler) GetXpubWallet(c echo.Context) error {
 }
 
 // DeleteXpubWallet deactivates an xpub wallet
-func (h *Handler) DeleteXpubWallet(c echo.Context) error {
+func (h *Handler) DeleteXpubWallet(c *echo.Context) error {
 	ctx := c.Request().Context()
 	merchant := middleware.ResolveMerchant(c)
 
@@ -144,7 +144,7 @@ func (h *Handler) DeleteXpubWallet(c echo.Context) error {
 }
 
 // DeriveAddress derives a new address for an xpub wallet
-func (h *Handler) DeriveAddress(c echo.Context) error {
+func (h *Handler) DeriveAddress(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	walletUUID, err := uuid.Parse(c.Param("walletId"))
@@ -176,7 +176,7 @@ func (h *Handler) DeriveAddress(c echo.Context) error {
 }
 
 // GetNextAddress gets the next unused address for an xpub wallet
-func (h *Handler) GetNextAddress(c echo.Context) error {
+func (h *Handler) GetNextAddress(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	walletUUID, err := uuid.Parse(c.Param("walletId"))
@@ -208,7 +208,7 @@ func (h *Handler) GetNextAddress(c echo.Context) error {
 }
 
 // ListDerivedAddresses lists all derived addresses for an xpub wallet
-func (h *Handler) ListDerivedAddresses(c echo.Context) error {
+func (h *Handler) ListDerivedAddresses(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	walletUUID, err := uuid.Parse(c.Param("walletId"))

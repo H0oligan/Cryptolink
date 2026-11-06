@@ -3,7 +3,7 @@ package merchantapi
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/bus"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (h *Handler) CreateFormSubmission(c echo.Context) error {
+func (h *Handler) CreateFormSubmission(c *echo.Context) error {
 	var req model.FormRequest
 	if !common.BindAndValidateRequest(c, &req) {
 		return nil

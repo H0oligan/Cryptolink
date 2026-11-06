@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
@@ -17,7 +17,7 @@ const (
 	paramCustomerID = "customerId"
 )
 
-func (h *Handler) ListCustomers(c echo.Context) error {
+func (h *Handler) ListCustomers(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	mt := middleware.ResolveMerchant(c)
@@ -47,7 +47,7 @@ func (h *Handler) ListCustomers(c echo.Context) error {
 	})
 }
 
-func (h *Handler) GetCustomerDetails(c echo.Context) error {
+func (h *Handler) GetCustomerDetails(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	mt := middleware.ResolveMerchant(c)

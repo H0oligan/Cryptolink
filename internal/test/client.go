@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 )
 

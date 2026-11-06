@@ -15,7 +15,7 @@ import (
 
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/pkg/errors"
 )
 
@@ -285,50 +285,50 @@ func (s *handoffStore) Status(id string, userID int64, now time.Time) (status, d
 	}
 }
 
-var handoffGoneResponse = echo.Map{"message": "This link has expired. Generate a new one on your computer."}
+var handoffGoneResponse = map[string]any{"message": "This link has expired. Generate a new one on your computer."}
 
-func (h *Handler) PostHandoff(c echo.Context) error {
+func (h *Handler) PostHandoff(c *echo.Context) error {
 	var req struct {
 		ReturnPath string `json:"returnPath"`
 		MerchantID string `json:"merchantId"`
 		Mode       string `json:"mode"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid JSON"})
+		return c.JSON(http.StatusBadRequest, map[string]any{"message": "Invalid JSON"})
 	}
 
 	u := middleware.ResolveUser(c)
 	id, token, expires, err := h.handoffs.Create(u.ID, u.Email, req.MerchantID, req.ReturnPath, req.Mode, time.Now())
 	switch {
 	case errors.Is(err, errHandoffInvalid):
-		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid handoff request"})
+		return c.JSON(http.StatusBadRequest, map[string]any{"message": "Invalid handoff request"})
 	case err != nil:
 		return errors.Wrap(err, "unable to create handoff")
 	}
 
-	return c.JSON(http.StatusCreated, echo.Map{"id": id, "token": token, "expiresAt": expires.UTC().Format(time.RFC3339)})
+	return c.JSON(http.StatusCreated, map[string]any{"id": id, "token": token, "expiresAt": expires.UTC().Format(time.RFC3339)})
 }
 
-func (h *Handler) GetHandoffStatus(c echo.Context) error {
+func (h *Handler) GetHandoffStatus(c *echo.Context) error {
 	u := middleware.ResolveUser(c)
 	status, device := h.handoffs.Status(c.Param("id"), u.ID, time.Now())
-	return c.JSON(http.StatusOK, echo.Map{"status": status, "device": device})
+	return c.JSON(http.StatusOK, map[string]any{"status": status, "device": device})
 }
 
-func (h *Handler) PostHandoffDecision(c echo.Context) error {
+func (h *Handler) PostHandoffDecision(c *echo.Context) error {
 	var req struct {
 		Approve bool   `json:"approve"`
 		Code    string `json:"code"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid JSON"})
+		return c.JSON(http.StatusBadRequest, map[string]any{"message": "Invalid JSON"})
 	}
 
 	u := middleware.ResolveUser(c)
 	err := h.handoffs.Decide(c.Param("id"), u.ID, req.Approve, strings.TrimSpace(req.Code), time.Now())
 	switch {
 	case errors.Is(err, errHandoffBadCode):
-		return c.JSON(http.StatusUnprocessableEntity, echo.Map{"message": "Wrong code. Check the code shown on your phone."})
+		return c.JSON(http.StatusUnprocessableEntity, map[string]any{"message": "Wrong code. Check the code shown on your phone."})
 	case err != nil:
 		return c.JSON(http.StatusBadRequest, handoffGoneResponse)
 	}
@@ -338,13 +338,13 @@ func (h *Handler) PostHandoffDecision(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) PostHandoffClaim(c echo.Context) error {
+func (h *Handler) PostHandoffClaim(c *echo.Context) error {
 	var req struct {
 		Token  string `json:"token"`
 		Device string `json:"device"`
 	}
 	if err := c.Bind(&req); err != nil || req.Token == "" {
-		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid JSON"})
+		return c.JSON(http.StatusBadRequest, map[string]any{"message": "Invalid JSON"})
 	}
 
 	res, err := h.handoffs.Claim(req.Token, req.Device, time.Now())
@@ -352,7 +352,7 @@ func (h *Handler) PostHandoffClaim(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, handoffGoneResponse)
 	}
 
-	return c.JSON(http.StatusOK, echo.Map{
+	return c.JSON(http.StatusOK, map[string]any{
 		"claimSecret": res.claimSecret,
 		"matchCode":   res.matchCode,
 		"mode":        res.mode,
@@ -360,12 +360,12 @@ func (h *Handler) PostHandoffClaim(c echo.Context) error {
 	})
 }
 
-func (h *Handler) PostHandoffComplete(c echo.Context) error {
+func (h *Handler) PostHandoffComplete(c *echo.Context) error {
 	var req struct {
 		ClaimSecret string `json:"claimSecret"`
 	}
 	if err := c.Bind(&req); err != nil || req.ClaimSecret == "" {
-		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid JSON"})
+		return c.JSON(http.StatusBadRequest, map[string]any{"message": "Invalid JSON"})
 	}
 
 	var currentUserID int64
@@ -376,11 +376,11 @@ func (h *Handler) PostHandoffComplete(c echo.Context) error {
 	e, done, err := h.handoffs.Complete(req.ClaimSecret, currentUserID, time.Now())
 	switch {
 	case errors.Is(err, errHandoffOtherUser):
-		return c.JSON(http.StatusConflict, echo.Map{"message": "This browser is signed in to another account. Log out first, then try again."})
+		return c.JSON(http.StatusConflict, map[string]any{"message": "This browser is signed in to another account. Log out first, then try again."})
 	case err != nil:
 		return c.JSON(http.StatusBadRequest, handoffGoneResponse)
 	case !done:
-		return c.JSON(http.StatusAccepted, echo.Map{"status": "waiting"})
+		return c.JSON(http.StatusAccepted, map[string]any{"status": "waiting"})
 	}
 
 	if err := h.persistSession(c, "handoff", map[string]any{middleware.UserIDContextKey: e.userID}); err != nil {
@@ -389,5 +389,5 @@ func (h *Handler) PostHandoffComplete(c echo.Context) error {
 
 	h.logger.Info().Int64("user_id", e.userID).Str("mode", e.mode).Str("ip", c.RealIP()).Msg("wallet handoff completed")
 
-	return c.JSON(http.StatusOK, echo.Map{"returnPath": e.returnPath, "merchantId": e.merchantID})
+	return c.JSON(http.StatusOK, map[string]any{"returnPath": e.returnPath, "merchantId": e.merchantID})
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/rs/zerolog"
 )

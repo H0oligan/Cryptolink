@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -17,7 +17,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (h *Handler) ListMerchants(c echo.Context) error {
+func (h *Handler) ListMerchants(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user := middleware.ResolveUser(c)
 
@@ -40,7 +40,7 @@ func (h *Handler) ListMerchants(c echo.Context) error {
 	return c.JSON(http.StatusOK, &model.MerchantList{Results: merchantList})
 }
 
-func (h *Handler) CreateMerchant(c echo.Context) error {
+func (h *Handler) CreateMerchant(c *echo.Context) error {
 	req := &model.CreateMerchantRequest{}
 	if !common.BindAndValidateRequest(c, req) {
 		return nil
@@ -102,7 +102,7 @@ func (h *Handler) CreateMerchant(c echo.Context) error {
 	})
 }
 
-func (h *Handler) GetMerchant(c echo.Context) error {
+func (h *Handler) GetMerchant(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 
@@ -137,7 +137,7 @@ func (h *Handler) GetMerchant(c echo.Context) error {
 	})
 }
 
-func (h *Handler) UpdateMerchant(c echo.Context) error {
+func (h *Handler) UpdateMerchant(c *echo.Context) error {
 	req := &model.UpdateMerchantRequest{}
 	if !common.BindAndValidateRequest(c, req) {
 		return nil
@@ -158,7 +158,7 @@ func (h *Handler) UpdateMerchant(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) DeleteMerchant(c echo.Context) error {
+func (h *Handler) DeleteMerchant(c *echo.Context) error {
 	m := middleware.ResolveMerchant(c)
 	ctx := c.Request().Context()
 
@@ -170,7 +170,7 @@ func (h *Handler) DeleteMerchant(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) UpdateMerchantWebhook(c echo.Context) error {
+func (h *Handler) UpdateMerchantWebhook(c *echo.Context) error {
 	var req model.WebhookSettings
 	if valid := common.BindAndValidateRequest(c, &req); !valid {
 		return nil
@@ -202,7 +202,7 @@ func (h *Handler) UpdateMerchantWebhook(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) UpdateMerchantSupportedMethods(c echo.Context) error {
+func (h *Handler) UpdateMerchantSupportedMethods(c *echo.Context) error {
 	var req model.UpdateSupportedPaymentMethodsRequest
 	if valid := common.BindAndValidateRequest(c, &req); !valid {
 		return nil

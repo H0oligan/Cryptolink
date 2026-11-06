@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/user"
@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (h *Handler) PostLogin(c echo.Context) error {
+func (h *Handler) PostLogin(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req model.LoginRequest
@@ -28,7 +28,7 @@ func (h *Handler) PostLogin(c echo.Context) error {
 
 	emailAddr := req.Email.String()
 	if h.loginThrottle.Blocked(emailAddr, time.Now()) {
-		return c.JSON(http.StatusTooManyRequests, echo.Map{
+		return c.JSON(http.StatusTooManyRequests, map[string]any{
 			"message": "Too many failed login attempts. Please try again in 15 minutes.",
 		})
 	}
@@ -52,7 +52,7 @@ func (h *Handler) PostLogin(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) PostRegister(c echo.Context) error {
+func (h *Handler) PostRegister(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req model.LoginRequest

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"encoding/csv"
 	"fmt"
 
@@ -198,7 +198,7 @@ func usageToResponse(usage *subscription.UsageTracking) *UsageResponse {
 
 // ListPlans returns all available subscription plans
 // GET /api/dashboard/v1/subscription/plans
-func (h *Handler) ListPlans(c echo.Context) error {
+func (h *Handler) ListPlans(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	plans, err := h.subscriptionService.ListPlans(ctx)
@@ -216,7 +216,7 @@ func (h *Handler) ListPlans(c echo.Context) error {
 
 // GetCurrentSubscription returns merchant's current subscription and usage
 // GET /api/dashboard/v1/merchant/:merchantId/subscription
-func (h *Handler) GetCurrentSubscription(c echo.Context) error {
+func (h *Handler) GetCurrentSubscription(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get merchant from context (set by middleware)
@@ -250,7 +250,7 @@ func (h *Handler) GetCurrentSubscription(c echo.Context) error {
 
 // UpgradePlan creates a subscription upgrade (creates payment if paid plan)
 // POST /api/dashboard/v1/merchant/:merchantId/subscription/upgrade
-func (h *Handler) UpgradePlan(c echo.Context) error {
+func (h *Handler) UpgradePlan(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	m := middleware.ResolveMerchant(c)
@@ -307,7 +307,7 @@ func (h *Handler) UpgradePlan(c echo.Context) error {
 
 // CancelSubscription cancels auto-renewal of subscription
 // POST /api/dashboard/v1/merchant/:merchantId/subscription/cancel
-func (h *Handler) CancelSubscription(c echo.Context) error {
+func (h *Handler) CancelSubscription(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	m := middleware.ResolveMerchant(c)
@@ -336,7 +336,7 @@ func (h *Handler) CancelSubscription(c echo.Context) error {
 
 // GetUsageHistory returns usage history for merchant
 // GET /api/dashboard/v1/merchant/:merchantId/subscription/usage
-func (h *Handler) GetUsageHistory(c echo.Context) error {
+func (h *Handler) GetUsageHistory(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	m := middleware.ResolveMerchant(c)
@@ -361,7 +361,7 @@ func (h *Handler) GetUsageHistory(c echo.Context) error {
 
 // ListAllSubscriptions returns all subscriptions (admin only)
 // GET /api/dashboard/v1/admin/subscriptions
-func (h *Handler) ListAllSubscriptions(c echo.Context) error {
+func (h *Handler) ListAllSubscriptions(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	subs, err := h.subscriptionService.ListAllSubscriptions(ctx, 100, 0)
@@ -379,7 +379,7 @@ func (h *Handler) ListAllSubscriptions(c echo.Context) error {
 
 // GetSystemStats returns system-wide statistics (admin only)
 // GET /api/dashboard/v1/admin/stats
-func (h *Handler) GetSystemStats(c echo.Context) error {
+func (h *Handler) GetSystemStats(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	stats, err := h.subscriptionService.GetSystemStats(ctx)
@@ -408,7 +408,7 @@ type CreatePlanRequest struct {
 
 // ListAllPlans returns all plans including inactive (admin only)
 // GET /api/dashboard/v1/admin/plans
-func (h *Handler) ListAllPlans(c echo.Context) error {
+func (h *Handler) ListAllPlans(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	plans, err := h.subscriptionService.ListAllPlans(ctx)
@@ -426,7 +426,7 @@ func (h *Handler) ListAllPlans(c echo.Context) error {
 
 // CreatePlan creates a new subscription plan (admin only)
 // POST /api/dashboard/v1/admin/plans
-func (h *Handler) CreatePlan(c echo.Context) error {
+func (h *Handler) CreatePlan(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req CreatePlanRequest
@@ -451,7 +451,7 @@ func (h *Handler) CreatePlan(c echo.Context) error {
 
 // UpdatePlan updates an existing plan (admin only)
 // PUT /api/dashboard/v1/admin/plans/:planId
-func (h *Handler) UpdatePlan(c echo.Context) error {
+func (h *Handler) UpdatePlan(c *echo.Context) error {
 	ctx := c.Request().Context()
 	planID := c.Param("planId")
 
@@ -477,7 +477,7 @@ func (h *Handler) UpdatePlan(c echo.Context) error {
 
 // GetPlan returns a single plan by ID (admin only)
 // GET /api/dashboard/v1/admin/plans/:planId
-func (h *Handler) GetPlanAdmin(c echo.Context) error {
+func (h *Handler) GetPlanAdmin(c *echo.Context) error {
 	ctx := c.Request().Context()
 	planID := c.Param("planId")
 
@@ -533,7 +533,7 @@ type AssignPlanRequest struct {
 
 // AssignMerchantPlan assigns a plan to a merchant (admin only)
 // PUT /api/dashboard/v1/admin/merchants/:merchantId/plan
-func (h *Handler) AssignMerchantPlan(c echo.Context) error {
+func (h *Handler) AssignMerchantPlan(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	merchantIDStr := c.Param("merchantId")
@@ -571,7 +571,7 @@ func (h *Handler) AssignMerchantPlan(c echo.Context) error {
 
 // AdminDeleteMerchant soft-deletes a merchant by ID (admin only)
 // DELETE /api/dashboard/v1/admin/merchants/:merchantId
-func (h *Handler) AdminDeleteMerchant(c echo.Context) error {
+func (h *Handler) AdminDeleteMerchant(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	merchantIDStr := c.Param("merchantId")
@@ -597,7 +597,7 @@ func (h *Handler) AdminDeleteMerchant(c echo.Context) error {
 
 // AdminDeleteUser deletes a user by ID (admin only)
 // DELETE /api/dashboard/v1/admin/users/:userId
-func (h *Handler) AdminDeleteUser(c echo.Context) error {
+func (h *Handler) AdminDeleteUser(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	userIDStr := c.Param("userId")
@@ -623,7 +623,7 @@ func (h *Handler) AdminDeleteUser(c echo.Context) error {
 
 // ListAllMerchants returns all merchants with plan/usage info (admin only)
 // GET /api/dashboard/v1/admin/merchants
-func (h *Handler) ListAllMerchants(c echo.Context) error {
+func (h *Handler) ListAllMerchants(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	limit := 50
@@ -655,7 +655,7 @@ func (h *Handler) ListAllMerchants(c echo.Context) error {
 
 // ListAllUsers returns all users (admin only)
 // GET /api/dashboard/v1/admin/users
-func (h *Handler) ListAllUsers(c echo.Context) error {
+func (h *Handler) ListAllUsers(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	limit := 50
@@ -686,7 +686,7 @@ func (h *Handler) ListAllUsers(c echo.Context) error {
 }
 
 // ListAllContacts returns paginated list of contacts for admin panel
-func (h *Handler) ListAllContacts(c echo.Context) error {
+func (h *Handler) ListAllContacts(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
@@ -712,7 +712,7 @@ func (h *Handler) ListAllContacts(c echo.Context) error {
 }
 
 // ExportContacts returns a CSV of all contacts
-func (h *Handler) ExportContacts(c echo.Context) error {
+func (h *Handler) ExportContacts(c *echo.Context) error {
 	ctx := c.Request().Context()
 	marketingOnly := c.QueryParam("marketing_only") == "true"
 
@@ -725,7 +725,7 @@ func (h *Handler) ExportContacts(c echo.Context) error {
 	c.Response().Header().Set("Content-Type", "text/csv")
 	c.Response().Header().Set("Content-Disposition", "attachment; filename=contacts.csv")
 
-	writer := csv.NewWriter(c.Response().Writer)
+	writer := csv.NewWriter(c.Response())
 	defer writer.Flush()
 
 	// Write header

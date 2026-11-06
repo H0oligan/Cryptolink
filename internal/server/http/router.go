@@ -2,13 +2,12 @@ package http
 
 import (
 	"io/fs"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v4"
-	mw "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	mw "github.com/labstack/echo/v5/middleware"
 	"golang.org/x/time/rate"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	v1 "github.com/cryptolink/cryptolink/internal/server/http/internalapi"
@@ -64,9 +63,9 @@ func WithDashboardAPI(
 		// Wallet handoff: continue a logged-in session inside a wallet app's browser.
 		handoffCreateRL := mw.RateLimiterWithConfig(mw.RateLimiterConfig{
 			Store: mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
-				Rate: rate.Every(time.Minute), Burst: 10, ExpiresIn: time.Hour,
+				Rate: float64(rate.Every(time.Minute)), Burst: 10, ExpiresIn: time.Hour,
 			}),
-			IdentifierExtractor: func(c echo.Context) (string, error) {
+			IdentifierExtractor: func(c *echo.Context) (string, error) {
 				if u := middleware.ResolveUser(c); u != nil {
 					return "user:" + strconv.FormatInt(u.ID, 10), nil
 				}
@@ -76,7 +75,7 @@ func WithDashboardAPI(
 		})
 		// The phone polls /complete every 2s for up to 2 minutes: ~60 calls.
 		handoffPublicRL := mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
-			Rate: rate.Every(time.Second), Burst: 20, ExpiresIn: 30 * time.Minute,
+			Rate: float64(rate.Every(time.Second)), Burst: 20, ExpiresIn: 30 * time.Minute,
 		})
 		authGroup.POST("/handoff", authHandler.PostHandoff, guardsUsersMW, handoffCreateRL)
 		authGroup.POST("/handoff/claim", authHandler.PostHandoffClaim, mw.RateLimiter(handoffPublicRL))
@@ -89,10 +88,10 @@ func WithDashboardAPI(
 			// Per-IP limits on top of the group-wide 10 rps. Login is also
 			// throttled per email inside the handler (IP rotation via Tor).
 			loginRL := mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
-				Rate: rate.Every(6 * time.Second), Burst: 10, ExpiresIn: 30 * time.Minute, // ~10/min
+				Rate: float64(rate.Every(6 * time.Second)), Burst: 10, ExpiresIn: 30 * time.Minute, // ~10/min
 			})
 			registerRL := mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
-				Rate: rate.Every(12 * time.Minute), Burst: 3, ExpiresIn: 2 * time.Hour, // ~5/hour
+				Rate: float64(rate.Every(12 * time.Minute)), Burst: 3, ExpiresIn: 2 * time.Hour, // ~5/hour
 			})
 
 			authGroup.POST("/login", authHandler.PostLogin, mw.RateLimiter(loginRL))
@@ -104,9 +103,9 @@ func WithDashboardAPI(
 		// Each call sends an email through our SMTP provider: cap per account.
 		resendRL := mw.RateLimiterWithConfig(mw.RateLimiterConfig{
 			Store: mw.NewRateLimiterMemoryStoreWithConfig(mw.RateLimiterMemoryStoreConfig{
-				Rate: rate.Every(5 * time.Minute), Burst: 3, ExpiresIn: time.Hour,
+				Rate: float64(rate.Every(5 * time.Minute)), Burst: 3, ExpiresIn: time.Hour,
 			}),
-			IdentifierExtractor: func(c echo.Context) (string, error) {
+			IdentifierExtractor: func(c *echo.Context) (string, error) {
 				if u := middleware.ResolveUser(c); u != nil {
 					return "user:" + strconv.FormatInt(u.ID, 10), nil
 				}
@@ -379,10 +378,10 @@ func WithEmbeddedFrontend(dashboardUI, paymentsUI fs.FS) Opt {
 
 func spaRouter(e *echo.Echo, prefix string, files fs.FS) {
 	e.Group(prefix, noCacheHTML(), mw.StaticWithConfig(mw.StaticConfig{
-		Root:       "/",
+		Root:       ".",
 		Index:      "index.html",
 		HTML5:      true,
-		Filesystem: http.FS(files),
+		Filesystem: files,
 	}))
 }
 
@@ -391,7 +390,7 @@ func spaRouter(e *echo.Echo, prefix string, files fs.FS) {
 // content-hashed filenames and can be cached indefinitely.
 func noCacheHTML() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			err := next(c)
 			ct := c.Response().Header().Get("Content-Type")
 			if strings.Contains(ct, "text/html") {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/log"
 	"github.com/cryptolink/cryptolink/internal/scheduler"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
@@ -15,7 +15,7 @@ import (
 	"github.com/cryptolink/cryptolink/pkg/api-admin/v1/model"
 )
 
-func (h *Handler) RunSchedulerJob(c echo.Context) error {
+func (h *Handler) RunSchedulerJob(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req model.RunJobRequest

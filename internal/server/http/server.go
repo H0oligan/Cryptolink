@@ -5,11 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/gommon/log"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/rs/zerolog"
-	"github.com/ziflex/lecho/v3"
+	"github.com/ziflex/lecho/v4"
 )
 
 type Config struct {
@@ -25,6 +24,7 @@ type Config struct {
 
 type Server struct {
 	echo    *echo.Echo
+	http    *http.Server
 	address string
 	logger  *zerolog.Logger
 }
@@ -45,16 +45,16 @@ func When(cond bool, opt Opt) Opt {
 
 func New(cfg Config, opts ...Opt) *Server {
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 	// The app only listens on loopback behind nginx, which sets X-Real-IP to the
 	// client address (restored from CF-Connecting-IP). Echo's default would take
 	// the first X-Forwarded-For entry, which the client controls, letting anyone
 	// dodge every per-IP rate limit.
 	e.IPExtractor = echo.ExtractIPFromRealIPHeader()
+	address := cfg.Address + ":" + cfg.Port
 	srv := &Server{
 		echo:    e,
-		address: cfg.Address + ":" + cfg.Port,
+		http:    &http.Server{Addr: address, Handler: e},
+		address: address,
 	}
 
 	// obligatory middlewares
@@ -87,7 +87,7 @@ func WithLogger(logger *zerolog.Logger) Opt {
 		s.logger = &l
 
 		// Bind Echo's internal logger so c.Logger() lands in our structured stream.
-		s.echo.Logger = lecho.From(l, lecho.WithLevel(log.INFO))
+		s.echo.Logger = lecho.From(l, lecho.WithLevel(zerolog.InfoLevel)).Slog()
 
 		skippedPaths := []string{
 			healthcheckPath,
@@ -96,10 +96,10 @@ func WithLogger(logger *zerolog.Logger) Opt {
 		}
 
 		s.echo.Use(lecho.Middleware(lecho.Config{
-			Logger:       lecho.From(l, lecho.WithLevel(log.INFO)),
+			Logger:       lecho.From(l, lecho.WithLevel(zerolog.InfoLevel)),
 			RequestIDKey: middleware.RequestIDKey,
 			Enricher:     loggerEnricher,
-			Skipper: func(c echo.Context) bool {
+			Skipper: func(c *echo.Context) bool {
 				path := c.Request().URL.Path
 
 				for _, match := range skippedPaths {
@@ -114,7 +114,7 @@ func WithLogger(logger *zerolog.Logger) Opt {
 	}
 }
 
-func loggerEnricher(c echo.Context, logger zerolog.Context) zerolog.Context {
+func loggerEnricher(c *echo.Context, logger zerolog.Context) zerolog.Context {
 	merchantID := c.Param("merchantId")
 	if merchantID != "" {
 		logger = logger.Str("merchant_id", merchantID)
@@ -131,7 +131,7 @@ func loggerEnricher(c echo.Context, logger zerolog.Context) zerolog.Context {
 const healthcheckPath = "/health"
 
 func withHealthcheck(e *echo.Echo) {
-	e.GET(healthcheckPath, func(c echo.Context) error {
+	e.GET(healthcheckPath, func(c *echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	})
 }
@@ -144,7 +144,7 @@ func withHealthcheck(e *echo.Echo) {
 func WithVersionHeader(release, commit string) Opt {
 	return func(s *Server) {
 		s.echo.Use(middleware.VersionHeader(release))
-		s.echo.GET("/api/version", func(c echo.Context) error {
+		s.echo.GET("/api/version", func(c *echo.Context) error {
 			return c.JSON(http.StatusOK, map[string]string{
 				"release": release,
 				"commit":  commit,
@@ -164,11 +164,11 @@ func (s *Server) Echo() *echo.Echo {
 }
 
 func (s *Server) Run() error {
-	return s.echo.Start(s.address)
+	return s.http.ListenAndServe()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	return s.echo.Shutdown(ctx)
+	return s.http.Shutdown(ctx)
 }
 
 func (s *Server) Address() string {

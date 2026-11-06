@@ -7,7 +7,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/evmcollector"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/pkg/errors"
 )
 
@@ -34,7 +34,7 @@ type factoryResponse struct {
 // ────────────────────────────────────────────────────────────────────────────
 
 // ListCollectorFactories returns all collector factory configs (admin only).
-func (h *Handler) ListCollectorFactories(c echo.Context) error {
+func (h *Handler) ListCollectorFactories(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	factories, err := h.evmCollector.ListFactories(ctx)
@@ -52,7 +52,7 @@ func (h *Handler) ListCollectorFactories(c echo.Context) error {
 }
 
 // GetCollectorFactory returns the factory config for a specific blockchain (admin only).
-func (h *Handler) GetCollectorFactory(c echo.Context) error {
+func (h *Handler) GetCollectorFactory(c *echo.Context) error {
 	ctx := c.Request().Context()
 	blockchain := strings.ToUpper(c.Param("blockchain"))
 
@@ -69,7 +69,7 @@ func (h *Handler) GetCollectorFactory(c echo.Context) error {
 }
 
 // UpsertCollectorFactory creates or updates a collector factory config (admin only).
-func (h *Handler) UpsertCollectorFactory(c echo.Context) error {
+func (h *Handler) UpsertCollectorFactory(c *echo.Context) error {
 	var req upsertFactoryRequest
 	if err := c.Bind(&req); err != nil {
 		return common.ValidationErrorResponse(c, "invalid request body")
@@ -108,7 +108,7 @@ func (h *Handler) UpsertCollectorFactory(c echo.Context) error {
 
 // GetMerchantCollectorFactory returns the factory address for a blockchain so
 // the merchant frontend can call the factory contract to deploy a collector.
-func (h *Handler) GetMerchantCollectorFactory(c echo.Context) error {
+func (h *Handler) GetMerchantCollectorFactory(c *echo.Context) error {
 	ctx := c.Request().Context()
 	_ = middleware.ResolveMerchant(c) // ensures merchant context is valid
 	blockchain := strings.ToUpper(c.Param("blockchain"))

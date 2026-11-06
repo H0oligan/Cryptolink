@@ -3,7 +3,7 @@ package paymentapi
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/contact"
@@ -53,7 +53,7 @@ func (h *Handler) PaymentService() *payment.Service {
 
 // GetCookie sets CSRF cookie for customer's session and attaches
 // X-CSRF-Token to response headers
-func (h *Handler) GetCookie(c echo.Context) error {
+func (h *Handler) GetCookie(c *echo.Context) error {
 	tokenRaw := c.Get("csrf")
 	token, ok := tokenRaw.(string)
 	if !ok {

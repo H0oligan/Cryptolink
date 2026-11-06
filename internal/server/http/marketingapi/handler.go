@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/service/marketing"
 	"github.com/rs/zerolog"
@@ -23,12 +23,12 @@ func New(service *marketing.Service, logger *zerolog.Logger) *Handler {
 }
 
 // ListTemplates returns the 5 predefined email templates
-func (h *Handler) ListTemplates(c echo.Context) error {
+func (h *Handler) ListTemplates(c *echo.Context) error {
 	return c.JSON(http.StatusOK, marketing.GetTemplates())
 }
 
 // GetTemplate returns a single template by ID (for preview)
-func (h *Handler) GetTemplate(c echo.Context) error {
+func (h *Handler) GetTemplate(c *echo.Context) error {
 	id := c.Param("templateId")
 	t := marketing.GetTemplateByID(id)
 	if t == nil {
@@ -38,7 +38,7 @@ func (h *Handler) GetTemplate(c echo.Context) error {
 }
 
 // ListCampaigns returns paginated campaigns
-func (h *Handler) ListCampaigns(c echo.Context) error {
+func (h *Handler) ListCampaigns(c *echo.Context) error {
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
 
@@ -57,7 +57,7 @@ func (h *Handler) ListCampaigns(c echo.Context) error {
 }
 
 // GetCampaign returns a single campaign with details
-func (h *Handler) GetCampaign(c echo.Context) error {
+func (h *Handler) GetCampaign(c *echo.Context) error {
 	campaignUUID := c.Param("campaignId")
 	campaign, err := h.service.GetCampaign(c.Request().Context(), campaignUUID)
 	if err != nil {
@@ -67,7 +67,7 @@ func (h *Handler) GetCampaign(c echo.Context) error {
 }
 
 // GetCampaignRecipients returns paginated recipients for a campaign
-func (h *Handler) GetCampaignRecipients(c echo.Context) error {
+func (h *Handler) GetCampaignRecipients(c *echo.Context) error {
 	campaignUUID := c.Param("campaignId")
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
@@ -93,7 +93,7 @@ type createCampaignRequest struct {
 }
 
 // CreateCampaign creates a new campaign (draft status)
-func (h *Handler) CreateCampaign(c echo.Context) error {
+func (h *Handler) CreateCampaign(c *echo.Context) error {
 	var req createCampaignRequest
 	if err := c.Bind(&req); err != nil {
 		return common.ErrorResponse(c, "invalid request")
@@ -126,7 +126,7 @@ func (h *Handler) CreateCampaign(c echo.Context) error {
 }
 
 // SendCampaign triggers sending (queues recipients)
-func (h *Handler) SendCampaign(c echo.Context) error {
+func (h *Handler) SendCampaign(c *echo.Context) error {
 	campaignUUID := c.Param("campaignId")
 	err := h.service.SendCampaign(c.Request().Context(), campaignUUID)
 	if err != nil {
@@ -137,7 +137,7 @@ func (h *Handler) SendCampaign(c echo.Context) error {
 }
 
 // GetQuota returns current daily email quota status
-func (h *Handler) GetQuota(c echo.Context) error {
+func (h *Handler) GetQuota(c *echo.Context) error {
 	sent, limit, resetAt, err := h.service.GetQuotaStatus(c.Request().Context())
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get quota")
@@ -152,7 +152,7 @@ func (h *Handler) GetQuota(c echo.Context) error {
 }
 
 // Unsubscribe handles the public unsubscribe link (no auth required)
-func (h *Handler) Unsubscribe(c echo.Context) error {
+func (h *Handler) Unsubscribe(c *echo.Context) error {
 	token := c.QueryParam("token")
 	if token == "" {
 		return c.HTML(http.StatusBadRequest, unsubPage("Invalid Link", "The unsubscribe link is invalid or expired.", "#ef4444"))
@@ -182,7 +182,7 @@ func unsubPage(title, message, color string) string {
 }
 
 // GetSettings returns the current marketing settings (daily cap).
-func (h *Handler) GetSettings(c echo.Context) error {
+func (h *Handler) GetSettings(c *echo.Context) error {
 	settings, err := h.service.GetSettings(c.Request().Context())
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to load marketing settings")
@@ -196,7 +196,7 @@ type updateSettingsRequest struct {
 }
 
 // UpdateSettings updates the daily marketing send limit.
-func (h *Handler) UpdateSettings(c echo.Context) error {
+func (h *Handler) UpdateSettings(c *echo.Context) error {
 	var req updateSettingsRequest
 	if err := c.Bind(&req); err != nil {
 		return common.ErrorResponse(c, "invalid request")
@@ -224,7 +224,7 @@ type createSequenceReq struct {
 	Steps           []createSequenceStepReq `json:"steps"`
 }
 
-func (h *Handler) CreateSequence(c echo.Context) error {
+func (h *Handler) CreateSequence(c *echo.Context) error {
 	var req createSequenceReq
 	if err := c.Bind(&req); err != nil {
 		return common.ErrorResponse(c, "invalid request")
@@ -255,7 +255,7 @@ func (h *Handler) CreateSequence(c echo.Context) error {
 	return c.JSON(http.StatusCreated, seq)
 }
 
-func (h *Handler) ListSequences(c echo.Context) error {
+func (h *Handler) ListSequences(c *echo.Context) error {
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
 	sequences, total, err := h.service.ListSequences(c.Request().Context(), limit, offset)
@@ -268,7 +268,7 @@ func (h *Handler) ListSequences(c echo.Context) error {
 	})
 }
 
-func (h *Handler) GetSequenceHandler(c echo.Context) error {
+func (h *Handler) GetSequenceHandler(c *echo.Context) error {
 	seq, err := h.service.GetSequence(c.Request().Context(), c.Param("sequenceId"))
 	if err != nil {
 		return common.ErrorResponse(c, "sequence not found")
@@ -276,7 +276,7 @@ func (h *Handler) GetSequenceHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, seq)
 }
 
-func (h *Handler) GetSequenceStats(c echo.Context) error {
+func (h *Handler) GetSequenceStats(c *echo.Context) error {
 	stats, err := h.service.GetSequenceStats(c.Request().Context(), c.Param("sequenceId"))
 	if err != nil {
 		return common.ErrorResponse(c, "sequence not found")
@@ -284,28 +284,28 @@ func (h *Handler) GetSequenceStats(c echo.Context) error {
 	return c.JSON(http.StatusOK, stats)
 }
 
-func (h *Handler) LaunchSequence(c echo.Context) error {
+func (h *Handler) LaunchSequence(c *echo.Context) error {
 	if err := h.service.LaunchSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"message": "sequence launched"})
 }
 
-func (h *Handler) PauseSequence(c echo.Context) error {
+func (h *Handler) PauseSequence(c *echo.Context) error {
 	if err := h.service.PauseSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"message": "sequence paused"})
 }
 
-func (h *Handler) ResumeSequence(c echo.Context) error {
+func (h *Handler) ResumeSequence(c *echo.Context) error {
 	if err := h.service.ResumeSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"message": "sequence resumed"})
 }
 
-func (h *Handler) CancelSequence(c echo.Context) error {
+func (h *Handler) CancelSequence(c *echo.Context) error {
 	if err := h.service.CancelSequence(c.Request().Context(), c.Param("sequenceId")); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -23,7 +23,7 @@ const (
 	queryParamType = "type"
 )
 
-func (h *Handler) ListPayments(c echo.Context) error {
+func (h *Handler) ListPayments(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	mt := middleware.ResolveMerchant(c)
@@ -68,7 +68,7 @@ func (h *Handler) ListPayments(c echo.Context) error {
 	})
 }
 
-func (h *Handler) GetPayment(c echo.Context) error {
+func (h *Handler) GetPayment(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	paymentID, err := uuid.Parse(c.Param(paramPaymentID))
@@ -94,7 +94,7 @@ func (h *Handler) GetPayment(c echo.Context) error {
 	return c.JSON(http.StatusOK, paymentToResponse(pt, mt.Settings().GlobalFeePercent()))
 }
 
-func (h *Handler) CreatePayment(c echo.Context) error {
+func (h *Handler) CreatePayment(c *echo.Context) error {
 	var req model.CreatePaymentRequest
 	if valid := common.BindAndValidateRequest(c, &req); !valid {
 		return nil
@@ -169,7 +169,7 @@ func (h *Handler) CreatePayment(c echo.Context) error {
 	)
 }
 
-func (h *Handler) ResolvePayment(c echo.Context) error {
+func (h *Handler) ResolvePayment(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	paymentUUID, err := uuid.Parse(c.Param(paramPaymentID))
@@ -218,7 +218,7 @@ func (h *Handler) ResolvePayment(c echo.Context) error {
 //
 // Body: {"txHash": "...", "amount": "<smallest unit>", "senderAddress": "...", "notes": "..."}
 // Auth: protected by middleware.GuardsSuperAdmin at the route level.
-func (h *Handler) AdminReconcilePayment(c echo.Context) error {
+func (h *Handler) AdminReconcilePayment(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	paymentUUID, err := uuid.Parse(c.Param(paramPaymentID))
@@ -262,7 +262,7 @@ func (h *Handler) AdminReconcilePayment(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "reconciled"})
 }
 
-func (h *Handler) DeclinePayment(c echo.Context) error {
+func (h *Handler) DeclinePayment(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	paymentUUID, err := uuid.Parse(c.Param(paramPaymentID))

@@ -3,14 +3,14 @@ package auth
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/user"
 	"github.com/pkg/errors"
 )
 
-func (h *Handler) GetRedirect(c echo.Context) error {
+func (h *Handler) GetRedirect(c *echo.Context) error {
 	if person := middleware.ResolveUser(c); person != nil {
 		return c.Redirect(http.StatusTemporaryRedirect, h.googleAuth.GetAuthenticatedRedirectURL())
 	}
@@ -25,7 +25,7 @@ func (h *Handler) GetRedirect(c echo.Context) error {
 	return c.Redirect(http.StatusTemporaryRedirect, redirect)
 }
 
-func (h *Handler) GetCallback(c echo.Context) error {
+func (h *Handler) GetCallback(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	if person := middleware.ResolveUser(c); person != nil {

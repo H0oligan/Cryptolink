@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/scheduler"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/rs/zerolog"
@@ -46,10 +46,10 @@ var selectedMethods = map[string]struct{}{
 }
 
 // GetRouter dumps all routes routes.
-func (h *Handler) GetRouter(c echo.Context) error {
+func (h *Handler) GetRouter(c *echo.Context) error {
 	paths := make(map[string][]string)
 
-	for _, r := range c.Echo().Routes() {
+	for _, r := range c.Echo().Router().Routes() {
 		if _, exists := selectedMethods[r.Method]; exists {
 			paths[r.Path] = append(paths[r.Path], r.Method)
 		}

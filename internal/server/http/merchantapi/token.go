@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -16,7 +16,7 @@ const (
 	paramTokenID = "tokenId"
 )
 
-func (h *Handler) ListMerchantTokens(c echo.Context) error {
+func (h *Handler) ListMerchantTokens(c *echo.Context) error {
 	m := middleware.ResolveMerchant(c)
 	ctx := c.Request().Context()
 
@@ -44,7 +44,7 @@ func (h *Handler) ListMerchantTokens(c echo.Context) error {
 	return c.JSON(http.StatusOK, &model.TokenList{Results: tokensFormatted})
 }
 
-func (h *Handler) CreateMerchantToken(c echo.Context) error {
+func (h *Handler) CreateMerchantToken(c *echo.Context) error {
 	req := &model.CreateMerchantTokenRequest{}
 	if isValid := common.BindAndValidateRequest(c, req); !isValid {
 		return nil
@@ -70,7 +70,7 @@ func (h *Handler) CreateMerchantToken(c echo.Context) error {
 	})
 }
 
-func (h *Handler) DeleteMerchantTokens(c echo.Context) error {
+func (h *Handler) DeleteMerchantTokens(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	mt := middleware.ResolveMerchant(c)

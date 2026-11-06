@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	"github.com/cryptolink/cryptolink/internal/service/merchant"
 	"github.com/cryptolink/cryptolink/internal/service/user"
@@ -28,10 +28,10 @@ const (
 	ParamMerchantID = "merchantId"
 )
 
-// ResolvesUserBySession attaches user to echo.Context if possible
+// ResolvesUserBySession attaches user to *echo.Context if possible
 func ResolvesUserBySession(users *user.Service) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			userSession := ResolveSession(c)
 			userID, ok := userSession.Values[UserIDContextKey].(int64)
 			if !ok {
@@ -47,11 +47,11 @@ func ResolvesUserBySession(users *user.Service) echo.MiddlewareFunc {
 	}
 }
 
-// ResolvesUserByToken attaches user to echo.Context
+// ResolvesUserByToken attaches user to *echo.Context
 // if user still isn't set by session
 func ResolvesUserByToken(tokens *auth.TokenAuthManager, users *user.Service) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			// if user already resolved by other middleware -> skipp
 			person := ResolveUser(c)
 			if person != nil {
@@ -83,12 +83,12 @@ func ResolvesUserByToken(tokens *auth.TokenAuthManager, users *user.Service) ech
 	}
 }
 
-// ResolvesMerchantByUUID. Middleware tries to bind merchant from request to echo.Context
+// ResolvesMerchantByUUID. Middleware tries to bind merchant from request to *echo.Context
 // if uuid is invalid or merchant not found, no error occurs.
 // Warning: user with middleware only after ResolvesUserBySession or ResolvesUserByToken
 func ResolvesMerchantByUUID(merchants *merchant.Service) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			// if merchant already resolved by other middleware -> skipp
 			m := ResolveMerchant(c)
 			if m != nil {
@@ -121,10 +121,10 @@ func ResolvesMerchantByUUID(merchants *merchant.Service) echo.MiddlewareFunc {
 	}
 }
 
-// ResolvesMerchantByToken attaches merchant to echo.Context. Returns 400 if auth token not provided
+// ResolvesMerchantByToken attaches merchant to *echo.Context. Returns 400 if auth token not provided
 func ResolvesMerchantByToken(tokens *auth.TokenAuthManager, merchants *merchant.Service) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			// if merchant already resolved by other middleware -> skipp
 			mt := ResolveMerchant(c)
 			if mt != nil {
@@ -159,10 +159,10 @@ func ResolvesMerchantByToken(tokens *auth.TokenAuthManager, merchants *merchant.
 	}
 }
 
-// GuardsUsers validates that user attached to echo.Context otherwise returns '401 Unauthorized'.
+// GuardsUsers validates that user attached to *echo.Context otherwise returns '401 Unauthorized'.
 func GuardsUsers() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if ResolveUser(c) == nil {
 				return c.JSON(http.StatusUnauthorized, &model.ErrorResponse{
 					Errors:  nil,
@@ -176,10 +176,10 @@ func GuardsUsers() echo.MiddlewareFunc {
 	}
 }
 
-// GuardsMerchants validate that user's merchant is attached to echo.Context or returns 400 bad request
+// GuardsMerchants validate that user's merchant is attached to *echo.Context or returns 400 bad request
 func GuardsMerchants() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			mt := ResolveMerchant(c)
 
 			if mt == nil {
@@ -206,7 +206,7 @@ func GuardsMerchants() echo.MiddlewareFunc {
 	}
 }
 
-func ResolveSession(c echo.Context) *sessions.Session {
+func ResolveSession(c *echo.Context) *sessions.Session {
 	sessionOptions, ok := c.Get(sessionOptionsKey).(sessions.Options)
 	if !ok {
 		return nil
@@ -218,7 +218,7 @@ func ResolveSession(c echo.Context) *sessions.Session {
 	return userSession
 }
 
-func ResolveSessionOAuthState(c echo.Context) (string, bool) {
+func ResolveSessionOAuthState(c *echo.Context) (string, bool) {
 	s := ResolveSession(c)
 
 	raw, ok := s.Values[SessionStateKey]
@@ -234,7 +234,7 @@ func ResolveSessionOAuthState(c echo.Context) (string, bool) {
 	return state, true
 }
 
-func ResolveUser(c echo.Context) *user.User {
+func ResolveUser(c *echo.Context) *user.User {
 	personRaw := c.Get(UserContextKey)
 	person, ok := personRaw.(*user.User)
 	if !ok || person == nil || person.ID == 0 {
@@ -244,7 +244,7 @@ func ResolveUser(c echo.Context) *user.User {
 	return person
 }
 
-func ResolveMerchant(c echo.Context) *merchant.Merchant {
+func ResolveMerchant(c *echo.Context) *merchant.Merchant {
 	raw := c.Get(MerchantContextKey)
 	m, ok := raw.(*merchant.Merchant)
 	if !ok || m == nil || m.ID == 0 {

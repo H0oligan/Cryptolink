@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -47,7 +47,7 @@ func NewHandler(
 }
 
 // GetCookie returns csrf cookie & csrf header in the same response.
-func (h *Handler) GetCookie(c echo.Context) error {
+func (h *Handler) GetCookie(c *echo.Context) error {
 	tokenRaw := c.Get("csrf")
 	token, ok := tokenRaw.(string)
 	if !ok {
@@ -60,7 +60,7 @@ func (h *Handler) GetCookie(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) ListAvailableProviders(c echo.Context) error {
+func (h *Handler) ListAvailableProviders(c *echo.Context) error {
 	providers := util.MapSlice(h.enabledProviders, func(t auth.ProviderType) *model.Provider {
 		return &model.Provider{Name: string(t)}
 	})
@@ -68,7 +68,7 @@ func (h *Handler) ListAvailableProviders(c echo.Context) error {
 	return c.JSON(http.StatusOK, &model.AvailableProvidersResponse{Providers: providers})
 }
 
-func (h *Handler) GetMe(c echo.Context) error {
+func (h *Handler) GetMe(c *echo.Context) error {
 	person := middleware.ResolveUser(c)
 
 	return c.JSON(http.StatusOK, &model.User{
@@ -86,7 +86,7 @@ func (h *Handler) GetMe(c echo.Context) error {
 	})
 }
 
-func (h *Handler) PostLogout(c echo.Context) error {
+func (h *Handler) PostLogout(c *echo.Context) error {
 	userSession := middleware.ResolveSession(c)
 	userSession.Values["user_id"] = nil
 	if err := userSession.Save(c.Request(), c.Response()); err != nil {
@@ -97,7 +97,7 @@ func (h *Handler) PostLogout(c echo.Context) error {
 }
 
 // UpdateProfile handles PUT /auth/profile
-func (h *Handler) UpdateProfile(c echo.Context) error {
+func (h *Handler) UpdateProfile(c *echo.Context) error {
 	person := middleware.ResolveUser(c)
 
 	var req struct {
@@ -141,7 +141,7 @@ func (h *Handler) UpdateProfile(c echo.Context) error {
 }
 
 // UpdatePassword handles PUT /auth/password
-func (h *Handler) UpdatePassword(c echo.Context) error {
+func (h *Handler) UpdatePassword(c *echo.Context) error {
 	person := middleware.ResolveUser(c)
 
 	var req struct {
@@ -176,7 +176,7 @@ func (h *Handler) UpdatePassword(c echo.Context) error {
 }
 
 // VerifyEmail handles GET /auth/verify-email?token=xxx
-func (h *Handler) VerifyEmail(c echo.Context) error {
+func (h *Handler) VerifyEmail(c *echo.Context) error {
 	token := c.QueryParam("token")
 	if token == "" {
 		return c.Redirect(http.StatusTemporaryRedirect, "/merchants/login?error=missing_token")
@@ -194,7 +194,7 @@ func (h *Handler) VerifyEmail(c echo.Context) error {
 }
 
 // ResendVerification handles POST /auth/resend-verification
-func (h *Handler) ResendVerification(c echo.Context) error {
+func (h *Handler) ResendVerification(c *echo.Context) error {
 	person := middleware.ResolveUser(c)
 	if person == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "not authenticated"})
@@ -219,7 +219,7 @@ func (h *Handler) ResendVerification(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "Verification email sent"})
 }
 
-func (h *Handler) persistSession(c echo.Context, source string, values map[string]any) error {
+func (h *Handler) persistSession(c *echo.Context, source string, values map[string]any) error {
 	s := middleware.ResolveSession(c)
 
 	for k, v := range values {

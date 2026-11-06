@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -16,7 +16,7 @@ import (
 
 const paramPaymentLinkID = "paymentLinkId"
 
-func (h *Handler) ListPaymentLinks(c echo.Context) error {
+func (h *Handler) ListPaymentLinks(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 
@@ -29,7 +29,7 @@ func (h *Handler) ListPaymentLinks(c echo.Context) error {
 	})
 }
 
-func (h *Handler) GetPaymentLink(c echo.Context) error {
+func (h *Handler) GetPaymentLink(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 
@@ -50,7 +50,7 @@ func (h *Handler) GetPaymentLink(c echo.Context) error {
 	return c.JSON(http.StatusOK, linkToResponse(link))
 }
 
-func (h *Handler) DeletePaymentLink(c echo.Context) error {
+func (h *Handler) DeletePaymentLink(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 
@@ -71,7 +71,7 @@ func (h *Handler) DeletePaymentLink(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) CreatePaymentLink(c echo.Context) error {
+func (h *Handler) CreatePaymentLink(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req model.CreatePaymentLinkRequest

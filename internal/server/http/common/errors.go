@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 )
 
@@ -21,14 +21,14 @@ func WrapErrorItem(item *model.ErrorResponseItem) error {
 }
 
 //nolint:unparam
-func ErrorResponse(c echo.Context, status string) error {
+func ErrorResponse(c *echo.Context, status string) error {
 	return c.JSON(http.StatusInternalServerError, &model.ErrorResponse{
 		Message: "Server error",
 		Status:  status,
 	})
 }
 
-func ErrorResponseWithStatus(c echo.Context, httpStatus int, message string) error {
+func ErrorResponseWithStatus(c *echo.Context, httpStatus int, message string) error {
 	return c.JSON(httpStatus, map[string]interface{}{
 		"status":      "limit_exceeded",
 		"message":     message,

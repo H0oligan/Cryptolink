@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/service/email"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
@@ -47,7 +47,7 @@ type SendEmailRequest struct {
 }
 
 // GetSettings returns the current SMTP settings (passwords masked)
-func (h *Handler) GetSettings(c echo.Context) error {
+func (h *Handler) GetSettings(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	settings, err := h.emailService.GetSettings(ctx)
@@ -66,7 +66,7 @@ func (h *Handler) GetSettings(c echo.Context) error {
 }
 
 // UpdateSettings updates SMTP settings
-func (h *Handler) UpdateSettings(c echo.Context) error {
+func (h *Handler) UpdateSettings(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req UpdateSettingsRequest
@@ -103,7 +103,7 @@ func (h *Handler) UpdateSettings(c echo.Context) error {
 }
 
 // SendEmail sends an email
-func (h *Handler) SendEmail(c echo.Context) error {
+func (h *Handler) SendEmail(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req SendEmailRequest
@@ -134,7 +134,7 @@ func (h *Handler) SendEmail(c echo.Context) error {
 }
 
 // TestEmail sends a test email to verify SMTP settings
-func (h *Handler) TestEmail(c echo.Context) error {
+func (h *Handler) TestEmail(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	settings, err := h.emailService.GetSettings(ctx)
@@ -163,7 +163,7 @@ func (h *Handler) TestEmail(c echo.Context) error {
 }
 
 // GetLogs returns email log entries
-func (h *Handler) GetLogs(c echo.Context) error {
+func (h *Handler) GetLogs(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	limit := 50

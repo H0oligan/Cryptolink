@@ -5,8 +5,7 @@ import (
 	"net/http/httptest"
 	"sync"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/provider/trongrid"
 	"github.com/rs/zerolog"
 )
@@ -29,7 +28,6 @@ func NewTrongrid(logger *zerolog.Logger) (*trongrid.Provider, *Trongrid) {
 	}
 
 	e := echo.New()
-	e.Use(middleware.Logger())
 
 	e.POST("/wallet/createtransaction", mock.createTransaction)
 	e.POST("/wallet/triggersmartcontract", mock.triggerSmartContract)
@@ -61,7 +59,7 @@ func (m *Trongrid) SetupTriggerSmartContract(req trongrid.ContractCallRequest, r
 	m.contractCallsRequests[req] = res
 }
 
-func (m *Trongrid) createTransaction(c echo.Context) error {
+func (m *Trongrid) createTransaction(c *echo.Context) error {
 	var req trongrid.TransactionRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusOK, trongrid.Transaction{Error: "INVALID REQUEST"})
@@ -78,7 +76,7 @@ func (m *Trongrid) createTransaction(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-func (m *Trongrid) triggerSmartContract(c echo.Context) error {
+func (m *Trongrid) triggerSmartContract(c *echo.Context) error {
 	var req trongrid.ContractCallRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusOK, trongrid.Transaction{Error: "INVALID REQUEST"})

@@ -3,14 +3,14 @@ package merchantapi
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/cryptolink/cryptolink/internal/util"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 )
 
-func (h *Handler) ListBalances(c echo.Context) error {
+func (h *Handler) ListBalances(c *echo.Context) error {
 	ctx := c.Request().Context()
 	mt := middleware.ResolveMerchant(c)
 

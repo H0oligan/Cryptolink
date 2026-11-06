@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/log"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/service/processing"
@@ -15,7 +15,7 @@ import (
 // ReceiveWebhook handles incoming payment notification webhooks.
 // The route URL is kept at /api/webhook/v1/tatum/:networkId/:walletId for backwards
 // compatibility with the address watcher, but the handler is provider-agnostic.
-func (h *Handler) ReceiveWebhook(c echo.Context) error {
+func (h *Handler) ReceiveWebhook(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 1. Parse request params

@@ -4,13 +4,13 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	admin "github.com/cryptolink/cryptolink/pkg/api-admin/v1/model"
 )
 
-func (h *Handler) CalculateTransactionFee(c echo.Context) error {
+func (h *Handler) CalculateTransactionFee(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	req := &admin.EstimateFeesRequest{}
@@ -36,7 +36,7 @@ func (h *Handler) CalculateTransactionFee(c echo.Context) error {
 	return c.JSON(http.StatusOK, fee)
 }
 
-func (h *Handler) BroadcastTransaction(c echo.Context) error {
+func (h *Handler) BroadcastTransaction(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	req := &admin.BroadcastTransactionRequest{}
@@ -57,7 +57,7 @@ func (h *Handler) BroadcastTransaction(c echo.Context) error {
 	})
 }
 
-func (h *Handler) GetTransactionReceipt(c echo.Context) error {
+func (h *Handler) GetTransactionReceipt(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	blockchain := money.Blockchain(c.QueryParam("blockchain"))

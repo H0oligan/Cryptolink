@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/pkg/errors"
@@ -16,11 +16,11 @@ type PaymentResolver interface {
 	GetByPublicID(ctx context.Context, publicID uuid.UUID) (*payment.Payment, error)
 }
 
-// ResolvesUserByToken attaches user to echo.Context
+// ResolvesUserByToken attaches user to *echo.Context
 // if user still isn't set by session
 func ResolvesPaymentByPublicID(paramName string, payments PaymentResolver) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			id, err := common.UUID(c, paramName)
 			if err != nil {
 				return err
@@ -46,7 +46,7 @@ func ResolvesPaymentByPublicID(paramName string, payments PaymentResolver) echo.
 
 func GuardsPayment() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if _, err := ResolvePayment(c); err != nil {
 				return common.NotFoundResponse(c, "payment not found")
 			}
@@ -56,7 +56,7 @@ func GuardsPayment() echo.MiddlewareFunc {
 	}
 }
 
-func ResolvePayment(c echo.Context) (*payment.Payment, error) {
+func ResolvePayment(c *echo.Context) (*payment.Payment, error) {
 	raw := c.Get(PaymentContextKey)
 	p, ok := raw.(*payment.Payment)
 	if !ok || p == nil || p.ID == 0 {

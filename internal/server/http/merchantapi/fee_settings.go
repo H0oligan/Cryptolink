@@ -3,7 +3,7 @@ package merchantapi
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/server/http/middleware"
@@ -11,7 +11,7 @@ import (
 )
 
 // GetFeeSettings returns the merchant's fee/currency configuration.
-func (h *Handler) GetFeeSettings(c echo.Context) error {
+func (h *Handler) GetFeeSettings(c *echo.Context) error {
 	mt := middleware.ResolveMerchant(c)
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -21,7 +21,7 @@ func (h *Handler) GetFeeSettings(c echo.Context) error {
 }
 
 // UpdateFeeSettings updates the merchant's fee/currency configuration.
-func (h *Handler) UpdateFeeSettings(c echo.Context) error {
+func (h *Handler) UpdateFeeSettings(c *echo.Context) error {
 	var req struct {
 		PreferredCurrency  string            `json:"preferredCurrency"`
 		GlobalFeePercentage string           `json:"globalFeePercentage"`
@@ -60,7 +60,7 @@ func (h *Handler) UpdateFeeSettings(c echo.Context) error {
 }
 
 // ListFiatCurrencies returns all supported fiat currencies with their symbols.
-func (h *Handler) ListFiatCurrencies(c echo.Context) error {
+func (h *Handler) ListFiatCurrencies(c *echo.Context) error {
 	currencies := money.SupportedFiatCurrencies()
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"currencies": currencies,

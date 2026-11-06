@@ -3,7 +3,7 @@ package paymentapi
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
 	"github.com/cryptolink/cryptolink/pkg/api-payment/v1/model"
@@ -12,7 +12,7 @@ import (
 
 const paramPaymentLinkSlug = "paymentLinkSlug"
 
-func (h *Handler) GetPaymentLink(c echo.Context) error {
+func (h *Handler) GetPaymentLink(c *echo.Context) error {
 	ctx := c.Request().Context()
 	slug := c.Param(paramPaymentLinkSlug)
 
@@ -43,7 +43,7 @@ func (h *Handler) GetPaymentLink(c echo.Context) error {
 	})
 }
 
-func (h *Handler) CreatePaymentFromLink(c echo.Context) error {
+func (h *Handler) CreatePaymentFromLink(c *echo.Context) error {
 	ctx := c.Request().Context()
 	slug := c.Param(paramPaymentLinkSlug)
 

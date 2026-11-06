@@ -7,13 +7,13 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/cryptolink/cryptolink/pkg/api-dashboard/v1/model"
 )
 
 const StatusInternalError = "internal_error"
 
-func BindAndValidateRequest(c echo.Context, req Validatable) bool {
+func BindAndValidateRequest(c *echo.Context, req Validatable) bool {
 	if err := c.Bind(req); err != nil {
 		_ = c.JSON(http.StatusBadRequest, &model.ErrorResponse{
 			Errors:  []*model.ErrorResponseItem{{Message: "Invalid JSON"}},
@@ -35,7 +35,7 @@ type Validatable interface {
 	Validate(formats strfmt.Registry) error
 }
 
-func ValidationErrorResponse(c echo.Context, reason any) error {
+func ValidationErrorResponse(c *echo.Context, reason any) error {
 	var responseErrors []*model.ErrorResponseItem
 
 	if errStr, ok := reason.(string); ok {
@@ -82,7 +82,7 @@ func ValidationErrorResponse(c echo.Context, reason any) error {
 	})
 }
 
-func ValidationErrorItemResponse(c echo.Context, field, message string, args ...any) error {
+func ValidationErrorItemResponse(c *echo.Context, field, message string, args ...any) error {
 	return c.JSON(http.StatusBadRequest, &model.ErrorResponse{
 		Message: "Bad request",
 		Status:  "validation_error",
@@ -92,7 +92,7 @@ func ValidationErrorItemResponse(c echo.Context, field, message string, args ...
 	})
 }
 
-func NotFoundResponse(c echo.Context, message string) error {
+func NotFoundResponse(c *echo.Context, message string) error {
 	return c.JSON(http.StatusNotFound, &model.ErrorResponse{
 		Message: message,
 		Status:  "not_found",
@@ -101,7 +101,7 @@ func NotFoundResponse(c echo.Context, message string) error {
 }
 
 // UUID parsed uuid from request's path or query. If failed, writes validation error response.
-func UUID(c echo.Context, param string) (uuid.UUID, error) {
+func UUID(c *echo.Context, param string) (uuid.UUID, error) {
 	value := c.Param(param)
 	if value == "" {
 		value = c.QueryParam(param)
