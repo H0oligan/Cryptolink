@@ -1,4 +1,4 @@
-FROM golang:1.21 as builder
+FROM golang:1.26.10 AS builder
 
 ARG EMBED_FRONTEND
 
@@ -14,7 +14,7 @@ RUN make build
 ENTRYPOINT []
 
 # Prepare production-ready image
-FROM alpine:3.17
+FROM alpine:3.22
 
 RUN apk add --no-cache tzdata libc6-compat
 ENV TZ=UTC
