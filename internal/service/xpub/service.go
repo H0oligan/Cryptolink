@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/base58"
-	"github.com/btcsuite/btcd/btcutil/bech32"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/address/v2"
+	"github.com/btcsuite/btcd/address/v2/base58"
+	"github.com/btcsuite/btcd/address/v2/bech32"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
+	"github.com/btcsuite/btcd/chaincfg/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
@@ -548,7 +548,7 @@ func (s *Service) deriveAddressFromXpub(xpub, blockchain, derivationPath string,
 // BIP49 (m/49'/0'/...) → P2SH-SegWit (3-prefix)
 // BIP84 (m/84'/0'/...) → Native SegWit bech32 (bc1q-prefix)
 func (s *Service) deriveBTCAddress(compressedPubKey []byte, pubKeyHex, derivationPath string) (string, string, error) {
-	hash160 := btcutil.Hash160(compressedPubKey)
+	hash160 := address.Hash160(compressedPubKey)
 
 	if strings.Contains(derivationPath, "49'") {
 		// BIP49: P2SH-SegWit
@@ -558,7 +558,7 @@ func (s *Service) deriveBTCAddress(compressedPubKey []byte, pubKeyHex, derivatio
 		witnessScript[1] = 0x14 // PUSH20
 		copy(witnessScript[2:], hash160)
 		// P2SH: version 0x05 + HASH160(witnessScript)
-		scriptHash := btcutil.Hash160(witnessScript)
+		scriptHash := address.Hash160(witnessScript)
 		payload := make([]byte, 21)
 		payload[0] = 0x05
 		copy(payload[1:], scriptHash)
