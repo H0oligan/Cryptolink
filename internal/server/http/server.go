@@ -47,6 +47,11 @@ func New(cfg Config, opts ...Opt) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
+	// The app only listens on loopback behind nginx, which sets X-Real-IP to the
+	// client address (restored from CF-Connecting-IP). Echo's default would take
+	// the first X-Forwarded-For entry, which the client controls, letting anyone
+	// dodge every per-IP rate limit.
+	e.IPExtractor = echo.ExtractIPFromRealIPHeader()
 	srv := &Server{
 		echo:    e,
 		address: cfg.Address + ":" + cfg.Port,
