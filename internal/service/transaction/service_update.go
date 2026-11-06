@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgtype"
-	pgx "github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5/pgtype"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
@@ -93,7 +93,7 @@ func (s *Service) receive(ctx context.Context, q repository.Querier, merchantID,
 		UpdatedAt:       time.Now(),
 		SenderAddress:   repository.StringToNullable(params.SenderAddress),
 		FactAmount:      repository.MoneyToNumeric(params.FactAmount),
-		NetworkFee:      pgtype.Numeric{Status: pgtype.Null},
+		NetworkFee:      pgtype.Numeric{},
 		TransactionHash: repository.StringToNullable(params.TransactionHash),
 		Metadata:        metaData.toJSONB(),
 	})
@@ -473,7 +473,7 @@ func (s *Service) updateBalancesAfterTxConfirmation(
 }
 
 func (s *Service) Cancel(ctx context.Context, tx *Transaction, status Status, reason string, setNetworkFee *money.Money) error {
-	networkFee := pgtype.Numeric{Status: pgtype.Null}
+	networkFee := pgtype.Numeric{}
 
 	// some chains (e.g.) may have 0 network fees
 	if setNetworkFee != nil && !setNetworkFee.IsZero() {

@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 )
@@ -74,13 +74,13 @@ func NullableInt64ToPointer(i sql.NullInt64) *int64 {
 
 func BigIntToNumeric(bigInt *big.Int) pgtype.Numeric {
 	return pgtype.Numeric{
-		Int:    new(big.Int).Set(bigInt),
-		Status: pgtype.Present,
+		Int:   new(big.Int).Set(bigInt),
+		Valid: true,
 	}
 }
 
 func NumericToBigInt(num pgtype.Numeric) (*big.Int, error) {
-	if num.Status != pgtype.Present {
+	if !num.Valid {
 		return nil, errors.New("numeric is nil")
 	}
 

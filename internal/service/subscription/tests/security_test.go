@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/cryptolink/cryptolink/internal/service/subscription"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -26,7 +26,7 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		t.Skip("skipping security test: CRYPTOLINK_TEST_DSN env var not set")
 	}
 
-	db, err := pgxpool.Connect(context.Background(), connString)
+	db, err := pgxpool.New(context.Background(), connString)
 	require.NoError(t, err, "Failed to connect to database")
 
 	return db

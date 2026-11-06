@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
@@ -362,8 +362,8 @@ func (s *Service) EnsureBalance(
 			Currency:     currency.Ticker,
 			Decimals:     int32(currency.Decimals),
 			Amount: pgtype.Numeric{
-				Int:    new(big.Int).SetInt64(0),
-				Status: pgtype.Present,
+				Int:   new(big.Int).SetInt64(0),
+				Valid: true,
 			},
 		})
 	}
@@ -652,14 +652,14 @@ func writeAuditLog(
 	})
 }
 
-func (m MetaData) ToJSONB() pgtype.JSONB {
+func (m MetaData) ToJSONB() []byte {
 	if len(m) == 0 {
-		return pgtype.JSONB{Status: pgtype.Null}
+		return nil
 	}
 
 	metaRaw, _ := json.Marshal(m)
 
-	return pgtype.JSONB{Bytes: metaRaw, Status: pgtype.Present}
+	return metaRaw
 }
 
 func entryToBalance(b repository.Balance) (*Balance, error) {

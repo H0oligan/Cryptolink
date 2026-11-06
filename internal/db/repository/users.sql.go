@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 )
 
 const userColumns = `id, name, email, uuid, google_id, profile_image_url, created_at, updated_at, deleted_at, settings, password, is_super_admin, company_name, address, website, phone, email_verified, verification_token, verification_token_expires, marketing_consent, terms_accepted_at`
@@ -62,7 +61,7 @@ type CreateUserParams struct {
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 	DeletedAt                sql.NullTime
-	Settings                 pgtype.JSONB
+	Settings                 []byte
 	CompanyName              sql.NullString
 	Address                  sql.NullString
 	Website                  sql.NullString

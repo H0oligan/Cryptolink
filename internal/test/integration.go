@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/lock"
@@ -306,7 +305,7 @@ func (i *IntegrationTest) CreateRawPayment(
 		Currency:          price.Ticker(),
 		Description:       sql.NullString{},
 		RedirectUrl:       "",
-		Metadata:          pgtype.JSONB{Status: pgtype.Null},
+		Metadata:          nil,
 		IsTest:            false,
 	}
 

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ApiToken struct {
@@ -19,7 +19,7 @@ type ApiToken struct {
 	CreatedAt  time.Time
 	Token      string
 	Name       sql.NullString
-	Settings   pgtype.JSONB
+	Settings   []byte
 	Uuid       uuid.UUID
 }
 
@@ -43,7 +43,7 @@ type BalanceAuditLog struct {
 	CreatedAt time.Time
 	BalanceID int64
 	Comment   string
-	Metadata  pgtype.JSONB
+	Metadata  []byte
 }
 
 type Customer struct {
@@ -77,7 +77,7 @@ type JobLog struct {
 	Level     int16
 	JobID     sql.NullString
 	Message   string
-	Metadata  pgtype.JSONB
+	Metadata  []byte
 }
 
 type Merchant struct {
@@ -89,7 +89,7 @@ type Merchant struct {
 	Name      string
 	Website   string
 	CreatorID int64
-	Settings  pgtype.JSONB
+	Settings  []byte
 }
 
 type MerchantSubscription struct {
@@ -127,7 +127,7 @@ type Payment struct {
 	IsTest            bool
 	WebhookSentAt     sql.NullTime
 	WebhookAttempts   int32
-	Metadata          pgtype.JSONB
+	Metadata          []byte
 }
 
 type PaymentLink struct {
@@ -167,7 +167,7 @@ type SubscriptionPlan struct {
 	MaxPaymentsMonthly sql.NullInt32
 	MaxMerchants       sql.NullInt32
 	MaxApiCallsMonthly sql.NullInt32
-	Features           pgtype.JSONB
+	Features           []byte
 	IsActive           sql.NullBool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
@@ -194,7 +194,7 @@ type Transaction struct {
 	NetworkFee        pgtype.Numeric
 	ServiceFee        pgtype.Numeric
 	UsdAmount         pgtype.Numeric
-	Metadata          pgtype.JSONB
+	Metadata          []byte
 	NetworkID         sql.NullString
 	IsTest            bool
 	NetworkDecimals   int32
@@ -223,7 +223,7 @@ type User struct {
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 	DeletedAt                sql.NullTime
-	Settings                 pgtype.JSONB
+	Settings                 []byte
 	Password                 sql.NullString
 	IsSuperAdmin             sql.NullBool
 	CompanyName              sql.NullString

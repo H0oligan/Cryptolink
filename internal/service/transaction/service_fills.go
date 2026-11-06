@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
@@ -202,7 +202,7 @@ func (s *Service) fillFromRepo(parentTx *Transaction, r repository.TransactionFi
 // the smallest unit, which is exactly how transaction_fills.amount is stored.
 func numericToCryptoSameDecimals(num pgtype.Numeric, ref money.Money) (money.Money, error) {
 	bigInt := new(big.Int)
-	if num.Status == pgtype.Present {
+	if num.Valid {
 		var err error
 		bigInt, err = repository.NumericToBigInt(num)
 		if err != nil {

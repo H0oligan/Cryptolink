@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/jackc/pgtype"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/util"
 )
@@ -65,12 +64,10 @@ func NewJobLogger(store *repository.Store) *JobLogger {
 }
 
 func (l *JobLogger) Log(ctx context.Context, level Level, jobID, msg string, metadata map[string]any) {
-	metadataRaw := pgtype.JSONB{Status: pgtype.Null}
+	var metadataRaw []byte
 
 	if len(metadata) > 0 {
-		bytes, _ := json.Marshal(metadata)
-		metadataRaw.Bytes = bytes
-		metadataRaw.Status = pgtype.Present
+		metadataRaw, _ = json.Marshal(metadata)
 	}
 
 	_ = l.store.CreateJobLog(ctx, repository.CreateJobLogParams{
@@ -97,7 +94,7 @@ func (l *JobLogger) ListByJobID(ctx context.Context, jobID string, limit int64) 
 
 func entryToJobLog(e repository.JobLog) *JobLog {
 	metadata := make(map[string]any)
-	_ = json.Unmarshal(e.Metadata.Bytes, &metadata)
+	_ = json.Unmarshal(e.Metadata, &metadata)
 
 	return &JobLog{
 		ID:        e.ID,

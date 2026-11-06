@@ -10,7 +10,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const cancelTransaction = `-- name: CancelTransaction :exec
@@ -26,7 +26,7 @@ type CancelTransactionParams struct {
 	ID            int64
 	Status        string
 	UpdatedAt     time.Time
-	Metadata      pgtype.JSONB
+	Metadata      []byte
 	NetworkFee    pgtype.Numeric
 	SetNetworkFee bool
 }
@@ -86,7 +86,7 @@ type CreateTransactionParams struct {
 	NetworkFee        pgtype.Numeric
 	ServiceFee        pgtype.Numeric
 	UsdAmount         pgtype.Numeric
-	Metadata          pgtype.JSONB
+	Metadata          []byte
 	IsTest            bool
 }
 
@@ -517,7 +517,7 @@ type UpdateTransactionParams struct {
 	FactAmount       pgtype.Numeric
 	TransactionHash  sql.NullString
 	NetworkFee       pgtype.Numeric
-	Metadata         pgtype.JSONB
+	Metadata         []byte
 	RemoveServiceFee bool
 }
 

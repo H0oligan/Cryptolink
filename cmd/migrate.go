@@ -9,9 +9,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	//nolint:revive.
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/olekukonko/tablewriter"
 	"github.com/cryptolink/cryptolink/internal/config"
 	"github.com/cryptolink/cryptolink/scripts"

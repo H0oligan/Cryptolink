@@ -13,8 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/bus"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/money"
@@ -799,8 +798,8 @@ func MakeMethod(tx *transaction.Transaction, currency money.CryptoCurrency) *Met
 
 func (s *Service) entryToPayment(p repository.Payment) (*Payment, error) {
 	metadata := make(Metadata)
-	if p.Metadata.Status == pgtype.Present {
-		if err := json.Unmarshal(p.Metadata.Bytes, &metadata); err != nil {
+	if p.Metadata != nil {
+		if err := json.Unmarshal(p.Metadata, &metadata); err != nil {
 			return nil, err
 		}
 	}

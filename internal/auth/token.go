@@ -10,8 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/rs/zerolog"
 )
@@ -120,9 +119,7 @@ func (m *TokenAuthManager) createToken(
 			Valid:  true,
 			String: name,
 		},
-		Settings: pgtype.JSONB{
-			Status: pgtype.Null,
-		},
+		Settings: nil,
 	})
 
 	if err != nil {
@@ -145,7 +142,7 @@ func (m *TokenAuthManager) ListByEntityType(
 	var tokens = make([]*APIToken, len(entries))
 
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return tokens, nil
 		}
 

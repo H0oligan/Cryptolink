@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createPayment = `-- name: CreatePayment :one
@@ -51,7 +51,7 @@ type CreatePaymentParams struct {
 	Currency          string
 	Description       sql.NullString
 	RedirectUrl       string
-	Metadata          pgtype.JSONB
+	Metadata          []byte
 	IsTest            bool
 }
 

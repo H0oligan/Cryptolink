@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/cryptolink/cryptolink/internal/db/repository"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
 

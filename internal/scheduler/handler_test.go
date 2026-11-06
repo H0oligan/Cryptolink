@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/scheduler"
 	"github.com/cryptolink/cryptolink/internal/service/payment"
@@ -79,9 +79,9 @@ func TestHandler_CheckIncomingTransactionsProgress(t *testing.T) {
 		ID:         tx1.ID,
 		Status:     string(transaction.StatusInProgress),
 		UpdatedAt:  time.Now(),
-		FactAmount: pgtype.Numeric{Status: pgtype.Null},
-		NetworkFee: pgtype.Numeric{Status: pgtype.Null},
-		Metadata:   pgtype.JSONB{Status: pgtype.Null},
+		FactAmount: pgtype.Numeric{},
+		NetworkFee: pgtype.Numeric{},
+		Metadata:   nil,
 	})
 	require.NoError(t, err)
 
@@ -91,9 +91,9 @@ func TestHandler_CheckIncomingTransactionsProgress(t *testing.T) {
 		ID:         tx2.ID,
 		Status:     string(transaction.StatusInProgressInvalid),
 		UpdatedAt:  time.Now(),
-		FactAmount: pgtype.Numeric{Status: pgtype.Null},
-		NetworkFee: pgtype.Numeric{Status: pgtype.Null},
-		Metadata:   pgtype.JSONB{Status: pgtype.Null},
+		FactAmount: pgtype.Numeric{},
+		NetworkFee: pgtype.Numeric{},
+		Metadata:   nil,
 	})
 	require.NoError(t, err)
 

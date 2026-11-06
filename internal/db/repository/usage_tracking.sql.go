@@ -10,7 +10,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUsageTracking = `-- name: CreateUsageTracking :one

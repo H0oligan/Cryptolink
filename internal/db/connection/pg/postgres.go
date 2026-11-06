@@ -3,7 +3,7 @@ package pg
 import (
 	"context"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -24,8 +24,14 @@ func Open(ctx context.Context, cfg Config, logger *zerolog.Logger) (*Connection,
 		return nil, errors.Wrap(err, "unable to parse db config")
 	}
 
-	pgConnection, err := pgxpool.ConnectConfig(ctx, dbConfig)
+	pgConnection, err := pgxpool.NewWithConfig(ctx, dbConfig)
 	if err != nil {
+		return nil, errors.Wrap(err, "unable to connect to pg database")
+	}
+
+	// pgx v5 pools connect lazily, so ping to keep failing fast at startup.
+	if err := pgConnection.Ping(ctx); err != nil {
+		pgConnection.Close()
 		return nil, errors.Wrap(err, "unable to connect to pg database")
 	}
 

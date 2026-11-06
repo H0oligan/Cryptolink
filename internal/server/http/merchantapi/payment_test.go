@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/server/http/common"
@@ -78,7 +77,7 @@ func TestPaymentRoutes(t *testing.T) {
 				Decimals:          int32(ethUSDT.Decimals),
 				Currency:          ethUSDT.Ticker,
 				RedirectUrl:       "https://site.com",
-				Metadata:          pgtype.JSONB{Status: pgtype.Null},
+				Metadata:          nil,
 			})
 			require.NoError(t, err)
 

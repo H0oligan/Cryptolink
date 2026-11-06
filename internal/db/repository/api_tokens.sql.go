@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 )
 
 const createAPIToken = `-- name: CreateAPIToken :one
@@ -34,7 +33,7 @@ type CreateAPITokenParams struct {
 	Token      string
 	Uuid       uuid.UUID
 	Name       sql.NullString
-	Settings   pgtype.JSONB
+	Settings   []byte
 }
 
 func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error) {

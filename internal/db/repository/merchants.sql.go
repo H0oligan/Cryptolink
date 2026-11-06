@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 )
 
 const createMerchant = `-- name: CreateMerchant :one
@@ -36,7 +35,7 @@ type CreateMerchantParams struct {
 	Name      string
 	Website   string
 	CreatorID int64
-	Settings  pgtype.JSONB
+	Settings  []byte
 }
 
 func (q *Queries) CreateMerchant(ctx context.Context, arg CreateMerchantParams) (Merchant, error) {
@@ -254,7 +253,7 @@ WHERE id = $1
 type UpdateMerchantSettingsParams struct {
 	ID        int64
 	UpdatedAt time.Time
-	Settings  pgtype.JSONB
+	Settings  []byte
 }
 
 func (q *Queries) UpdateMerchantSettings(ctx context.Context, arg UpdateMerchantSettingsParams) error {

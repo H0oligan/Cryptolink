@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
 )
 
@@ -29,7 +29,7 @@ func NewStore(db *pg.Connection) *Store {
 type TxCallback func(context.Context, Querier) error
 
 func (s *Store) RunTransaction(ctx context.Context, callback TxCallback) error {
-	return s.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	return pgx.BeginTxFunc(ctx, s.db.Pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return callback(ctx, s.WithTx(tx))
 	})
 }

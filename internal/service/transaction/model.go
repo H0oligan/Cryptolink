@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/jackc/pgtype"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
@@ -84,14 +83,14 @@ const (
 	MetaMerchantID        = "merchantId"
 )
 
-func (m MetaData) toJSONB() pgtype.JSONB {
+func (m MetaData) toJSONB() []byte {
 	if len(m) == 0 {
-		return pgtype.JSONB{Status: pgtype.Null}
+		return nil
 	}
 
 	metaRaw, _ := json.Marshal(m)
 
-	return pgtype.JSONB{Bytes: metaRaw, Status: pgtype.Present}
+	return metaRaw
 }
 
 type Status string

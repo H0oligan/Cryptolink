@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
@@ -198,8 +198,8 @@ func (s *Service) Create(
 		return nil, errors.Wrap(err, "unable to get network currency")
 	}
 
-	factAmount := pgtype.Numeric{Status: pgtype.Null}
-	metaData := pgtype.JSONB{Status: pgtype.Null}
+	factAmount := pgtype.Numeric{}
+	var metaData []byte
 
 	if params.isIncomingUnexpected {
 		factAmount = repository.MoneyToNumeric(params.Amount)
@@ -236,7 +236,7 @@ func (s *Service) Create(
 
 			Amount:     repository.MoneyToNumeric(params.Amount),
 			FactAmount: factAmount,
-			NetworkFee: pgtype.Numeric{Status: pgtype.Null},
+			NetworkFee: pgtype.Numeric{},
 			ServiceFee: repository.MoneyToNumeric(params.ServiceFee),
 			UsdAmount:  repository.MoneyToNumeric(params.USDAmount),
 
@@ -445,7 +445,7 @@ func (s *Service) entryToTransaction(tx repository.Transaction) (*Transaction, e
 
 	var factAmount *money.Money
 
-	if tx.FactAmount.Status == pgtype.Present {
+	if tx.FactAmount.Valid {
 		fa, errMoney := repository.NumericToMoney(tx.FactAmount, money.Crypto, tx.Currency, int64(tx.Decimals))
 		if errMoney != nil {
 			return nil, errors.Wrap(errMoney, "unable to construct FactAmount")
@@ -460,7 +460,7 @@ func (s *Service) entryToTransaction(tx repository.Transaction) (*Transaction, e
 	}
 
 	var networkFee *money.Money
-	if tx.NetworkFee.Status == pgtype.Present {
+	if tx.NetworkFee.Valid {
 		coin, errCoin := s.blockchain.GetNativeCoin(money.Blockchain(tx.Blockchain))
 		if errCoin != nil {
 			return nil, errors.Wrapf(errCoin, "unable to get native coin for %q", tx.Blockchain)
@@ -480,8 +480,8 @@ func (s *Service) entryToTransaction(tx repository.Transaction) (*Transaction, e
 	}
 
 	metaData := make(MetaData)
-	if tx.Metadata.Status == pgtype.Present {
-		if err := json.Unmarshal(tx.Metadata.Bytes, &metaData); err != nil {
+	if tx.Metadata != nil {
+		if err := json.Unmarshal(tx.Metadata, &metaData); err != nil {
 			return nil, errors.Wrap(err, "unable to unmarshal meta data")
 		}
 	}

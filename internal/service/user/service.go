@@ -10,8 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/bus"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/service/registry"
@@ -187,7 +186,7 @@ func (s *Service) Register(ctx context.Context, params RegisterParams) (*User, e
 		CreatedAt:        now,
 		UpdatedAt:        now,
 		DeletedAt:        sql.NullTime{},
-		Settings:         pgtype.JSONB{Status: pgtype.Null},
+		Settings:         nil,
 		CompanyName:      repository.StringToNullable(params.CompanyName),
 		Address:          repository.StringToNullable(params.Address),
 		Website:          repository.StringToNullable(params.Website),

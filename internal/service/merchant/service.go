@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/blockchain"
@@ -220,7 +220,7 @@ func (s *Service) DeleteByUUID(ctx context.Context, merchantUUID uuid.UUID) erro
 
 func entryToMerchant(entry repository.Merchant) *Merchant {
 	settings := make(Settings)
-	_ = json.Unmarshal(entry.Settings.Bytes, &settings)
+	_ = json.Unmarshal(entry.Settings, &settings)
 
 	return &Merchant{
 		ID:        entry.ID,

@@ -10,7 +10,6 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/jackc/pgtype"
 )
 
 const createJobLog = `-- name: CreateJobLog :exec
@@ -23,7 +22,7 @@ type CreateJobLogParams struct {
 	Level     int16
 	JobID     sql.NullString
 	Message   string
-	Metadata  pgtype.JSONB
+	Metadata  []byte
 }
 
 func (q *Queries) CreateJobLog(ctx context.Context, arg CreateJobLogParams) error {

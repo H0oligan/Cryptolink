@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createBalance = `-- name: CreateBalance :one
@@ -235,7 +235,7 @@ type InsertBalanceAuditLogParams struct {
 	CreatedAt time.Time
 	BalanceID int64
 	Comment   string
-	Metadata  pgtype.JSONB
+	Metadata  []byte
 }
 
 func (q *Queries) InsertBalanceAuditLog(ctx context.Context, arg InsertBalanceAuditLogParams) error {

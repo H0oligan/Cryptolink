@@ -9,7 +9,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getSubscriptionPlanByID = `-- name: GetSubscriptionPlanByID :one
@@ -138,7 +138,7 @@ type UpdateSubscriptionPlanParams struct {
 	MaxPaymentsMonthly sql.NullInt32
 	MaxMerchants       sql.NullInt32
 	MaxApiCallsMonthly sql.NullInt32
-	Features           pgtype.JSONB
+	Features           []byte
 	IsActive           sql.NullBool
 }
 

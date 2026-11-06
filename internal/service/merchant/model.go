@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 	"github.com/cryptolink/cryptolink/internal/kms/wallet"
 )
 
@@ -75,14 +74,14 @@ func (s Settings) GlobalFeePercent() float64 {
 	return val
 }
 
-func (s Settings) toJSONB() pgtype.JSONB {
+func (s Settings) toJSONB() []byte {
 	if len(s) == 0 {
-		return pgtype.JSONB{Status: pgtype.Null}
+		return nil
 	}
 
 	raw, _ := json.Marshal(s)
 
-	return pgtype.JSONB{Bytes: raw, Status: pgtype.Present}
+	return raw
 }
 
 type Address struct {

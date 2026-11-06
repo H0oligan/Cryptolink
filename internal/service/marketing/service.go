@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/cryptolink/cryptolink/internal/service/email"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"

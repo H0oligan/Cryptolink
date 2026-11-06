@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	"github.com/cryptolink/cryptolink/internal/bus"
 	"github.com/cryptolink/cryptolink/internal/db/repository"
@@ -41,7 +40,7 @@ func (s *Service) registerGoogleUser(ctx context.Context, user *auth.GoogleUser)
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 		DeletedAt:       sql.NullTime{},
-		Settings:        pgtype.JSONB{Status: pgtype.Null},
+		Settings:        nil,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create user")
