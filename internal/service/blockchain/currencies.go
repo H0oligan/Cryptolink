@@ -87,7 +87,7 @@ func (r *CurrencyResolver) GetMinimalWithdrawalByTicker(ticker string) (money.Mo
 }
 
 // GetUSDMinimalInternalTransferByTicker returns minimal internal transfer amount in USD for selected ticker.
-// internal transfer is a transfer from inbound to outbound O2pay wallet.
+// internal transfer is a transfer from inbound to outbound CryptoLink wallet.
 func (r *CurrencyResolver) GetUSDMinimalInternalTransferByTicker(ticker string) (money.Money, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -236,7 +236,7 @@ func sortCurrencies(currencies []money.CryptoCurrency) []money.CryptoCurrency {
 var currencies embed.FS
 
 // nolint:gocritic
-// DefaultSetup applied coins & tokens that are supported within Oxygen.
+// DefaultSetup applied coins & tokens that are supported within CryptoLink.
 func DefaultSetup(s *CurrencyResolver) error {
 	file, err := currencies.Open("currencies.json")
 	if err != nil {

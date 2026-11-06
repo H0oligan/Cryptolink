@@ -1,14 +1,14 @@
 version: '3.8'
 services:
-  oxygen:
-    image: ghcr.io/oxygenpay/oxygen:latest
+  cryptolink:
+    image: ghcr.io/h0oligan/cryptolink:latest
     command: all-in-one --skip-config
     env_file:
       - docker.env
     volumes:
       - './tmp:/src/tmp'
     ports: [ '80:80' ]
-    networks: [ net-oxygen ]
+    networks: [ net-cryptolink ]
     depends_on: [ postgres ]
     restart: on-failure
 
@@ -17,16 +17,16 @@ services:
     command: postgres -c log_statement=all
     restart: on-failure
     environment:
-      - POSTGRES_DB=oxygen
-      - POSTGRES_USER=oxygen
-      - POSTGRES_PASSWORD=oxygen
+      - POSTGRES_DB=cryptolink
+      - POSTGRES_USER=cryptolink
+      - POSTGRES_PASSWORD=cryptolink
     volumes:
       - 'pg-data:/var/lib/postgresql/data'
     ports: [ '5432:5432' ]
-    networks: [ net-oxygen ]
+    networks: [ net-cryptolink ]
 
 networks:
-  net-oxygen:
+  net-cryptolink:
 
 volumes:
   app-volume:

@@ -13,7 +13,7 @@ var createUserCommand = &cobra.Command{
 	Use:     "create-user",
 	Short:   "Creates new user with provided email & password",
 	Args:    cobra.ExactArgs(2),
-	Example: "oxygen create-user user@gmail.com qwerty123",
+	Example: "cryptolink create-user user@gmail.com qwerty123",
 	Run:     createUser,
 }
 

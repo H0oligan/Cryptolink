@@ -89,7 +89,7 @@ func New(ctx context.Context, cfg *config.Config, logger *zerolog.Logger) *Locat
 
 func (loc *Locator) DB() *pg.Connection {
 	loc.init("db", func() {
-		db, err := pg.Open(loc.ctx, loc.config.Oxygen.Postgres, loc.logger)
+		db, err := pg.Open(loc.ctx, loc.config.CryptoLink.Postgres, loc.logger)
 		if err != nil {
 			loc.logger.Fatal().Err(err).Msg("unable to open pg database")
 			return
@@ -228,7 +228,7 @@ func (loc *Locator) TokenManagerService() *auth.TokenAuthManager {
 
 func (loc *Locator) GoogleAuth() *auth.GoogleOAuthManager {
 	loc.init("service.auth.google", func() {
-		loc.googleAuth = auth.NewGoogleOAuth(loc.config.Oxygen.Auth.Google, loc.logger)
+		loc.googleAuth = auth.NewGoogleOAuth(loc.config.CryptoLink.Auth.Google, loc.logger)
 	})
 
 	return loc.googleAuth
@@ -251,7 +251,7 @@ func (loc *Locator) PaymentService() *payment.Service {
 	loc.init("service.payment", func() {
 		loc.paymentService = payment.New(
 			loc.Repository(),
-			loc.config.Oxygen.Processing.PaymentFrontendPath(),
+			loc.config.CryptoLink.Processing.PaymentFrontendPath(),
 			loc.TransactionService(),
 			loc.MerchantService(),
 			loc.WalletService(),
@@ -323,7 +323,7 @@ func (loc *Locator) MarketingService() *marketing.Service {
 func (loc *Locator) WatcherService() *watcher.Service {
 	loc.init("service.watcher", func() {
 		loc.watcherService = watcher.New(
-			loc.config.Oxygen.Watcher,
+			loc.config.CryptoLink.Watcher,
 			loc.RPCProvider(),
 			loc.BitcoinProvider(),
 			loc.TrongridProvider(),
@@ -340,7 +340,7 @@ func (loc *Locator) WatcherService() *watcher.Service {
 func (loc *Locator) ProcessingService() *processing.Service {
 	loc.init("service.processing", func() {
 		loc.processingService = processing.New(
-			loc.config.Oxygen.Processing,
+			loc.config.CryptoLink.Processing,
 			loc.WalletService(),
 			loc.MerchantService(),
 			loc.PaymentService(),

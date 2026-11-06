@@ -1,4 +1,4 @@
-name: Build Oxygen
+name: Build CryptoLink
 on:
   release:
     types: [ created ]
@@ -91,6 +91,8 @@ jobs:
         run: |
           # refs/tags/*
           TAG=${GITHUB_REF:10}
+          # image names must be lowercase, the repository name is not
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
           echo "TAG=$TAG"
 
           docker build -t $REGISTRY/$IMAGE:$TAG -t $REGISTRY/$IMAGE:latest .

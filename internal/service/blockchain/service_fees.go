@@ -16,7 +16,7 @@ type FeeCalculator interface {
 }
 
 // withdrawalNetworkFeeMultiplier when customer wants to withdraw his assets from the system, we already spent
-// 1x network fee for INBOUND -> OUTBOUND processing. In total o2pay would pay x2 network fee in order to withdraw
+// 1x network fee for INBOUND -> OUTBOUND processing. In total CryptoLink would pay x2 network fee in order to withdraw
 // assets. So it should be kinda fair if customer pays for 0.5x INBOUND -> OUTBOUND & x1 for OUTBOUND -> EXTERNAL.
 const withdrawalNetworkFeeMultiplier = 1.5
 

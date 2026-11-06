@@ -86,7 +86,7 @@ func performMigration(ctx context.Context, cfg *config.Config, command string, s
 }
 
 func migrationConnection(ctx context.Context, cfg *config.Config) *sql.DB {
-	dataSource, err := parseConn(cfg.Oxygen.Postgres.DataSource)
+	dataSource, err := parseConn(cfg.CryptoLink.Postgres.DataSource)
 	if err != nil {
 		log.Fatalf("unable to parse DB connection: %s\n", err.Error())
 	}

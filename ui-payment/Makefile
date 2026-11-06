@@ -28,7 +28,7 @@ lint: ## Run linter
 	make -j3 verify-ts lint-es
 
 dev: ## Run dev
-	npx vite --host pay-local.sandbox.o2pay.co
+	npx vite --host localhost
 
 build: ## Build dist
 	npx tsc && npx vite build --base=${VITE_ROOTPATH}

@@ -65,14 +65,14 @@ func TestService_ResolveWithGoogle(t *testing.T) {
 			t.Run("access allowed", func(t *testing.T) {
 				// ARRANGE
 				// Given a whitelist
-				_, err := tc.Services.Registry.Set(tc.Context, "registration.whitelist", "hey@o2pay.co,test@me.com")
+				_, err := tc.Services.Registry.Set(tc.Context, "registration.whitelist", "hey@cryptolink.cc,test@me.com")
 				require.NoError(t, err)
 
 				// ACT
 				_, err = tc.Services.Users.ResolveWithGoogle(tc.Context, &auth.GoogleUser{
 					Name:  "John",
 					Sub:   "abc123",
-					Email: "hey@o2pay.co",
+					Email: "hey@cryptolink.cc",
 				})
 
 				// ASSERT

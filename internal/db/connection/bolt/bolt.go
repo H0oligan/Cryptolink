@@ -8,7 +8,7 @@ import (
 )
 
 type Config struct {
-	DataSource string `yaml:"path" env:"KMS_DB_DATA_SOURCE" env-description:"KMS vault data source. Example: '/opt/oxygen/kms.db'"`
+	DataSource string `yaml:"path" env:"KMS_DB_DATA_SOURCE" env-description:"KMS vault data source. Example: '/opt/cryptolink/kms.db'"`
 }
 
 type Connection struct {

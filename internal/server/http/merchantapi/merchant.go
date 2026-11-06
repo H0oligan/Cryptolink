@@ -47,7 +47,7 @@ func (h *Handler) CreateMerchant(c echo.Context) error {
 	}
 
 	if _, err := url.ParseRequestURI(req.Website); err != nil {
-		return common.ValidationErrorItemResponse(c, "website", "website should be a valid URL (e.g. https://o2pay.co)")
+		return common.ValidationErrorItemResponse(c, "website", "website should be a valid URL (e.g. https://cryptolink.cc)")
 	}
 
 	ctx := c.Request().Context()
@@ -144,7 +144,7 @@ func (h *Handler) UpdateMerchant(c echo.Context) error {
 	}
 
 	if _, err := url.ParseRequestURI(req.Website); err != nil {
-		return common.ValidationErrorItemResponse(c, "website", "website should be a valid URL (e.g. https://o2pay.co)")
+		return common.ValidationErrorItemResponse(c, "website", "website should be a valid URL (e.g. https://cryptolink.cc)")
 	}
 
 	m := middleware.ResolveMerchant(c)

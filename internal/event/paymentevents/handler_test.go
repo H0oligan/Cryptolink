@@ -138,7 +138,7 @@ func TestHandler_ProcessPaymentStatusUpdate(t *testing.T) {
 	assert.Contains(t, (*responses)[0], "processed payment #1: 50 USD for merchant")
 	assert.Contains(t, (*responses)[0], mt.Name)
 	assert.Contains(t, (*responses)[0], "isTest=false")
-	assert.Contains(t, (*responses)[0], "pay.o2pay.co")
+	assert.Contains(t, (*responses)[0], "pay.cryptolink.cc")
 }
 
 func marshal(v any) []byte {

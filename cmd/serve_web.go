@@ -36,7 +36,7 @@ func serveWeb(_ *cobra.Command, _ []string) {
 
 func setupOnBeforeRun(service *app.App, cfg *config.Config) {
 	service.OnBeforeRun(func(ctx context.Context, a *app.App) error {
-		if cfg.Oxygen.Postgres.MigrateOnStart {
+		if cfg.CryptoLink.Postgres.MigrateOnStart {
 			a.Logger().Info().Msg("Enabled migration on start")
 			performMigration(ctx, cfg, "up", true)
 		}
@@ -45,7 +45,7 @@ func setupOnBeforeRun(service *app.App, cfg *config.Config) {
 	})
 
 	service.OnBeforeRun(func(ctx context.Context, a *app.App) error {
-		if len(cfg.Oxygen.Auth.EnabledProviders()) == 0 {
+		if len(cfg.CryptoLink.Auth.EnabledProviders()) == 0 {
 			return errors.New("unable to run server: at least one auth provider should be enabled")
 		}
 

@@ -93,7 +93,7 @@ func (app *App) RunServer() {
 		app.services.GoogleAuth(),
 		app.services.UserService(),
 		app.services.EmailService(),
-		app.config.Oxygen.Auth.EnabledProviders(),
+		app.config.CryptoLink.Auth.EnabledProviders(),
 		app.Logger(),
 	)
 
@@ -113,7 +113,7 @@ func (app *App) RunServer() {
 		app.services.MerchantService(),
 		app.services.UserService(),
 		app.services.ContactService(),
-		app.config.Oxygen.Subscription.AdminMerchantID,
+		app.config.CryptoLink.Subscription.AdminMerchantID,
 		app.Logger(),
 	)
 
@@ -137,16 +137,16 @@ func (app *App) RunServer() {
 		app.services.JobLogger(),
 	)
 
-	withInternalAPI := app.config.Oxygen.Server.EnableInternalAPI
+	withInternalAPI := app.config.CryptoLink.Server.EnableInternalAPI
 
 	srv := httpServer.New(
-		app.config.Oxygen.Server,
+		app.config.CryptoLink.Server,
 		httpServer.WithLogger(app.logger),
 		httpServer.WithRecover(),
 		httpServer.WithVersionHeader(version.Release, app.config.GitCommit),
 		httpServer.WithMerchantAPI(merchantAPIHandler, app.services.TokenManagerService()),
 		httpServer.WithDashboardAPI(
-			app.config.Oxygen.Server,
+			app.config.CryptoLink.Server,
 			merchantAPIHandler,
 			dashboardAuthHandler,
 			subscriptionHandler,
@@ -154,10 +154,10 @@ func (app *App) RunServer() {
 			marketingHandler,
 			app.services.TokenManagerService(),
 			app.services.UserService(),
-			app.config.Oxygen.Auth.Email.Enabled,
-			app.config.Oxygen.Auth.Google.Enabled,
+			app.config.CryptoLink.Auth.Email.Enabled,
+			app.config.CryptoLink.Auth.Google.Enabled,
 		),
-		httpServer.WithPaymentAPI(paymentAPIHandler, app.config.Oxygen.Server),
+		httpServer.WithPaymentAPI(paymentAPIHandler, app.config.CryptoLink.Server),
 		// The legacy /api/webhook/v1/tatum/* route is intentionally NOT registered:
 		// its signature check was a no-op, so anyone could forge "incoming
 		// payment" events (abused 2026-09-29). Payments are detected by the
@@ -187,7 +187,7 @@ func (app *App) RunServer() {
 	})
 
 	app.OnBeforeRun(func(ctx context.Context, app *App) error {
-		cfg := app.config.Oxygen.Auth.Email
+		cfg := app.config.CryptoLink.Auth.Email
 		if !cfg.Enabled {
 			return nil
 		}

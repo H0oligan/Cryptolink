@@ -25,7 +25,7 @@ type WebhookSettings struct {
 	Secret string `json:"secret"`
 
 	// Webhook URL
-	// Example: https://my-site.com/webhook/oxygen-pay
+	// Example: https://my-site.com/webhook/cryptolink
 	// Required: true
 	URL string `json:"url"`
 }

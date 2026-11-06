@@ -19,6 +19,6 @@ FROM alpine:3.22
 RUN apk add --no-cache tzdata libc6-compat
 ENV TZ=UTC
 
-COPY --from=builder /src/bin/oxygen /opt/
+COPY --from=builder /src/bin/cryptolink /opt/
 
-ENTRYPOINT ["/opt/oxygen"]
+ENTRYPOINT ["/opt/cryptolink"]

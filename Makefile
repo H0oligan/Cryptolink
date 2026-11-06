@@ -17,7 +17,7 @@ help: ## List of commands
 lint: ## Lint code using golangci-lint
 	golangci-lint run -v ./...
 
-codegen: ## Generate stuff for Oxygen :)
+codegen: ## Generate stuff for CryptoLink
 	sqlc generate -f scripts/sqlc.yaml
 
 	# dashboard api
@@ -50,16 +50,16 @@ mock: ## Generate mocks (not included in codegen command)
 	mockery --dir internal/service/processing --all --output internal/test/mock/ --outpkg mock
 
 build: ## Build app
-	go build ${LDFLAGS} -o bin/oxygen main.go
+	go build ${LDFLAGS} -o bin/cryptolink main.go
 
 run: ## Run application (without building)
-	./bin/oxygen serve-web --config=$$(pwd)/config/oxygen.yml
+	./bin/cryptolink serve-web --config=$$(pwd)/config/cryptolink.yml
 
 run-kms: ## Run KMS (without building)
-	./bin/oxygen serve-kms --config=$$(pwd)/config/oxygen.yml
+	./bin/cryptolink serve-kms --config=$$(pwd)/config/cryptolink.yml
 
 run-scheduler: ## Run Scheduler (without building)
-	./bin/oxygen run-scheduler --config=$$(pwd)/config/oxygen.yml
+	./bin/cryptolink run-scheduler --config=$$(pwd)/config/cryptolink.yml
 
 local: codegen build run ## Build & Run App
 
@@ -77,11 +77,11 @@ require-deps: ## Require cli tools for development
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.3
     # todo go-swagger as swagger
 
-docker-build: ## Build docker image for Oxygen
-	DOCKER_BUILDKIT=1 docker build -t oxygen-local .
+docker-build: ## Build docker image for CryptoLink
+	DOCKER_BUILDKIT=1 docker build -t cryptolink-local .
 
 docker-local:
 	docker-compose -f docker-compose.local.yml up
 
-clean-test-dbs: ## Drop test "oxygen_test*" databases
-	psql -c "\l" | grep "oxygen_test" | awk '{print $$1}' | xargs -I {} psql -c "drop database {};"
+clean-test-dbs: ## Drop test "cryptolink_test*" databases
+	psql -c "\l" | grep "cryptolink_test" | awk '{print $$1}' | xargs -I {} psql -c "drop database {};"

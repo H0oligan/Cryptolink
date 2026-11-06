@@ -6,7 +6,7 @@ config_path=$(pwd)/config/migrations.yml
 # Sample migrations file:
 # local:
 #   dialect: postgres
-#   datasource: "host=localhost sslmode=disable dbname=oxygen user=oxygen password=oxygen"
+#   datasource: "host=localhost sslmode=disable dbname=cryptolink user=cryptolink password=cryptolink"
 #   dir: scripts/migrations
 #   table: migrations
 

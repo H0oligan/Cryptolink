@@ -78,3 +78,6 @@ exports/
 RESUME_SESSION.md
 incident/
 private/
+
+# Local deploy script (machine-specific, may hold credentials)
+deploy.sh

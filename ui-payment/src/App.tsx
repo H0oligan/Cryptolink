@@ -107,7 +107,7 @@ const App: React.FC = () => {
                             <div className="pt-2 pb-4 text-sm sm:hidden">
                                 <p className="text-center text-gray-500">
                                     Powered by self-hosted{" "}
-                                    <a className="color-oxygen" target="_blank" href="https://cryptolink.cc">
+                                    <a className="color-brand" target="_blank" href="https://cryptolink.cc">
                                         CryptoLink
                                     </a>
                                     {" "}

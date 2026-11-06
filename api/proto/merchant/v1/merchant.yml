@@ -105,7 +105,7 @@ definitions:
       url:
         type: string
         description: Webhook URL
-        example: https://my-site.com/webhook/oxygen-pay
+        example: https://my-site.com/webhook/cryptolink
         x-nullable: false
         x-omitempty: false
       secret:

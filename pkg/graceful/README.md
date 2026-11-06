@@ -12,7 +12,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/oxygenpay/oxygen/pkg/graceful"
+	"github.com/cryptolink/cryptolink/pkg/graceful"
 )
 
 func main() {

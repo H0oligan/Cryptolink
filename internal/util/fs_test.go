@@ -22,12 +22,12 @@ func TestFS(t *testing.T) {
 	}{
 		{
 			name:   "ensures env file",
-			path:   "/app/oxygen.env",
+			path:   "/app/cryptolink.env",
 			isFile: true,
 		},
 		{
 			name:   "ensures env file one more time",
-			path:   "/app/oxygen.env",
+			path:   "/app/cryptolink.env",
 			isFile: true,
 		},
 		{

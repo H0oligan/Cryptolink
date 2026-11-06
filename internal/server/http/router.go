@@ -23,7 +23,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/user"
 )
 
-// WithDashboardAPI setups routes for Merchant's Dashboard (app.o2pay.co)
+// WithDashboardAPI setups routes for Merchant's Dashboard (cryptolink.cc/merchants)
 func WithDashboardAPI(
 	cfg Config,
 	handler *merchantapi.Handler,
@@ -254,7 +254,7 @@ func WithDashboardAPI(
 	}
 }
 
-// WithMerchantAPI setups Merchant's API routes (api.o2pay.co)
+// WithMerchantAPI setups Merchant's API routes (cryptolink.cc/api)
 func WithMerchantAPI(handler *merchantapi.Handler, tokensManager *auth.TokenAuthManager) Opt {
 	return func(s *Server) {
 		merchantAPI := s.echo.Group(
@@ -296,7 +296,7 @@ func setupCommonMerchantRoutes(g *echo.Group, handler *merchantapi.Handler) {
 	g.GET("/customer/:customerId", handler.GetCustomerDetails)
 }
 
-// WithPaymentAPI setups routes public-facing payment api (pay.o2pay.co)
+// WithPaymentAPI setups routes public-facing payment api (cryptolink.cc/p)
 func WithPaymentAPI(handler *paymentapi.Handler, cfg Config) Opt {
 	return func(s *Server) {
 		paymentAPI := s.echo.Group(

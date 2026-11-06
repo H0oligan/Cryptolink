@@ -47,7 +47,7 @@ func NewDB(ctx context.Context) *Database {
 	db := &Database{
 		context:           ctx,
 		genericConnection: conn,
-		name:              "oxygen_test_" + util.Strings.Random(8),
+		name:              "cryptolink_test_" + util.Strings.Random(8),
 	}
 
 	// create tmp database

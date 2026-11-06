@@ -2884,7 +2884,7 @@ EOF</code></pre>
     <h2>6. Configure cryptolink.yml</h2>
     <div class="code-wrap">
         <div class="code-header"><span class="code-lang">yaml — /opt/cryptolink/config/cryptolink.yml</span><button class="copy-btn" onclick="copyCode(this)">COPY</button></div>
-        <pre><code class="language-yaml">oxygen:
+        <pre><code class="language-yaml">cryptolink:
   postgres:
     data_source: "postgres://cryptolink_user:your_strong_password@127.0.0.1:5432/cryptolink_db?sslmode=disable&pool_max_conns=32"
     migrate_on_start: false  # run manually for first setup
@@ -3370,6 +3370,7 @@ sudo ufw enable</code></pre>
         <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Upgrade notes</h3>
         <ul style="margin-left:1.2rem;color:var(--text-muted);">
             <li>Building from source now needs <strong>Go 1.26.10 or newer</strong>.</li>
+            <li><strong>Rename one config key.</strong> The top-level section of <code>cryptolink.yml</code> is now <code>cryptolink:</code>, and the app refuses to start without it. The admin merchant environment variable is now <code>CRYPTOLINK_SUBSCRIPTION_ADMIN_MERCHANT_ID</code>. The binary and Docker image are named <code>cryptolink</code>.</li>
             <li><strong>Check your reverse proxy.</strong> Per-IP rate limits now read <code>X-Real-IP</code> and ignore <code>X-Forwarded-For</code>. Set <code>X-Real-IP</code> to the client address and keep the app bound to loopback. Behind Cloudflare or another CDN, restore the real address first with nginx <code>set_real_ip_from</code> and <code>real_ip_header</code>, or all visitors will share one rate-limit bucket.</li>
         </ul>
 
@@ -3427,7 +3428,7 @@ sudo ufw enable</code></pre>
         <h2 style="font-size: 1.4rem; margin-bottom: 0.4rem;">
             v1.0
         </h2>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Released 2026-05-04 — first tagged release after the OxygenPay fork &amp; rebrand.</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Released 2026-05-04 — first tagged release.</p>
 
         <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Payments</h3>
         <ul style="margin-left:1.2rem;color:var(--text-muted);">

@@ -1,7 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -33,7 +36,7 @@ type Config struct {
 	Debug  bool       `yaml:"debug" env:"APP_DEBUG" env-default:"false" env-description:"Enables debug mode"`
 	Logger log.Config `yaml:"logger"`
 
-	Oxygen Oxygen `yaml:"oxygen"`
+	CryptoLink CryptoLink `yaml:"cryptolink"`
 
 	Providers Providers `yaml:"providers"`
 
@@ -42,7 +45,7 @@ type Config struct {
 	Evm Evm `yaml:"evm"`
 }
 
-type Oxygen struct {
+type CryptoLink struct {
 	Server       http.Config       `yaml:"server"`
 	Auth         auth.Config       `yaml:"auth"`
 	Postgres     pg.Config         `yaml:"postgres"`
@@ -52,7 +55,7 @@ type Oxygen struct {
 }
 
 type Subscription struct {
-	AdminMerchantID int64 `yaml:"admin_merchant_id" env:"OXYGEN_SUBSCRIPTION_ADMIN_MERCHANT_ID" env-description:"Admin merchant ID for receiving subscription payments"`
+	AdminMerchantID int64 `yaml:"admin_merchant_id" env:"CRYPTOLINK_SUBSCRIPTION_ADMIN_MERCHANT_ID" env-description:"Admin merchant ID for receiving subscription payments"`
 }
 
 type Providers struct {
@@ -88,10 +91,30 @@ func New(gitCommit, gitVersion, configPath string, skipConfig, embedFrontend boo
 			return
 		}
 
+		if errCfg = checkAppSection(configPath); errCfg != nil {
+			return
+		}
+
 		errCfg = cleanenv.ReadConfig(configPath, cfg)
 	})
 
 	return cfg, errCfg
+}
+
+// checkAppSection fails when the file has no top-level "cryptolink:" section.
+// cleanenv ignores unknown keys, so without this a misnamed section would start
+// the app on defaults instead of the configured database and chains.
+func checkAppSection(configPath string) error {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	if !regexp.MustCompile(`(?m)^cryptolink:`).Match(data) {
+		return fmt.Errorf("config %s has no top-level \"cryptolink:\" section", configPath)
+	}
+
+	return nil
 }
 
 func PrintUsage(w io.Writer) error {
