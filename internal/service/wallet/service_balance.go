@@ -1,6 +1,8 @@
 package wallet
 
 import (
+	"cmp"
+	"slices"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,7 +17,6 @@ import (
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-	"golang.org/x/exp/slices"
 )
 
 type Balance struct {
@@ -228,7 +229,7 @@ func composeSystemBalances(merchants, wallets []*Balance) ([]*Balance, error) {
 	}
 
 	balances := lo.Values(balancesMap)
-	slices.SortFunc(balances, func(a, b *Balance) bool { return keyFunc(a) < keyFunc(b) })
+	slices.SortFunc(balances, func(a, b *Balance) int { return cmp.Compare(keyFunc(a), keyFunc(b)) })
 
 	return balances, nil
 }

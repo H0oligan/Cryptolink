@@ -12,7 +12,7 @@ import (
 	"github.com/cryptolink/cryptolink/internal/service/transaction"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
 	"github.com/cryptolink/cryptolink/internal/util"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 // ProcessingProxyMock proxies some methods of processing.Service and mocks others

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/cryptolink/cryptolink/internal/app"
 	"github.com/cryptolink/cryptolink/internal/money"
 	"github.com/cryptolink/cryptolink/internal/service/wallet"
@@ -40,15 +41,16 @@ func listBalances(_ *cobra.Command, _ []string) {
 		logger.Error().Err(err).Msg("Unable to list wallets")
 	}
 
-	t := tablewriter.NewWriter(os.Stdout)
+	t := tablewriter.NewTable(os.Stdout,
+		tablewriter.WithRendition(tw.Rendition{Borders: tw.BorderNone}),
+		tablewriter.WithHeaderAutoWrap(tw.WrapNone),
+		tablewriter.WithRowAutoWrap(tw.WrapNone),
+		tablewriter.WithHeaderAlignment(tw.AlignLeft),
+		tablewriter.WithRowAlignment(tw.AlignLeft),
+	)
 	defer t.Render()
 
-	t.SetBorder(false)
-	t.SetAutoWrapText(false)
-	t.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	t.SetAlignment(tablewriter.ALIGN_LEFT)
-
-	t.SetHeader([]string{"id", "type", "entity Id", "currency", "test", "amount", "usd"})
+	t.Header("id", "type", "entity Id", "currency", "test", "amount", "usd")
 
 	add := func(b *wallet.Balance) {
 		currency, err := blockchainService.GetCurrencyByTicker(b.Currency)

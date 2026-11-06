@@ -112,7 +112,7 @@ func migrationStatus(db *sql.DB, set *migrate.MigrationSet) {
 	t := tablewriter.NewWriter(os.Stdout)
 	defer t.Render()
 
-	t.SetHeader([]string{"Migration", "Timestamp"})
+	t.Header("Migration", "Timestamp")
 	for _, item := range items {
 		t.Append([]string{item.Id, item.AppliedAt.Format(time.RFC3339)})
 	}

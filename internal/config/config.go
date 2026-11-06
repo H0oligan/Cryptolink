@@ -11,6 +11,7 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/cryptolink/cryptolink/internal/auth"
 	"github.com/cryptolink/cryptolink/internal/db/connection/pg"
 	"github.com/cryptolink/cryptolink/internal/log"
@@ -145,11 +146,13 @@ func PrintUsage(w io.Writer) error {
 	sort.Strings(lines[1:])
 
 	// write as a table
-	t := tablewriter.NewWriter(w)
-	t.SetBorder(false)
-	t.SetAutoWrapText(false)
-	t.SetHeader([]string{"ENV", "Description"})
-	t.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	t := tablewriter.NewTable(w,
+		tablewriter.WithRendition(tw.Rendition{Borders: tw.BorderNone}),
+		tablewriter.WithHeaderAutoWrap(tw.WrapNone),
+		tablewriter.WithRowAutoWrap(tw.WrapNone),
+		tablewriter.WithHeaderAlignment(tw.AlignLeft),
+	)
+	t.Header("ENV", "Description")
 
 	for _, line := range lines {
 		cells := strings.Split(line, delimiter)
