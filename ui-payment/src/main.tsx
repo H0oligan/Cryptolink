@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import {BrowserRouter} from "react-router-dom";
+import {BrowserRouter} from "react-router";
 import posthog from "posthog-js";
 import {posthogConfig} from "./providers/posthog";
 import {PostHogProvider} from "posthog-js/react";

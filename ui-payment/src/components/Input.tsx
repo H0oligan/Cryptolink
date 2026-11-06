@@ -10,7 +10,7 @@ interface Props<T extends Dictionary, K extends keyof T> {
     value: string;
 }
 
-const Input = <T extends Dictionary, K extends keyof T>(props: Props<T, K>): JSX.Element => {
+const Input = <T extends Dictionary, K extends keyof T>(props: Props<T, K>): React.JSX.Element => {
     const [error, changeError] = React.useState<boolean>();
 
     React.useEffect(() => {

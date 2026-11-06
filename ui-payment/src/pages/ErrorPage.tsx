@@ -1,6 +1,6 @@
 import * as React from "react";
 import Icon from "src/components/Icon";
-import {useNavigate, useLocation} from "react-router-dom";
+import {useNavigate, useLocation} from "react-router";
 import LoadingTextIcon from "src/components/LoadingTextIcon";
 import {Payment} from "src/types";
 
@@ -49,9 +49,9 @@ const ErrorPage: React.FC = () => {
                         <span className="block mx-auto text-sm font-medium text-card-desc text-center max-w-sm-desc-size mb-8 sm:mb-5">
                             {payment?.description || <i>No description provided</i>}
                         </span>
-                        <div className="mx-auto h-30 w-30 flex items-center justify-center mb-3 sm:mb-4">
+                        <div className="mx-auto flex items-center justify-center mb-3 sm:mb-4">
                             <div className="shrink-0 justify-self-center">
-                                <Icon name="error" className="h-30 w-30" />
+                                <Icon name="error" />
                             </div>
                         </div>
                         <span className="block mx-auto text-3xl font-medium text-center mb-6 text-card-error">

@@ -2,7 +2,7 @@ import "./App.css";
 
 import React from "react";
 import {useMount} from "react-use";
-import {Routes, Route, useNavigate, useLocation} from "react-router-dom";
+import {Routes, Route, useNavigate, useLocation} from "react-router";
 import SuccessPage from "src/pages/SuccessPage";
 import PaymentPage from "src/pages/PaymentPage";
 import UnderpaidPage from "src/pages/UnderpaidPage";

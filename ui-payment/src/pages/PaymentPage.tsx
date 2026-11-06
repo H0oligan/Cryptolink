@@ -1,7 +1,7 @@
 import * as React from "react";
 import * as Yup from "yup";
 import {useFormik} from "formik";
-import {useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router";
 import {QRCodeSVG} from "qrcode.react";
 import PayWithWallet from "src/wallet/PayWithWallet";
 import Icon from "src/components/Icon";

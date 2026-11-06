@@ -1,5 +1,5 @@
 import * as React from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import {useLocation, useNavigate} from "react-router";
 import Icon from "src/components/Icon";
 
 const SupportPage: React.FC = () => {

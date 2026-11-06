@@ -1,5 +1,5 @@
 import * as React from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import {useLocation, useNavigate} from "react-router";
 import {useMount} from "react-use";
 import Icon from "src/components/Icon";
 import {Payment} from "src/types";
@@ -67,7 +67,7 @@ const SuccessPage: React.FC = () => {
                     <span className="block mx-auto text-sm font-medium text-card-desc text-center max-w-sm-desc-size mb-8 sm:mb-5">
                         {payment?.description || <i>No description provided</i>}
                     </span>
-                    <div className="relative mb-8 sm:mb-8 after:absolute after:top-1/2 after:-translate-y-1/2 after:w-[calc(100%-32px)] after:h-px after:border-dashed after:border-[1px] after:my-auto after:border-main-green-3 after:left-1/2 after:-translate-x-1/2">
+                    <div className="relative mb-8 sm:mb-8 after:absolute after:top-1/2 after:-translate-y-1/2 after:w-[calc(100%-32px)] after:h-px after:border-dashed after:border after:my-auto after:border-main-green-3 after:left-1/2 after:-translate-x-1/2">
                         <div className="before:absolute before:-left-4 before:w-8 before:h-8 before:rounded-full before:my-auto before:bg-[#13131a] before:top-1/2 before:-translate-y-1/2 after:absolute after:-right-4 after:w-8 after:h-8 after:rounded-full after:my-auto after:bg-[#13131a] after:top-1/2 after:-translate-y-1/2">
                             <div className="w-full bg-[#1a1a2e] h-36 flex items-center justify-center">
                                 <span className="block mx-auto text-[30px] leading-[30px] font-medium text-center text-main-green-1 sm:max-w-sm-desc-size">

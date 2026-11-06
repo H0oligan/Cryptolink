@@ -1,5 +1,5 @@
 import * as React from "react";
-import {useNavigate, useLocation} from "react-router-dom";
+import {useNavigate, useLocation} from "react-router";
 import Icon from "src/components/Icon";
 import LoadingTextIcon from "src/components/LoadingTextIcon";
 import {usePaymentLink} from "src/hooks/linkContext";

@@ -21,5 +21,5 @@ export default defineConfig({
         __CRYPTOLINK_VERSION__: JSON.stringify(CRYPTOLINK_VERSION)
     },
     // @ts-ignore
-    plugins: [basicSsl(), svgr(), dynamicImport(), react()]
+    plugins: [basicSsl(), svgr({include: "**/*.svg", svgrOptions: {exportType: "named"}}), dynamicImport(), react()]
 });
