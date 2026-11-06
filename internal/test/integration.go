@@ -347,10 +347,9 @@ func (i *IntegrationTest) SetupCreateWalletWithSubscription(blockchain, address,
 }
 
 func setupTmpDir(t *testing.T, dir string) string {
-	fullPath := fmt.Sprintf("%s%s/%s", os.TempDir(), util.Strings.Random(6), dir)
+	fullPath := fmt.Sprintf("%s/%s", t.TempDir(), dir)
 
 	require.NoError(t, os.MkdirAll(fullPath, os.ModePerm))
-	t.Cleanup(func() { require.NoError(t, os.RemoveAll(fullPath)) })
 
 	return fullPath
 }

@@ -1,3 +1,4 @@
+-- +migrate Up
 -- Migration: Enhance merchant registration with business fields + email verification
 -- Add contacts table for GDPR-compliant invoice payer consent tracking
 
@@ -30,3 +31,16 @@ CREATE TABLE IF NOT EXISTS contacts (
 
 CREATE UNIQUE INDEX IF NOT EXISTS contacts_email_unique ON contacts (email);
 CREATE INDEX IF NOT EXISTS contacts_marketing_consent_idx ON contacts (marketing_consent);
+
+-- +migrate Down
+DROP TABLE IF EXISTS contacts;
+ALTER TABLE users
+    DROP COLUMN IF EXISTS company_name,
+    DROP COLUMN IF EXISTS address,
+    DROP COLUMN IF EXISTS website,
+    DROP COLUMN IF EXISTS phone,
+    DROP COLUMN IF EXISTS email_verified,
+    DROP COLUMN IF EXISTS verification_token,
+    DROP COLUMN IF EXISTS verification_token_expires,
+    DROP COLUMN IF EXISTS marketing_consent,
+    DROP COLUMN IF EXISTS terms_accepted_at;

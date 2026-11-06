@@ -56,7 +56,7 @@ type StringKey struct {
 }
 
 func (k StringKey) Int64() int64 {
-	return hash(k.Key)
+	return hash("%s", k.Key)
 }
 
 func hash(tpl string, args ...any) int64 {
