@@ -1,6 +1,5 @@
 import "./App.css";
 
-import "tw-elements";
 import React from "react";
 import {useMount} from "react-use";
 import {Routes, Route, useNavigate, useLocation} from "react-router-dom";

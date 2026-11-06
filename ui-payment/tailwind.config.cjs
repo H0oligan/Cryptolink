@@ -1,8 +1,12 @@
 /** @type {import("tailwindcss").Config} */
 module.exports = {
-    content: ["./src/**/*.{html,js,ts,tsx}", "./node_modules/tw-elements/dist/js/**/*.js"],
+    content: ["./src/**/*.{html,js,ts,tsx}", "./index.html"],
     theme: {
         extend: {
+            fontFamily: {
+                sans: ["Roboto", "sans-serif"],
+                mono: ["ui-monospace", "monospace"]
+            },
             colors: {
                 primary: "#818cf8",
                 "primary-darker": "#6366f1",
@@ -37,5 +41,5 @@ module.exports = {
             "lg": "640px"
         }
     },
-    plugins: [require("tw-elements/dist/plugin")]
+    plugins: []
 };
