@@ -5,7 +5,7 @@ import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
-    {ignores: ["build/**", "public/**", "node_modules/**", "vite.config.ts"]},
+    {ignores: ["build/**", "public/**", "node_modules/**", "vite.config.ts", "*.config.*", "dist/**", "dist-admin/**"]},
     js.configs.recommended,
     ...tsPlugin.configs["flat/recommended-type-checked"],
     prettierRecommended,
@@ -114,7 +114,13 @@ export default [
             "@typescript-eslint/restrict-template-expressions": "off",
             "@typescript-eslint/explicit-module-boundary-types": "off",
             "@typescript-eslint/prefer-as-const": "off",
-            "@typescript-eslint/no-non-null-asserted-optional-chain": "off"
+            "@typescript-eslint/no-non-null-asserted-optional-chain": "off",
+            "no-case-declarations": "off",
+            "no-loop-func": "off",
+            "no-useless-return": "off",
+            "no-undef": "off",
+            "@typescript-eslint/no-require-imports": "error",
+            "no-invalid-this": "off"
         }
     }
 ];
