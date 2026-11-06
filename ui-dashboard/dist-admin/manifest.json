@@ -1,6 +1,6 @@
 {
-  "name": "OxygenPay Dashboard",
-  "short_name": "OxygenPay",
+  "name": "CryptoLink Dashboard",
+  "short_name": "CryptoLink",
   "description": "Crypto payment gateway dashboard",
   "start_url": "/dashboard/",
   "display": "standalone",
