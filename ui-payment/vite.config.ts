@@ -7,7 +7,7 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 
 // CryptoLink public release tag (single-decimal scheme: 1.0, 2.0, …).
 // Single source of truth for the payment SPA — surfaces in the footer.
-const CRYPTOLINK_VERSION = "1.0";
+const CRYPTOLINK_VERSION = "2.0";
 
 // https://vitejs.dev/config/
 export default defineConfig({

@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <strong>Current release: <code>v1.0</code></strong> — see the <a href="https://cryptolink.cc/docs/#changelog">changelog</a> for what changed since.<br>
+  <strong>Current release: <code>v2.0</code></strong> — see the <a href="https://cryptolink.cc/docs/#changelog">changelog</a> for what changed in each release.<br>
   Single-decimal version scheme: <code>1.0</code> → <code>2.0</code> → <code>3.0</code>, bundled releases only.
 </p>
 
@@ -24,9 +24,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0-10b981.svg" alt="Version 1.0">
+  <img src="https://img.shields.io/badge/version-2.0-10b981.svg" alt="Version 2.0">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
-  <img src="https://img.shields.io/badge/go-1.25+-00ADD8.svg" alt="Go 1.25+">
+  <img src="https://img.shields.io/badge/go-1.26.10+-00ADD8.svg" alt="Go 1.26.10+">
   <img src="https://img.shields.io/badge/non--custodial-✓-10b981.svg" alt="Non-custodial">
   <img src="https://img.shields.io/badge/open%20source-✓-6366f1.svg" alt="Open Source">
 </p>
@@ -178,7 +178,7 @@ There are **no hardcoded admin addresses, merchant addresses, or backdoor functi
 ### Requirements
 
 - Linux server (Ubuntu 22.04+ / Debian 12+ recommended)
-- Go **1.25+**
+- Go **1.26.10+** (with the default `GOTOOLCHAIN=auto`, `go build` fetches it automatically)
 - PostgreSQL 14+
 - Node.js **20.19+** (or 22.12+) — required by Vite 8
 - RPC endpoints for the chains you enable (public, paid or your own nodes)
@@ -215,7 +215,7 @@ npx vite build                                        # → ./dist (serve it at 
 
 ```bash
 go build \
-  -ldflags "-w -s -X 'main.gitVersion=v1.0' -X 'main.embedFrontend=1'" \
+  -ldflags "-w -s -X 'main.gitVersion=v2.0' -X 'main.embedFrontend=1'" \
   -o ./bin/cryptolink .
 ```
 
@@ -265,6 +265,8 @@ server {
     }
 }
 ```
+
+**`X-Real-IP` is required.** Per-IP rate limits read the client address from it and ignore `X-Forwarded-For`, which clients can forge. Keep the app bound to `127.0.0.1`. Behind a CDN or another proxy, restore the real client address first (nginx `set_real_ip_from` plus `real_ip_header`; for Cloudflare, `CF-Connecting-IP`), or all visitors will share one rate-limit bucket.
 
 Step-by-step production instructions (PostgreSQL, systemd, TLS, firewall): **[Self-hosting guide →](https://cryptolink.cc/docs/#self-hosting)**
 
@@ -372,7 +374,7 @@ When a merchant exceeds their plan, payment creation returns **HTTP 402** with `
 
 - Constant-time HMAC verification; HMAC-SHA512 signed webhooks
 - **SSRF protection** on merchant webhook URLs, enforced on the IP actually dialed (covers DNS rebinding and redirects)
-- Login throttling per account (not only per IP), no account enumeration on login / registration, verified email required for merchants
+- Login throttling per account and per IP, keyed on an address clients cannot forge; no account enumeration on login / registration, verified email required for merchants
 - Wallet sign-in handoff: single-use 2-minute tokens kept in the URL fragment, PC approval with a 6-digit code, never silently replaces another signed-in account
 - CSRF protection, HSTS / CSP / X-Frame-Options, rate-limited auth, parameterized SQL (sqlc), bcrypt passwords
 - Non-custodial contracts: no admin keys, owner fixed at deployment

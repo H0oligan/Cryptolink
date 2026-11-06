@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CryptoLink v1.0 Documentation - Self-Hosted Crypto Payment Gateway</title>
-    <meta name="description" content="Complete documentation for CryptoLink v1.0 - open-source, self-hosted, non-custodial crypto payment gateway. API reference, integration guides, and self-hosting instructions.">
+    <title>CryptoLink v2.0 Documentation - Self-Hosted Crypto Payment Gateway</title>
+    <meta name="description" content="Complete documentation for CryptoLink v2.0 - open-source, self-hosted, non-custodial crypto payment gateway. API reference, integration guides, and self-hosting instructions.">
     <meta name="version" content="1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@
         <span><em>Crypto</em>Link</span>
     </a>
     <span class="header-badge">Docs</span>
-    <span class="header-badge" style="background:var(--secondary);">v1.0</span>
+    <span class="header-badge" style="background:var(--secondary);">v2.0</span>
     <div class="header-right">
         <a href="/merchants/login" class="header-link">Dashboard →</a>
     </div>
@@ -410,14 +410,14 @@
 <!-- ═══════════════════════════════════════════════════════ -->
 <section id="introduction" class="doc-section">
     <div class="section-label">Overview</div>
-    <h1 class="section-title">CryptoLink Documentation <span style="font-size:0.5em;vertical-align:middle;background:var(--secondary);color:#fff;padding:4px 10px;border-radius:6px;margin-left:0.5em;font-weight:600;letter-spacing:0.05em;">v1.0</span></h1>
+    <h1 class="section-title">CryptoLink Documentation <span style="font-size:0.5em;vertical-align:middle;background:var(--secondary);color:#fff;padding:4px 10px;border-radius:6px;margin-left:0.5em;font-weight:600;letter-spacing:0.05em;">v2.0</span></h1>
     <p class="section-intro">
         CryptoLink is a 100% open-source, self-hosted, non-custodial crypto payment gateway.
         Accept Bitcoin, Ethereum, USDT, USDC, TRON, and more — on your own server, with your own keys.
         No third party ever touches your funds. No per-transaction fees. No lock-in.
     </p>
     <p class="section-intro" style="font-size:0.9em;color:var(--text-muted);">
-        Current release: <strong style="color:var(--secondary);">CryptoLink v1.0</strong>. See the
+        Current release: <strong style="color:var(--secondary);">CryptoLink v2.0</strong>. See the
         <a href="#changelog" style="color:var(--primary-light);">Changelog</a> for what shipped in this release.
     </p>
 
@@ -2819,7 +2819,7 @@ class WC_CryptoLink_Webhook {
                 <tr><td>CPU</td><td>1 vCPU</td><td>2+ vCPU</td></tr>
                 <tr><td>RAM</td><td>1 GB</td><td>2 GB</td></tr>
                 <tr><td>Disk</td><td>10 GB SSD</td><td>20+ GB SSD</td></tr>
-                <tr><td>Go</td><td>1.25+</td><td>Latest stable</td></tr>
+                <tr><td>Go</td><td>1.26.10+</td><td>Latest stable</td></tr>
                 <tr><td>PostgreSQL</td><td>14+</td><td>15+</td></tr>
                 <tr><td>Node.js</td><td>20.19+ or 22.12+ (build only)</td><td>22 LTS</td></tr>
                 <tr><td>Nginx</td><td>1.18+</td><td>Latest stable</td></tr>
@@ -2839,10 +2839,10 @@ sudo apt install -y postgresql postgresql-contrib
 # Install Nginx
 sudo apt install -y nginx
 
-# Install Go 1.21+
-wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz
+# Install Go 1.26.10+
+wget https://go.dev/dl/go1.26.10.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.10.linux-amd64.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 source ~/.bashrc
 go version  # verify
@@ -2961,7 +2961,7 @@ cd ui-payment && npm install --legacy-peer-deps && npx vite build && cd ..
 
 # Now build the Go binary (embeds the freshly built dist/ for the merchant SPA)
 go build \
-  -ldflags "-w -s -X 'main.gitVersion=v1.0.0' -X 'main.gitCommit=stable' -X 'main.embedFrontend=1'" \
+  -ldflags "-w -s -X 'main.gitVersion=v2.0' -X 'main.gitCommit=stable' -X 'main.embedFrontend=1'" \
   -o /opt/cryptolink/bin/cryptolink .
 
 # Deploy static assets to your web root
@@ -3362,10 +3362,16 @@ sudo ufw enable</code></pre>
 
     <div style="margin-top: 1.5rem; padding: 1.5rem; background: var(--dark2); border: 1px solid var(--border); border-radius: 8px;">
         <h2 style="font-size: 1.4rem; margin-bottom: 0.4rem;">
-            Unreleased
+            v2.0
             <span style="display:inline-block;background:var(--secondary);color:#fff;font-size:0.55em;padding:3px 9px;border-radius:5px;vertical-align:middle;margin-left:0.5em;letter-spacing:0.05em;">CURRENT</span>
         </h2>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Changes on <code>main</code> since v1.0 (2026-05-04) — deployed, not yet tagged as a release.</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Released 2026-11-06 — everything shipped since v1.0 (2026-05-04), plus the dependency and security update below.</p>
+
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Upgrade notes</h3>
+        <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li>Building from source now needs <strong>Go 1.26.10 or newer</strong>.</li>
+            <li><strong>Check your reverse proxy.</strong> Per-IP rate limits now read <code>X-Real-IP</code> and ignore <code>X-Forwarded-For</code>. Set <code>X-Real-IP</code> to the client address and keep the app bound to loopback. Behind Cloudflare or another CDN, restore the real address first with nginx <code>set_real_ip_from</code> and <code>real_ip_header</code>, or all visitors will share one rate-limit bucket.</li>
+        </ul>
 
         <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Wallets &amp; checkout</h3>
         <ul style="margin-left:1.2rem;color:var(--text-muted);">
@@ -3408,6 +3414,8 @@ sudo ufw enable</code></pre>
 
         <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Security</h3>
         <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li><strong>Per-IP rate limits can no longer be bypassed with a forged <code>X-Forwarded-For</code> header.</strong> Login, registration and other limits now key on an address the client cannot choose.</li>
+            <li>Go toolchain raised to 1.26.10; <code>echo</code>, <code>golang.org/x/*</code>, <code>gorilla/websocket</code>, <code>mongo-driver</code> and OpenTelemetry upgraded; all high-severity npm advisories resolved in the dashboards and checkout.</li>
             <li>Merchant webhook URLs are checked against private, loopback and link-local destinations on the IP actually dialed (covers DNS rebinding and redirects).</li>
             <li>Login is throttled per account as well as per IP; login and registration no longer reveal whether an email exists; merchants must verify their email.</li>
             <li>An unauthenticated legacy webhook route was removed.</li>
@@ -3448,6 +3456,8 @@ sudo ufw enable</code></pre>
 
         <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Security</h3>
         <ul style="margin-left:1.2rem;color:var(--text-muted);">
+            <li><strong>Per-IP rate limits can no longer be bypassed with a forged <code>X-Forwarded-For</code> header.</strong> Login, registration and other limits now key on an address the client cannot choose.</li>
+            <li>Go toolchain raised to 1.26.10; <code>echo</code>, <code>golang.org/x/*</code>, <code>gorilla/websocket</code>, <code>mongo-driver</code> and OpenTelemetry upgraded; all high-severity npm advisories resolved in the dashboards and checkout.</li>
             <li>Go toolchain bumped to 1.25.9 — closes 12 stdlib CVEs (<code>crypto/x509</code>, <code>crypto/tls</code>, <code>html/template</code>, <code>os</code>, <code>net/url</code>).</li>
             <li><code>btcd</code> 0.20.1-beta → 0.25.0 (witness-size critical, FindAndDelete high, consensus moderate).</li>
             <li><code>oauth2</code>, <code>otel</code>, <code>pgx</code>, <code>vite</code>, <code>esbuild</code>, <code>@ant-design/pro-*</code> family all bumped past their dependabot CVEs.</li>

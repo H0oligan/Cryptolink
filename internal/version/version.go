@@ -4,4 +4,4 @@
 // import cycle through the cmd or app packages.
 package version
 
-const Release = "1.0"
+const Release = "2.0"
