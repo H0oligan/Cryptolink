@@ -138,7 +138,7 @@ func withHealthcheck(e *echo.Echo) {
 
 // WithVersionHeader stamps every response with X-CryptoLink-Version and
 // exposes a public GET /api/version endpoint that returns {release, commit}.
-// Single-decimal scheme: 1.0, 2.0, 3.0, … The /api/ prefix is required so
+// Versions are x.y: 2.0, 2.1, … with x.0 for major updates. The /api/ prefix is required so
 // nginx routes the request to the Go binary instead of falling through to
 // the SPA's 404 page.
 func WithVersionHeader(release, commit string) Opt {

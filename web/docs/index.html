@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CryptoLink v2.0 Documentation - Self-Hosted Crypto Payment Gateway</title>
-    <meta name="description" content="Complete documentation for CryptoLink v2.0 - open-source, self-hosted, non-custodial crypto payment gateway. API reference, integration guides, and self-hosting instructions.">
+    <title>CryptoLink v2.1 Documentation - Self-Hosted Crypto Payment Gateway</title>
+    <meta name="description" content="Complete documentation for CryptoLink v2.1 - open-source, self-hosted, non-custodial crypto payment gateway. API reference, integration guides, and self-hosting instructions.">
     <meta name="version" content="1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@
         <span><em>Crypto</em>Link</span>
     </a>
     <span class="header-badge">Docs</span>
-    <span class="header-badge" style="background:var(--secondary);">v2.0</span>
+    <span class="header-badge" style="background:var(--secondary);">v2.1</span>
     <div class="header-right">
         <a href="/merchants/login" class="header-link">Dashboard →</a>
     </div>
@@ -410,14 +410,14 @@
 <!-- ═══════════════════════════════════════════════════════ -->
 <section id="introduction" class="doc-section">
     <div class="section-label">Overview</div>
-    <h1 class="section-title">CryptoLink Documentation <span style="font-size:0.5em;vertical-align:middle;background:var(--secondary);color:#fff;padding:4px 10px;border-radius:6px;margin-left:0.5em;font-weight:600;letter-spacing:0.05em;">v2.0</span></h1>
+    <h1 class="section-title">CryptoLink Documentation <span style="font-size:0.5em;vertical-align:middle;background:var(--secondary);color:#fff;padding:4px 10px;border-radius:6px;margin-left:0.5em;font-weight:600;letter-spacing:0.05em;">v2.1</span></h1>
     <p class="section-intro">
         CryptoLink is a 100% open-source, self-hosted, non-custodial crypto payment gateway.
         Accept Bitcoin, Ethereum, USDT, USDC, TRON, and more — on your own server, with your own keys.
         No third party ever touches your funds. No per-transaction fees. No lock-in.
     </p>
     <p class="section-intro" style="font-size:0.9em;color:var(--text-muted);">
-        Current release: <strong style="color:var(--secondary);">CryptoLink v2.0</strong>. See the
+        Current release: <strong style="color:var(--secondary);">CryptoLink v2.1</strong>. See the
         <a href="#changelog" style="color:var(--primary-light);">Changelog</a> for what shipped in this release.
     </p>
 
@@ -2961,7 +2961,7 @@ cd ui-payment && npm install --legacy-peer-deps && npx vite build && cd ..
 
 # Now build the Go binary (embeds the freshly built dist/ for the merchant SPA)
 go build \
-  -ldflags "-w -s -X 'main.gitVersion=v2.0' -X 'main.gitCommit=stable' -X 'main.embedFrontend=1'" \
+  -ldflags "-w -s -X 'main.gitVersion=v2.1' -X 'main.gitCommit=stable' -X 'main.embedFrontend=1'" \
   -o /opt/cryptolink/bin/cryptolink .
 
 # Deploy static assets to your web root
@@ -3354,7 +3354,7 @@ sudo ufw enable</code></pre>
     <div class="section-label">Releases</div>
     <h1 class="section-title">Changelog</h1>
     <p class="section-intro">
-        CryptoLink uses a single-decimal version scheme: <code>1.0</code>, <code>2.0</code>, <code>3.0</code>, …
+        CryptoLink versions are <code>x.y</code>: minor updates go <code>2.0</code>, <code>2.1</code>, <code>2.2</code>, and <code>x.0</code> marks a major update.
         Each release bundles backend, dashboard, payment SPA, and DB migrations together so a self-hosted
         instance moves between versions in one deploy. Tag the running version on your own infra by checking
         the <code>X-CryptoLink-Version</code> response header on any merchant API call (added from v1.0 onward).
@@ -3362,8 +3362,30 @@ sudo ufw enable</code></pre>
 
     <div style="margin-top: 1.5rem; padding: 1.5rem; background: var(--dark2); border: 1px solid var(--border); border-radius: 8px;">
         <h2 style="font-size: 1.4rem; margin-bottom: 0.4rem;">
-            v2.0
+            v2.1
             <span style="display:inline-block;background:var(--secondary);color:#fff;font-size:0.55em;padding:3px 9px;border-radius:5px;vertical-align:middle;margin-left:0.5em;letter-spacing:0.05em;">CURRENT</span>
+        </h2>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Released 2026-11-07 — every dependency moved to a current, supported version. No database migrations.</p>
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Changed</h3>
+        <ul>
+            <li>Backend: pgx v5, Echo v5, btcutil v2, and current versions of the remaining Go modules. BTC address derivation is unchanged and now covered by tests.</li>
+            <li>Frontends: React 19, react-router 8, TanStack Query 5, Tailwind CSS 4, TypeScript 6 and ESLint 10. Removed the unused tw-elements package.</li>
+        </ul>
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Fixed</h3>
+        <ul>
+            <li>Load more on the Payments and Withdrawals lists kept its type filter only on the first page.</li>
+            <li>Resolved the open dependency security advisories, including those in pgx, react-router and deepmerge.</li>
+        </ul>
+        <h3 style="font-size:1rem;color:var(--secondary-light);margin-top:1rem;">Upgrade notes</h3>
+        <ul>
+            <li>If <code>CORS_ALLOW_ORIGINS</code> is empty, the server no longer sends CORS headers, so only same-origin requests work. Set it if your frontends live on another domain.</li>
+            <li>With a wildcard <code>*</code> origin, credentials are no longer allowed.</li>
+        </ul>
+    </div>
+
+    <div style="margin-top: 1.5rem; padding: 1.5rem; background: var(--dark2); border: 1px solid var(--border); border-radius: 8px;">
+        <h2 style="font-size: 1.4rem; margin-bottom: 0.4rem;">
+            v2.0
         </h2>
         <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Released 2026-11-06 — everything shipped since v1.0 (2026-05-04), plus the dependency and security update below.</p>
 
@@ -3474,9 +3496,8 @@ sudo ufw enable</code></pre>
     </div>
 
     <p style="margin-top:1.5rem;color:var(--text-dim);font-size:0.85rem;">
-        Future releases bump the major: <code>v2.0</code>, <code>v3.0</code>, … The single-decimal scheme avoids
-        semver bikeshedding for a self-hosted product where every release is bundled and migration-tested
-        end-to-end.
+        Minor updates raise the second number, and <code>x.0</code> is kept for major updates. Every release is
+        bundled and migration-tested end-to-end.
     </p>
 </section>
 
