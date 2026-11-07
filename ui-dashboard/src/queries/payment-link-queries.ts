@@ -8,55 +8,45 @@ const paymentLinkQueriers = {
     listPaymentLinks: (): UseQueryResult<PaymentLink[]> => {
         const {merchantId} = useSharedMerchantId();
 
-        return useQuery(
-            ["listPaymentLinks"],
-            () => {
+        return useQuery({
+            queryKey: ["listPaymentLinks"],
+            queryFn: () => {
                 return paymentLinkProvider.listPaymentLinks(merchantId!);
             },
-            {
-                staleTime: Infinity,
-                enabled: Boolean(merchantId),
-                retry: 2
-            }
-        );
+            staleTime: Infinity,
+            enabled: Boolean(merchantId),
+            retry: 2
+        });
     },
 
     createPaymentLink: () => {
         const {merchantId} = useSharedMerchantId();
         const queryClient = useQueryClient();
 
-        return useMutation(
-            (params: PaymentLinkParams) => {
+        return useMutation({
+            mutationFn: (params: PaymentLinkParams) => {
                 return paymentLinkProvider.createPaymentLink(merchantId!, params);
             },
-            {
-                onSuccess: async () => {
-                    await sleep(1000);
-                    queryClient.invalidateQueries(["listPaymentLinks"], {
-                        refetchPage: (_page, index, allPages) => index === allPages.length - 1
-                    });
-                }
+            onSuccess: async () => {
+                await sleep(1000);
+                queryClient.invalidateQueries({queryKey: ["listPaymentLinks"]});
             }
-        );
+        });
     },
 
     deletePaymentLink: () => {
         const {merchantId} = useSharedMerchantId();
         const queryClient = useQueryClient();
 
-        return useMutation(
-            (paymentLinkId: string) => {
+        return useMutation({
+            mutationFn: (paymentLinkId: string) => {
                 return paymentLinkProvider.deletePaymentLink(merchantId!, paymentLinkId);
             },
-            {
-                onSuccess: async () => {
-                    await sleep(1000);
-                    queryClient.invalidateQueries(["listPaymentLinks"], {
-                        refetchPage: (_page, index, allPages) => index === allPages.length - 1
-                    });
-                }
+            onSuccess: async () => {
+                await sleep(1000);
+                queryClient.invalidateQueries({queryKey: ["listPaymentLinks"]});
             }
-        );
+        });
     }
 };
 

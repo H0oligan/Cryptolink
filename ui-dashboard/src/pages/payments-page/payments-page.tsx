@@ -1,3 +1,4 @@
+import {useQueryClient} from "@tanstack/react-query";
 import "./payments-page.scss";
 
 import * as React from "react";
@@ -127,8 +128,9 @@ const PaymentsPage: React.FC = () => {
     );
     const [isFormSubmitting, setIsFormSubmitting] = React.useState<boolean>(false);
     const {merchantId} = useSharedMerchantId();
+    const queryClient = useQueryClient();
 
-    const isLoading = listPayments.isLoading || createPayment.isLoading || listPayments.isFetching;
+    const isLoading = listPayments.isPending || createPayment.isPending || listPayments.isFetching;
 
     useMount(async () => {
         if (!merchantId) {
@@ -136,7 +138,7 @@ const PaymentsPage: React.FC = () => {
         }
 
         await sleep(1000);
-        listPayments.remove();
+        queryClient.removeQueries({queryKey: ["listPayments"]});
 
         await listPayments.refetch();
     });
@@ -239,7 +241,7 @@ const PaymentsPage: React.FC = () => {
             {contextHolder}
             <Row align="middle" justify="space-between">
                 <Typography.Title>Payments</Typography.Title>
-                <Row gap={8} style={{gap: 8, marginTop: 20}}>
+                <Row style={{gap: 8, marginTop: 20}}>
                     <Button onClick={exportCSV}>Export CSV</Button>
                     <Button type="primary" onClick={() => setFormOpen(true)}>
                         New Payment

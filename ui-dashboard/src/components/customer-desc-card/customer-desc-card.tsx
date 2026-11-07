@@ -86,7 +86,7 @@ const CustomerDescCard: React.FC<Props> = (props: Props) => {
         }
     };
 
-    const isLoading = getCustomer.isLoading || getPayment.isLoading;
+    const isLoading = getCustomer.isPending || getPayment.isPending;
 
     return (
         <>

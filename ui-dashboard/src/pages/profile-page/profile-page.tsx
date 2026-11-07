@@ -117,7 +117,7 @@ const ProfilePage: React.FC = () => {
                     <Form.Item name="email" label="Email" rules={[{required: true, type: "email", message: "Valid email is required"}]}>
                         <Input placeholder="your@email.com" />
                     </Form.Item>
-                    <Divider orientation="left" orientationMargin={0}>
+                    <Divider titlePlacement="start" orientationMargin={0}>
                         <Typography.Text type="secondary" style={{fontSize: 13}}>Business Information</Typography.Text>
                     </Divider>
                     <Form.Item name="companyName" label="Company / Organization">

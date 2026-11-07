@@ -2,7 +2,7 @@ import "./login-page.scss";
 
 import * as React from "react";
 import {AxiosError} from "axios";
-import {useNavigate, useLocation, useSearchParams} from "react-router-dom";
+import {useNavigate, useLocation, useSearchParams} from "react-router";
 import {Button, Typography, Form, Input, Checkbox, Divider, notification} from "antd";
 import {GoogleOutlined, CheckOutlined} from "@ant-design/icons";
 const logoImg = "/logo.svg";

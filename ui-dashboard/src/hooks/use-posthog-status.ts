@@ -8,7 +8,7 @@ interface PosthogStatus {
 }
 
 const usePosthogStatus = (): PosthogStatus => {
-    const [isPosthogActive, setIsPosthogActive] = React.useState<boolean>(posthogConfig?.apiKey?.length > 0 ?? false);
+    const [isPosthogActive, setIsPosthogActive] = React.useState<boolean>(posthogConfig?.apiKey?.length > 0);
 
     return {
         isPosthogActive,

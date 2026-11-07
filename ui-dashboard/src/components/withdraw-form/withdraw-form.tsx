@@ -189,10 +189,10 @@ const WithdrawForm: React.FC<Props> = (props: Props) => {
     }, [amount]);
 
     React.useEffect(() => {
-        if (!getServiceFee.isLoading) {
+        if (!getServiceFee.isPending) {
             setFee(getServiceFee.data);
         }
-    }, [getServiceFee.isLoading]);
+    }, [getServiceFee.isPending]);
 
     const renderTotalSum = () => {
         if (props.balance.amount === "empty" || !fee) {
@@ -304,7 +304,7 @@ const WithdrawForm: React.FC<Props> = (props: Props) => {
     };
 
     const isLoading =
-        getServiceFee.isLoading || !availableBalance || Boolean(checkCorrectAmount() && (!fee || !convertedAmount));
+        getServiceFee.isPending || !availableBalance || Boolean(checkCorrectAmount() && (!fee || !convertedAmount));
 
     const filteredAddresses = filterAddresses();
 
@@ -313,7 +313,7 @@ const WithdrawForm: React.FC<Props> = (props: Props) => {
             <Form<Withdrawal> form={form} initialValues={{id: uuidv4()}} onFinish={onSubmit} layout="vertical">
                 <SpinWithMask isLoading={isLoading} />
 
-                {!getServiceFee.isLoading && Boolean(filteredAddresses.length) && availableBalance && (
+                {!getServiceFee.isPending && Boolean(filteredAddresses.length) && availableBalance && (
                     <>
                         <Form.Item label="Selected balance" name="balanceId" initialValue={balanceId}>
                             <Input className={b("input-disabled")} disabled />

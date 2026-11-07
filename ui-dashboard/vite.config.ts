@@ -43,5 +43,5 @@ export default defineConfig({
             }
         }
     },
-    plugins: [basicSsl(), svgr(), dynamicImport(), react(), globalPolyfill()]
+    plugins: [basicSsl(), svgr({include: "**/*.svg", svgrOptions: {exportType: "named"}}), dynamicImport(), react(), globalPolyfill()]
 });

@@ -2,7 +2,7 @@ import "./app.scss";
 
 import * as React from "react";
 import {AxiosError} from "axios";
-import {Routes, Route, useLocation, useNavigate, Navigate} from "react-router-dom";
+import {Routes, Route, useLocation, useNavigate, Navigate} from "react-router";
 import {useMount} from "react-use";
 import {ProLayout, RouteContext, RouteContextType} from "@ant-design/pro-components";
 import {
@@ -177,7 +177,7 @@ const AdminApp: React.FC = () => {
                         loading={isLoading}
                         navTheme={isDark ? "realDark" : "light"}
                         actionsRender={() => [<HeaderActions key="actions" user={user} menu={userMenu} />]}
-                        menuItemRender={(item: MenuItem, dom: React.ReactNode) => (
+                        menuItemRender={(item, dom) => (
                             <RouteContext.Consumer>
                                 {(routeCtx: RouteContextType) => (
                                     <div onClick={routeCtx.isMobile ? undefined : () => navigate(item.path || "/")}>

@@ -37,7 +37,7 @@ const CustomersPage: React.FC = () => {
     );
     const {merchantId} = useSharedMerchantId();
 
-    const isLoading = listCustomers.isLoading || listCustomers.isFetching;
+    const isLoading = listCustomers.isPending || listCustomers.isFetching;
 
     React.useEffect(() => {
         setCustomers(flatten((listCustomers.data?.pages || []).map((page) => page.results)));

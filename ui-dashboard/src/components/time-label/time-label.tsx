@@ -1,6 +1,6 @@
 import * as React from "react";
 import {parseISO} from "date-fns";
-import {format, utcToZonedTime} from "date-fns-tz";
+import {format, toZonedTime} from "date-fns-tz";
 import CollapseString from "src/components/collapse-string/collapse-string";
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 
 const TimeLabel: React.FC<Props> = (props: Props) => {
     const formatInTimeZone = (tz: string) => {
-        return format(utcToZonedTime(parseISO(props.time), tz), "yyyy-MM-dd HH:mm", {timeZone: tz}) + " " + tz;
+        return format(toZonedTime(parseISO(props.time), tz), "yyyy-MM-dd HH:mm", {timeZone: tz}) + " " + tz;
     };
 
     return (

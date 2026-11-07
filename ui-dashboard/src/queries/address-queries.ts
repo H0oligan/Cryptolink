@@ -8,74 +8,60 @@ const addressQueries = {
     listAddresses: (): UseQueryResult<MerchantAddress[]> => {
         const {merchantId} = useSharedMerchantId();
 
-        return useQuery(
-            ["listAddresses"],
-            () => {
+        return useQuery({
+            queryKey: ["listAddresses"],
+            queryFn: () => {
                 return addressProvider.listAddresses(merchantId!);
             },
-            {
-                staleTime: Infinity,
-                enabled: Boolean(merchantId),
-                retry: 2
-            }
-        );
+            staleTime: Infinity,
+            enabled: Boolean(merchantId),
+            retry: 2
+        });
     },
 
     createAddress: () => {
         const {merchantId} = useSharedMerchantId();
         const queryClient = useQueryClient();
 
-        return useMutation(
-            (params: MerchantAddressParams) => {
+        return useMutation({
+            mutationFn: (params: MerchantAddressParams) => {
                 return addressProvider.createAddress(merchantId!, params);
             },
-            {
-                onSuccess: async () => {
-                    await sleep(1000);
-                    queryClient.invalidateQueries(["listAddresses"], {
-                        refetchPage: (_page, index, allPages) => index === allPages.length - 1
-                    });
-                }
+            onSuccess: async () => {
+                await sleep(1000);
+                queryClient.invalidateQueries({queryKey: ["listAddresses"]});
             }
-        );
+        });
     },
 
     updateAddress: () => {
         const {merchantId} = useSharedMerchantId();
         const queryClient = useQueryClient();
 
-        return useMutation(
-            (params: MerchantAddress) => {
+        return useMutation({
+            mutationFn: (params: MerchantAddress) => {
                 return addressProvider.updateAddress(merchantId!, params.id, params.name);
             },
-            {
-                onSuccess: async () => {
-                    await sleep(1000);
-                    queryClient.invalidateQueries(["listAddresses"], {
-                        refetchPage: (_page, index, allPages) => index === allPages.length - 1
-                    });
-                }
+            onSuccess: async () => {
+                await sleep(1000);
+                queryClient.invalidateQueries({queryKey: ["listAddresses"]});
             }
-        );
+        });
     },
 
     deleteAddress: () => {
         const {merchantId} = useSharedMerchantId();
         const queryClient = useQueryClient();
 
-        return useMutation(
-            (addressId: string) => {
+        return useMutation({
+            mutationFn: (addressId: string) => {
                 return addressProvider.deleteAddress(merchantId!, addressId);
             },
-            {
-                onSuccess: async () => {
-                    await sleep(1000);
-                    queryClient.invalidateQueries(["listAddresses"], {
-                        refetchPage: (_page, index, allPages) => index === allPages.length - 1
-                    });
-                }
+            onSuccess: async () => {
+                await sleep(1000);
+                queryClient.invalidateQueries({queryKey: ["listAddresses"]});
             }
-        );
+        });
     }
 };
 

@@ -30,7 +30,7 @@ const ApiKeysSection: React.FC<Props> = (props: Props) => {
     const [isCreatingTokenFormOpen, setIsCreatingTokenFormOpen] = React.useState<boolean>(false);
     const [isFormSubmitting, setIsFormSubmitting] = React.useState<boolean>(false);
 
-    const isLoading = listTokens.isLoading || listTokens.isFetching || deleteToken.isLoading || createToken.isLoading;
+    const isLoading = listTokens.isPending || listTokens.isFetching || deleteToken.isPending || createToken.isPending;
 
     const deleteSelectedToken = async (token: MerchantToken) => {
         try {

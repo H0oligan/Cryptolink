@@ -1,4 +1,4 @@
-import {useInfiniteQuery, UseInfiniteQueryResult, useQueryClient, useMutation} from "@tanstack/react-query";
+import {InfiniteData, useInfiniteQuery, UseInfiniteQueryResult, useQueryClient, useMutation} from "@tanstack/react-query";
 import useSharedMerchantId from "src/hooks/use-merchant-id";
 import balancesProvider from "src/providers/balance-provider";
 import merchantProvider from "src/providers/merchant-provider";
@@ -8,86 +8,76 @@ import {sleep} from "src/utils";
 const PAGE_SIZE = 50;
 
 const balancesQueries = {
-    listBalances: (): UseInfiniteQueryResult<MerchantBalance[]> => {
+    listBalances: (): UseInfiniteQueryResult<InfiniteData<MerchantBalance[]>> => {
         const {merchantId} = useSharedMerchantId();
 
-        return useInfiniteQuery(
-            ["listBalances"],
-            () => {
+        return useInfiniteQuery({
+            queryKey: ["listBalances"],
+            queryFn: () => {
                 return balancesProvider.listBalances(merchantId!);
             },
-            {
-                staleTime: Infinity,
-                enabled: Boolean(merchantId),
-                retry: 2
-            }
-        );
+            initialPageParam: undefined,
+            getNextPageParam: () => undefined,
+            staleTime: Infinity,
+            enabled: Boolean(merchantId),
+            retry: 2
+        });
     },
 
-    listWithdrawal: (): UseInfiniteQueryResult<PaymentsPagination> => {
+    listWithdrawal: (): UseInfiniteQueryResult<InfiniteData<PaymentsPagination>> => {
         const {merchantId} = useSharedMerchantId();
 
-        return useInfiniteQuery(
-            ["listWithdrawal"],
-            ({pageParam = {cursor: "", type: "withdrawal"}}) => {
+        return useInfiniteQuery({
+            queryKey: ["listWithdrawal"],
+            queryFn: ({pageParam}) => {
                 return merchantProvider.listPayments(merchantId!, {
                     limit: PAGE_SIZE,
-                    cursor: pageParam?.cursor || "",
-                    type: pageParam.type,
+                    cursor: pageParam,
+                    type: "withdrawal",
                     reverseOrder: true
                 });
             },
-            {
-                staleTime: Infinity,
-                enabled: Boolean(merchantId),
-                getNextPageParam: (lastPage) => {
-                    if (!lastPage.cursor) {
-                        return undefined;
-                    }
-                    return {
-                        cursor: lastPage.cursor
-                    };
-                },
-                retry: 2
-            }
-        );
+            initialPageParam: "",
+            getNextPageParam: (lastPage) => lastPage.cursor || undefined,
+            staleTime: Infinity,
+            enabled: Boolean(merchantId),
+            retry: 2
+        });
     },
 
     createWithdrawal: () => {
         const {merchantId} = useSharedMerchantId();
         const queryClient = useQueryClient();
 
-        return useMutation(
-            (params: Withdrawal) => {
+        return useMutation({
+            mutationFn: (params: Withdrawal) => {
                 return balancesProvider.createWithdrawal(merchantId!, params);
             },
-            {
-                onSuccess: async () => {
-                    await sleep(1000);
-                    queryClient.invalidateQueries(["listWithdrawal"], {
-                        refetchPage: (_page, index, allPages) => index === allPages.length - 1
-                    });
-                    queryClient.invalidateQueries(["listBalances"], {
-                        refetchPage: (_page, index, allPages) => index === allPages.length - 1
-                    });
-                }
+            onSuccess: async () => {
+                await sleep(1000);
+                queryClient.invalidateQueries({queryKey: ["listWithdrawal"]});
+                queryClient.invalidateQueries({queryKey: ["listBalances"]});
             }
-        );
+        });
     },
 
     getServiceFee: () => {
         const {merchantId} = useSharedMerchantId();
 
-        return useMutation((balanceId: string) => {
-            return balancesProvider.getServiceFee(merchantId!, balanceId);
+        return useMutation({
+            mutationFn: (balanceId: string) => {
+                return balancesProvider.getServiceFee(merchantId!, balanceId);
+            }
         });
     },
 
     getExchangeRate: () => {
         const {merchantId} = useSharedMerchantId();
 
-        return useMutation((params: ConvertParams) => {
-            return balancesProvider.getCurrencyExchangeRate(merchantId!, params);
+        return useMutation({
+            mutationFn: (params: ConvertParams) => {
+                return balancesProvider.getCurrencyExchangeRate(merchantId!, params);
+            }
         });
     }
 };

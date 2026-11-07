@@ -31,11 +31,11 @@ const WithdrawAddresses: React.FC<Props> = (props: Props) => {
     const {merchantId} = useSharedMerchantId();
 
     const isLoading =
-        listAddresses.isLoading ||
+        listAddresses.isPending ||
         listAddresses.isFetching ||
-        createAddress.isLoading ||
-        updateAddress.isLoading ||
-        deleteAddress.isLoading;
+        createAddress.isPending ||
+        updateAddress.isPending ||
+        deleteAddress.isPending;
 
     const deleteSelectedAddress = async (value: MerchantAddress) => {
         try {

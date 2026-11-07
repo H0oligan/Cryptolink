@@ -2,7 +2,7 @@ import "./app.scss";
 
 import * as React from "react";
 import {AxiosError} from "axios";
-import {Routes, Route, useLocation, useNavigate} from "react-router-dom";
+import {Routes, Route, useLocation, useNavigate} from "react-router";
 import {useMount} from "react-use";
 import {ProLayout, RouteContext, RouteContextType} from "@ant-design/pro-components";
 import {
@@ -391,7 +391,7 @@ const App: React.FC = () => {
                                     }
                                 />
                             ]}
-                            menuItemRender={(item: MenuItem, dom: React.ReactNode) => {
+                            menuItemRender={(item, dom) => {
                                 const isLink = item.path?.includes("http", 0);
 
                                 return (

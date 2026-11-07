@@ -1,5 +1,5 @@
 import React from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router";
 import {Button, Result, Space, Spin, Typography} from "antd";
 import {AxiosError} from "axios";
 import authProvider from "src/providers/auth-provider";

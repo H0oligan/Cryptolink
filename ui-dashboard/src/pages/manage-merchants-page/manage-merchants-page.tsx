@@ -1,7 +1,7 @@
 import * as React from "react";
 import {useAsyncFn} from "react-use";
 import {PageContainer} from "@ant-design/pro-components";
-import {useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router";
 import {Button, Space, notification, Typography, FormInstance} from "antd";
 import {DeleteOutlined, EditOutlined, CheckOutlined} from "@ant-design/icons";
 import CustomCard from "src/components/custom-card/custom-card";

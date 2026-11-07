@@ -1,3 +1,4 @@
+import {useQueryClient} from "@tanstack/react-query";
 import * as React from "react";
 import {flatten} from "lodash-es";
 
@@ -27,12 +28,13 @@ const PaymentLinksPage: React.FC = () => {
     const payments = flatten((listPaymentLinks.data || []).map((page) => page));
     const [isFormSubmitting, setIsFormSubmitting] = React.useState<boolean>(false);
     const {merchantId} = useSharedMerchantId();
+    const queryClient = useQueryClient();
 
     const isLoading =
-        listPaymentLinks.isLoading ||
-        createPaymentLink.isLoading ||
+        listPaymentLinks.isPending ||
+        createPaymentLink.isPending ||
         listPaymentLinks.isFetching ||
-        deletePaymentLink.isLoading;
+        deletePaymentLink.isPending;
 
     const openNotification = (title: string, description: string) => {
         api.info({
@@ -133,7 +135,7 @@ const PaymentLinksPage: React.FC = () => {
         }
 
         await sleep(1000);
-        listPaymentLinks.remove();
+        queryClient.removeQueries({queryKey: ["listPaymentLinks"]});
         await listPaymentLinks.refetch();
     });
 
