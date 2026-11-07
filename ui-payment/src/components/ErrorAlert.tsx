@@ -18,7 +18,7 @@ const ErrorAlert: React.FC<Props> = ({errorText}) => {
     return (
         <Portal node={errorNode.current}>
             <div className="relative w-full h-full transition">
-                <div className="absolute right-10 bottom-10 flex items-center justify-center bg-main-red-2 w-44 h-24 border border-main-error rounded-xl px-2">
+                <div className="absolute right-10 bottom-10 flex items-center justify-center bg-main-red-2 w-44 h-24 border border-main-error rounded-xl px-2 pointer-events-auto">
                     <div>
                         <span className="block font-medium text-sm text-center text-main-error mb-1">
                             Something went wrong
