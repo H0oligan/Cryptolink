@@ -131,6 +131,9 @@ type Querier interface {
 	MarkPaymentWebhookDelivered(ctx context.Context, arg MarkPaymentWebhookDeliveredParams) error
 	MarkPaymentWebhookFailed(ctx context.Context, arg MarkPaymentWebhookFailedParams) error
 	ListPaymentsWithUndeliveredWebhook(ctx context.Context, arg ListPaymentsWithUndeliveredWebhookParams) ([]ListPaymentsWithUndeliveredWebhookRow, error)
+	GetPaymentWebhookStateByPublicID(ctx context.Context, publicID uuid.UUID) (PaymentWebhookState, error)
+	ListPaymentsAwaitingWebhook(ctx context.Context, rowLimit int32) ([]PaymentWebhookState, error)
+	ResetPaymentWebhook(ctx context.Context, merchantID, id int64) (int64, error)
 	InsertTransactionFill(ctx context.Context, arg InsertTransactionFillParams) (TransactionFill, error)
 	ListTransactionFills(ctx context.Context, transactionID int64) ([]TransactionFill, error)
 	SumConfirmedFillsForTx(ctx context.Context, transactionID int64) (pgtype.Numeric, error)

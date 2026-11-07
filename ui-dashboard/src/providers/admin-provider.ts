@@ -44,6 +44,23 @@ export interface AdminUser {
     created_at: string;
 }
 
+export interface AdminPayment {
+    id: number;
+    public_id: string;
+    merchant_id: number;
+    status: string;
+    webhook_attempts: number;
+    webhook_sent_at: string | null;
+    webhook_delivered: boolean;
+    next_attempt_at: string | null;
+    updated_at: string;
+}
+
+export interface ResendWebhookResult {
+    success: boolean;
+    message: string;
+}
+
 export interface PaginatedResponse<T> {
     results: T[];
     total: number;
@@ -209,6 +226,24 @@ const adminProvider = {
 
     async deleteUser(userId: number): Promise<void> {
         await apiRequest.delete(withApiPath(`/admin/users/${userId}`));
+    },
+
+    // Payment support
+    async listPendingWebhookPayments(): Promise<{results: AdminPayment[]}> {
+        const response = await apiRequest.get(withApiPath("/admin/payments/pending-webhooks"));
+        return response.data;
+    },
+
+    async getPaymentByPublicId(publicId: string): Promise<AdminPayment> {
+        const response = await apiRequest.get(withApiPath(`/admin/payments/${encodeURIComponent(publicId)}`));
+        return response.data;
+    },
+
+    async resendWebhook(publicId: string): Promise<ResendWebhookResult> {
+        const response = await apiRequest.post(
+            withApiPath(`/admin/payments/${encodeURIComponent(publicId)}/resend-webhook`)
+        );
+        return response.data;
     },
 
     // Stats

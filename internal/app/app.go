@@ -114,6 +114,10 @@ func (app *App) RunServer() {
 		app.services.UserService(),
 		app.services.ContactService(),
 		app.config.CryptoLink.Subscription.AdminMerchantID,
+		func(ctx context.Context, merchantID, paymentID int64) error {
+			app.registerEventHandlers()
+			return app.paymentEvents.ResendWebhook(ctx, merchantID, paymentID)
+		},
 		app.Logger(),
 	)
 

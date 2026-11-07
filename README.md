@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <strong>Current release: <code>v2.2</code></strong> — see the <a href="https://cryptolink.cc/docs/#changelog">changelog</a> for what changed in each release.<br>
+  <strong>Current release: <code>v2.3</code></strong> — see the <a href="https://cryptolink.cc/docs/#changelog">changelog</a> for what changed in each release.<br>
   Versions are <code>x.y</code>: minor updates go <code>2.0</code> → <code>2.1</code>, and <code>x.0</code> marks a major update. Bundled releases only.
 </p>
 
@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2-10b981.svg" alt="Version 2.2">
+  <img src="https://img.shields.io/badge/version-2.3-10b981.svg" alt="Version 2.3">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
   <img src="https://img.shields.io/badge/go-1.26.10+-00ADD8.svg" alt="Go 1.26.10+">
   <img src="https://img.shields.io/badge/non--custodial-✓-10b981.svg" alt="Non-custodial">
@@ -215,7 +215,7 @@ npx vite build                                        # → ./dist (serve it at 
 
 ```bash
 go build \
-  -ldflags "-w -s -X 'main.gitVersion=v2.2' -X 'main.embedFrontend=1'" \
+  -ldflags "-w -s -X 'main.gitVersion=v2.3' -X 'main.embedFrontend=1'" \
   -o ./bin/cryptolink .
 ```
 

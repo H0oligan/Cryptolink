@@ -1,6 +1,6 @@
 import * as React from "react";
 import {PageContainer} from "@ant-design/pro-components";
-import {Card, Input, Button, Space, Descriptions, Tag, Alert, Typography, Divider, Table, notification} from "antd";
+import {Card, Input, Button, Space, Descriptions, Tag, Alert, Typography, Divider, Table, Popconfirm, notification} from "antd";
 import {SearchOutlined, SendOutlined, ReloadOutlined} from "@ant-design/icons";
 import type {ColumnsType} from "antd/es/table";
 import adminProvider, {AdminPayment} from "src/providers/admin-provider";
@@ -192,6 +192,9 @@ const AdminPaymentsPage: React.FC = () => {
                                 </Descriptions.Item>
                                 <Descriptions.Item label="Merchant ID">{foundPayment.merchant_id}</Descriptions.Item>
                                 <Descriptions.Item label="Webhook Attempts">{foundPayment.webhook_attempts}</Descriptions.Item>
+                                <Descriptions.Item label="Webhook Delivered">
+                                    {foundPayment.webhook_delivered ? <Tag color="success">Yes</Tag> : <Tag color="warning">No</Tag>}
+                                </Descriptions.Item>
                                 <Descriptions.Item label="Webhook Sent At">
                                     {foundPayment.webhook_sent_at
                                         ? new Date(foundPayment.webhook_sent_at).toLocaleString()
@@ -204,14 +207,27 @@ const AdminPaymentsPage: React.FC = () => {
                             </Descriptions>
 
                             <div style={{marginTop: 12}}>
-                                <Button
-                                    type="primary"
-                                    icon={<SendOutlined />}
-                                    loading={resendingIds.has(foundPayment.public_id)}
-                                    onClick={() => handleResend(foundPayment.public_id)}
-                                >
-                                    Resend Webhook
-                                </Button>
+                                {foundPayment.webhook_delivered ? (
+                                    <Popconfirm
+                                        title="This merchant already received this webhook"
+                                        description="Sending it again could fulfil the order twice if their system doesn't handle duplicates."
+                                        okText="Send again"
+                                        onConfirm={() => handleResend(foundPayment.public_id)}
+                                    >
+                                        <Button icon={<SendOutlined />} loading={resendingIds.has(foundPayment.public_id)}>
+                                            Resend Webhook
+                                        </Button>
+                                    </Popconfirm>
+                                ) : (
+                                    <Button
+                                        type="primary"
+                                        icon={<SendOutlined />}
+                                        loading={resendingIds.has(foundPayment.public_id)}
+                                        onClick={() => handleResend(foundPayment.public_id)}
+                                    >
+                                        Resend Webhook
+                                    </Button>
+                                )}
                             </div>
 
                             {resendResult && (

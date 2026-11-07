@@ -204,6 +204,11 @@ func WithDashboardAPI(
 		adminGroup.GET("/users", subscriptionHandler.ListAllUsers)
 		adminGroup.DELETE("/users/:userId", subscriptionHandler.AdminDeleteUser)
 
+		// Admin payment support
+		adminGroup.GET("/payments/pending-webhooks", subscriptionHandler.AdminListPendingWebhookPayments)
+		adminGroup.GET("/payments/:paymentId", subscriptionHandler.AdminGetPayment)
+		adminGroup.POST("/payments/:paymentId/resend-webhook", subscriptionHandler.AdminResendWebhook)
+
 		// Admin email routes
 		adminGroup.GET("/email/settings", emailHandler.GetSettings)
 		adminGroup.PUT("/email/settings", emailHandler.UpdateSettings)

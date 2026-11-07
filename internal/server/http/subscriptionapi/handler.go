@@ -1,6 +1,7 @@
 package subscriptionapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -30,7 +31,11 @@ type Handler struct {
 	contactService      *contact.Service
 	logger              *zerolog.Logger
 	adminMerchantID     int64 // Admin merchant ID for receiving subscription payments
+	resendWebhook       WebhookResender
 }
+
+// WebhookResender sends a payment's current status to its merchant again.
+type WebhookResender func(ctx context.Context, merchantID, paymentID int64) error
 
 func New(
 	subscriptionService *subscription.Service,
@@ -39,6 +44,7 @@ func New(
 	userService *user.Service,
 	contactService *contact.Service,
 	adminMerchantID int64,
+	resendWebhook WebhookResender,
 	logger *zerolog.Logger,
 ) *Handler {
 	log := logger.With().Str("channel", "subscription_api").Logger()
@@ -51,6 +57,7 @@ func New(
 		contactService:      contactService,
 		logger:              &log,
 		adminMerchantID:     adminMerchantID,
+		resendWebhook:       resendWebhook,
 	}
 }
 

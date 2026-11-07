@@ -276,6 +276,18 @@ func (h *Handler) deliverWebhook(ctx context.Context, merchantID, paymentID int6
 		return err
 	}
 
+	// A paid subscription must activate whether or not the merchant's webhook can be
+	// delivered: the admin merchant that collects subscription payments has no webhook
+	// URL at all. Activation only acts on a pending_payment subscription, so retried
+	// and re-sent deliveries cannot apply it twice.
+	if p.Payment.Status == payment.StatusSuccess {
+		if err := h.handleSubscriptionPayment(ctx, p.Payment.ID); err != nil {
+			h.logger.Error().Err(err).
+				Int64("payment_id", p.Payment.ID).
+				Msg("failed to handle subscription payment")
+		}
+	}
+
 	if webhookURL == "" {
 		h.logger.Warn().
 			Int64("merchant_id", merchantID).Int64("payment_id", paymentID).
@@ -315,17 +327,30 @@ func (h *Handler) deliverWebhook(ctx context.Context, merchantID, paymentID int6
 		Str("webhook_url", webhookURL).
 		Msg("sent webhook to merchant")
 
-	// Handle subscription activation if payment is for a subscription
-	if p.Payment.Status == payment.StatusSuccess {
-		if err := h.handleSubscriptionPayment(ctx, p.Payment.ID); err != nil {
-			h.logger.Error().Err(err).
-				Int64("payment_id", p.Payment.ID).
-				Msg("failed to handle subscription payment")
-			// Don't fail the whole webhook processing if subscription activation fails
-		}
+	return nil
+}
+
+// ErrWebhookURLNotSet means the merchant has nowhere to receive a webhook.
+var ErrWebhookURLNotSet = errors.New("merchant has no webhook URL")
+
+// ResendWebhook is the support action behind the admin Payments page: it clears the
+// delivery record and sends the payment's current status now. A failed send keeps
+// retrying on the normal backoff. The merchant receives this even if the status was
+// already delivered, so it can see the same event twice.
+func (h *Handler) ResendWebhook(ctx context.Context, merchantID, paymentID int64) error {
+	mt, err := h.merchants.GetByID(ctx, merchantID, false)
+	if err != nil {
+		return errors.Wrap(err, "unable to get merchant")
+	}
+	if mt.Settings().WebhookURL() == "" {
+		return ErrWebhookURLNotSet
 	}
 
-	return nil
+	if err := h.payments.ResetWebhook(ctx, merchantID, paymentID); err != nil {
+		return err
+	}
+
+	return h.deliverWebhook(ctx, merchantID, paymentID)
 }
 
 func (h *Handler) handleWebhookFailure(
